@@ -54,9 +54,24 @@ class AmneziaWGConfig(WireGuardConfig):
                     self[field] = value
                 continue
 
-            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                raise ValueError(f"{field} must be a non-negative integer")
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{field} must be an integer")
+
+            if field == "jc" and not 0 <= value <= 10:
+                raise ValueError(f"{field} must be between 0 and 10")
+            if field in ("jmin", "jmax") and not 64 <= value <= 1024:
+                raise ValueError(f"{field} must be between 64 and 1024")
+            if field in ("s1", "s2", "s3") and not 0 <= value <= 64:
+                raise ValueError(f"{field} must be between 0 and 64")
+            if field == "s4" and not 0 <= value <= 32:
+                raise ValueError(f"{field} must be between 0 and 32")
+
             self[field] = value
+
+        jmin = self.get("jmin")
+        jmax = self.get("jmax")
+        if jmin is not None and jmax is not None and jmin > jmax:
+            raise ValueError("jmin must be less than or equal to jmax")
 
         # Keep validation semantics aligned with the AWG 2.x runtime implementation.
         # The node validates the same values with awgctrl-go before applying them.
