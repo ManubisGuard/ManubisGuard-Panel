@@ -84,7 +84,7 @@ def test_amneziawg_subscription_uses_canonical_key_names():
 
 
 def test_amneziawg_subscription_emits_all_canonical_keys_and_ignores_unknown():
-    from app.models.subscription import SubscriptionInboundData
+    from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
     from app.subscription.wireguard import WireGuardConfiguration
 
     inbound = SubscriptionInboundData(
@@ -94,8 +94,8 @@ def test_amneziawg_subscription_emits_all_canonical_keys_and_ignores_unknown():
         address=["1.2.3.4"],
         port=[51820],
         network="udp",
-        tls_config=None,
-        transport_config=None,
+        tls_config=TLSConfig(),
+        transport_config=TCPTransportConfig(),
         wireguard_public_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         wireguard_pre_shared_key=None,
         wireguard_local_address=["10.0.0.1/24"],
