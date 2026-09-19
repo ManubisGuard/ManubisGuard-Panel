@@ -113,7 +113,6 @@ class AmneziaWGConfig(WireGuardConfig):
                     if start_a <= end_b and start_b <= end_a:
                         raise ValueError("h1, h2, h3 and h4 ranges must not overlap")
 
-
     def _resolve_inbounds(self):
         super()._resolve_inbounds()
         for metadata in self._inbounds_by_tag.values():
