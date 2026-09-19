@@ -55,7 +55,7 @@ class AmneziaWGConfig(WireGuardConfig):
                 continue
 
             if isinstance(value, bool) or not isinstance(value, int):
-                raise ValueError(f"{field} must be an integer")
+                raise TypeError(f"{field} must be an integer")
 
             if field == "jc" and not 0 <= value <= 10:
                 raise ValueError(f"{field} must be between 0 and 10")
