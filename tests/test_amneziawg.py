@@ -44,10 +44,10 @@ def test_amneziawg_config_rejects_invalid_values(field: str, value: int):
 
 def test_amneziawg_allows_values_not_restricted_by_awgctrl_validation():
     config = _base_config()
-    config.update({"s1": 0, "s2": 56, "s3": 0, "s4": 8})
+    config.update({"s1": 0, "s2": 56, "s3": 1, "s4": 8})
     awg = AmneziaWGConfig(config)
     assert awg["s1"] == 0
-    assert awg["s3"] == 0
+    assert awg["s3"] == 1
 
     config = _base_config()
     config.update({"h1": "100-200", "h2": "200-300", "i1": "<r 16>"})
@@ -97,7 +97,7 @@ def test_amneziawg_subscription_emits_all_canonical_keys_and_ignores_unknown():
         tls_config=TLSConfig(),
         transport_config=TCPTransportConfig(),
         wireguard_public_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-        wireguard_pre_shared_key=None,
+        wireguard_pre_shared_key="",
         wireguard_local_address=["10.0.0.1/24"],
         wireguard_allowed_ips=["0.0.0.0/0"],
         wireguard_keepalive=None,
