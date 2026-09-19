@@ -44,7 +44,7 @@ class AmneziaWGConfig(WireGuardConfig):
             if field not in self:
                 continue
             value = self[field]
-            if field.startswith("h") or field.startswith("i"):
+            if field.startswith(("h", "i")):
                 if not isinstance(value, str):
                     raise TypeError(f"{field} must be a string")
                 value = value.strip()
