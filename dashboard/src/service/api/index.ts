@@ -1430,6 +1430,7 @@ export type CoreType = typeof CoreType[keyof typeof CoreType];
 export const CoreType = {
   xray: 'xray',
   wg: 'wg',
+  amneziawg: 'amneziawg',
   mtproto: 'mtproto',
   singbox: 'singbox',
 } as const;
