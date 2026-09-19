@@ -54,7 +54,7 @@ class AmneziaWGConfig(WireGuardConfig):
                     self[field] = value
                 continue
 
-            if not isinstance(value, int) or value < 0:
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{field} must be a non-negative integer")
             self[field] = value
 
@@ -75,10 +75,6 @@ class AmneziaWGConfig(WireGuardConfig):
             if value is not None and (value < 0 or value > (32 if field == "s4" else 64)):
                 raise ValueError(f"{field} is outside the supported AmneziaWG kernel range")
 
-        headers = [self.get(f"h{i}") for i in range(1, 5)]
-        headers = [h for h in headers if h]
-        if len(headers) != len(set(headers)):
-            raise ValueError("h1, h2, h3 and h4 must be unique")
 
     def _resolve_inbounds(self):
         super()._resolve_inbounds()
