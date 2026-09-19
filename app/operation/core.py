@@ -95,7 +95,7 @@ class CoreOperation(BaseOperation):
         return RealityScanResult.model_validate(result)
 
     async def create_core(self, db: AsyncSession, new_core: CoreCreate, admin: AdminDetails) -> CoreResponse:
-        if new_core.type == CoreType.wg:
+        if new_core.type in (CoreType.wg, CoreType.amneziawg):
             await self._validate_wireguard_subnet(db, new_core.config, exclude_core_id=None)
         try:
             validated_core = core_manager.validate_core(
@@ -114,7 +114,7 @@ class CoreOperation(BaseOperation):
         core = CoreResponse.model_validate(db_core)
         asyncio.create_task(notification.create_core(core, admin.username))
 
-        if new_core.type == CoreType.wg:
+        if new_core.type in (CoreType.wg, CoreType.amneziawg):
             await self._ensure_wireguard_pools(db)
         await self._refresh_hosts_from_db(db)
 
@@ -136,8 +136,8 @@ class CoreOperation(BaseOperation):
         self, db: AsyncSession, core_id: int, modified_core: CoreCreate, admin: AdminDetails
     ) -> CoreResponse:
         db_core = await self.get_validated_core_config(db, core_id)
-        was_wg = db_core.type == CoreType.wg
-        if modified_core.type == CoreType.wg:
+        was_wg = db_core.type in (CoreType.wg, CoreType.amneziawg)
+        if modified_core.type in (CoreType.wg, CoreType.amneziawg):
             await self._validate_wireguard_subnet(db, modified_core.config, exclude_core_id=db_core.id)
         try:
             validated_core = core_manager.validate_core(
@@ -157,7 +157,7 @@ class CoreOperation(BaseOperation):
         core = CoreResponse.model_validate(db_core)
         asyncio.create_task(notification.modify_core(core, admin.username))
 
-        if was_wg or modified_core.type == CoreType.wg:
+        if was_wg or modified_core.type in (CoreType.wg, CoreType.amneziawg):
             await self._reconcile_wireguard(db)
         await self._refresh_hosts_from_db(db)
 
@@ -168,7 +168,7 @@ class CoreOperation(BaseOperation):
             return await self.raise_error(message="Cannot delete default core config", code=403)
 
         db_core = await self.get_validated_core_config(db, core_id)
-        was_wg = db_core.type == CoreType.wg
+        was_wg = db_core.type in (CoreType.wg, CoreType.amneziawg)
 
         await remove_core_config(db, db_core)
         await core_manager.remove_core(db_core.id)
@@ -199,7 +199,7 @@ class CoreOperation(BaseOperation):
 
         core_ids = [c.id for c in db_cores_list]
         core_names = [c.name for c in db_cores_list]
-        any_wg = any(c.type == CoreType.wg for c in db_cores_list)
+        any_wg = any(c.type in (CoreType.wg, CoreType.amneziawg) for c in db_cores_list)
 
         # Batch delete using CRUD function
         await remove_cores(db, core_ids)
