@@ -350,7 +350,7 @@ class NodeOperation(BaseOperation):
             except Exception:
                 pass
 
-        type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
+        type = service.BackendType.WIREGUARD if core.type in (CoreType.wg, CoreType.amneziawg) else service.BackendType.XRAY
         NodeOperation._in_flight_connects.add(db_node.id)
 
         try:
