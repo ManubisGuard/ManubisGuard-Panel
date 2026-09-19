@@ -61,19 +61,19 @@ class AmneziaWGConfig(WireGuardConfig):
         jc = self.get("jc")
         jmin = self.get("jmin")
         jmax = self.get("jmax")
-        if jc is not None and jc > 128:
-            raise ValueError("jc must be between 0 and 128")
-        if jmin is not None and jmin > 1280:
-            raise ValueError("jmin must be between 0 and 1280")
-        if jmax is not None and jmax > 1280:
-            raise ValueError("jmax must be between 0 and 1280")
+        if jc is not None and jc > 10:
+            raise ValueError("jc must be between 0 and 10")
+        if jmin is not None and (jmin < 64 or jmin > 1024):
+            raise ValueError("jmin must be between 64 and 1024")
+        if jmax is not None and (jmax < 64 or jmax > 1024):
+            raise ValueError("jmax must be between 64 and 1024")
         if jmin is not None and jmax is not None and jmax < jmin:
             raise ValueError("jmax must be greater than or equal to jmin")
 
         for field in ("s1", "s2", "s3", "s4"):
             value = self.get(field)
-            if value is not None and value > 1280:
-                raise ValueError(f"{field} must be between 0 and 1280")
+            if value is not None and (value < 0 or value > (32 if field == "s4" else 64)):
+                raise ValueError(f"{field} is outside the supported AmneziaWG kernel range")
 
         headers = [self.get(f"h{i}") for i in range(1, 5)]
         headers = [h for h in headers if h]
