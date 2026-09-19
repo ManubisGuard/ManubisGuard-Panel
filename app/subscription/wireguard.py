@@ -61,8 +61,9 @@ class WireGuardConfiguration(BaseSubscription):
                 "i5": "I5",
             }
             for key, value in inbound.amneziawg_params.items():
-                if value is not None and value != "":
-                    config_data["Interface"][awg_key_names.get(key, key)] = str(value)
+                output_key = awg_key_names.get(key)
+                if output_key and value is not None and value != "":
+                    config_data["Interface"][output_key] = str(value)
 
         # Optional Interface settings
         if mtu := payload.get("mtu"):
