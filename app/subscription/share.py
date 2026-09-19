@@ -292,6 +292,8 @@ async def process_host(
 
     # Get user settings for this protocol
     settings = proxies.get(inbound.protocol)
+    if inbound.protocol == "amneziawg" and not settings:
+        settings = proxies.get("wireguard")
     if not settings:
         return
     settings = dict(settings)
