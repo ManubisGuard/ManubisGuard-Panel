@@ -1,6 +1,7 @@
 import asyncio
 from logging.config import fileConfig
 from sqlalchemy import JSON
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import BigInteger
 from sqlalchemy import pool
 from sqlalchemy.dialects.postgresql import JSONB
@@ -43,6 +44,14 @@ def _compare_type(context, inspected_column, metadata_column, inspected_type, me
     false-positive autogenerate diffs.
     """
     if context.dialect.name == "sqlite":
+        # SQLite stores SQLAlchemy Enum columns as VARCHAR. Enum additions such as
+        # AmneziaWG are represented by data-compatible VARCHAR on SQLite, so an
+        # autogenerate type diff here is a false positive.
+        if inspected_column.table.name == "core_configs" and inspected_column.name == "type" and isinstance(
+            metadata_type, SQLEnum
+        ):
+            return False
+
         sqlite_bigint_equivalent = (
             (isinstance(inspected_type, BigInteger) and isinstance(metadata_type, SqliteCompatibleBigInteger))
             or (isinstance(inspected_type, SqliteCompatibleBigInteger) and isinstance(metadata_type, BigInteger))
