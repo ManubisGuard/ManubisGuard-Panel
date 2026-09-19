@@ -93,7 +93,7 @@ async def _prepare_subscription_inbound_data(
     final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
     finalmask_link = _normalize_finalmask_link(final_mask_settings)
 
-    if protocol == "wireguard":
+    if protocol in ("wireguard", "amneziawg"):
         wg_over: WireGuardHostOverrides | None = host.wireguard_overrides
         if wg_over is None:
             wg_over = WireGuardHostOverrides()
@@ -131,6 +131,8 @@ async def _prepare_subscription_inbound_data(
             wireguard_mtu=wg_over.mtu,
             wireguard_reserved=reserved,
             wireguard_dns=dns,
+            amneziawg=protocol == "amneziawg",
+            amneziawg_params=dict(inbound_config.get("amneziawg") or {}),
             fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
             noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
             finalmask=final_mask_settings,
