@@ -279,6 +279,8 @@ class SubscriptionInboundData(BaseModel):
     wireguard_mtu: int | None = Field(default=None)
     wireguard_reserved: str | None = Field(default=None)
     wireguard_dns: list[str] | None = Field(default=None)
+    amneziawg: bool = Field(False)
+    amneziawg_params: dict[str, Any] = Field(default_factory=dict)
 
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")
