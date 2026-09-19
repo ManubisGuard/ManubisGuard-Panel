@@ -32,13 +32,19 @@ def test_amneziawg_config_sets_type_and_preserves_params():
         ("jmin", 63),
         ("jmax", 1025),
         ("s4", 33),
-        ("jmin", 128),
-        ("jmax", 64),
     ],
 )
 def test_amneziawg_config_rejects_invalid_values(field: str, value: int):
     config = _base_config()
     config[field] = value
+
+    with pytest.raises(ValueError):
+        AmneziaWGConfig(config)
+
+
+def test_amneziawg_rejects_jmin_greater_than_jmax():
+    config = _base_config()
+    config.update({"jmin": 128, "jmax": 64})
 
     with pytest.raises(ValueError):
         AmneziaWGConfig(config)
