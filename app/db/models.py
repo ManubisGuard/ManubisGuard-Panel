@@ -856,6 +856,7 @@ class Group(Base, IdMixin):
 class CoreType(str, Enum):
     xray = "xray"
     wg = "wg"
+    amneziawg = "amneziawg"
     mtproto = "mtproto"
     singbox = "singbox"
 
