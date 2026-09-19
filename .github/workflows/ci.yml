@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "feature/amnezia-wg"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.14"
+      - run: uv sync --dev
+      - run: uv run ruff check app tests
+      - run: uv run pytest tests/test_amneziawg.py -q
+
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.0.0"
+      - run: bun install --frozen-lockfile
+      - run: bun run build
