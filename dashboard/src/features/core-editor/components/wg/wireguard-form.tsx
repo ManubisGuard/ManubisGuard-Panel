@@ -3,6 +3,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
@@ -62,6 +63,24 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
   const caps = useMemo(() => getWireGuardCoreFormCapabilities(), [])
 
   const values = useMemo(() => (draft ? draftToFormValues(draft, caps.fieldOrder) : {}), [draft, caps.fieldOrder])
+
+  const awgExtra = (draft?.extra ?? {}) as Record<string, unknown>
+  const awgEnabled = awgExtra.amneziawg === true
+  const setAwg = (enabled: boolean) => {
+    updateWgDraft(d => ({ ...d, extra: { ...d.extra, amneziawg: enabled } }))
+  }
+  const setAwgField = (key: string, value: string) => {
+    updateWgDraft(d => {
+      const extra = { ...d.extra }
+      if (value.trim() === '') delete extra[key]
+      else extra[key] = /^\\d+$/.test(value.trim()) ? Number(value.trim()) : value.trim()
+      return { ...d, extra }
+    })
+  }
+  const awgFields = [
+    ['jc', 'Jc'], ['jmin', 'Jmin'], ['jmax', 'Jmax'], ['s1', 'S1'], ['s2', 'S2'], ['s3', 'S3'], ['s4', 'S4'],
+    ['h1', 'H1'], ['h2', 'H2'], ['h3', 'H3'], ['h4', 'H4'], ['i1', 'I1'], ['i2', 'I2'], ['i3', 'I3'], ['i4', 'I4'], ['i5', 'I5'],
+  ] as const
 
   const form = useForm<Record<string, string>>({ values })
   const formFieldOrder = useMemo(() => orderedWireGuardFieldKeys(caps.fieldOrder), [caps.fieldOrder])
@@ -331,6 +350,34 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
             }
             return null
           })}
+        </div>
+
+        <div className="rounded-lg border p-4 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="font-medium">AmneziaWG</div>
+              <div className="text-muted-foreground text-xs">AmneziaWG obfuscation parameters for this WireGuard interface.</div>
+            </div>
+            <Switch checked={awgEnabled} onCheckedChange={setAwg} aria-label="Enable AmneziaWG" />
+          </div>
+          {awgEnabled && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {awgFields.map(([key, label]) => (
+                <div key={key} className="space-y-2">
+                  <label className="text-sm font-medium">{label}</label>
+                  <Input
+                    type="text"
+                    inputMode={key.startsWith('h') || key.startsWith('i') ? 'text' : 'numeric'}
+                    value={String(awgExtra[key] ?? '')}
+                    onChange={e => setAwgField(key, e.target.value)}
+                    placeholder={key.startsWith('h') ? 'e.g. 1234567-2345678' : key.startsWith('i') ? '<r 32>' : ''}
+                    className="text-xs"
+                    dir="ltr"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </form>
     </Form>
