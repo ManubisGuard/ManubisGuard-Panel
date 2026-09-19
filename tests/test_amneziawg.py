@@ -78,3 +78,10 @@ def test_amneziawg_subscription_uses_canonical_key_names():
     assert "H1 = 123456-123999" in output
     assert "I1 = <r 16>" in output
     assert "JC =" not in output
+
+
+def test_amneziawg_rejects_partial_init_chain():
+    config = _base_config()
+    config["i1"] = "<r 16>"
+    with pytest.raises(ValueError, match="must be configured together"):
+        AmneziaWGConfig(config)
