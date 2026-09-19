@@ -38,6 +38,7 @@ class AmneziaWGConfig(WireGuardConfig):
 
     def _validate(self):
         super()._validate()
+        self["amneziawg"] = True
 
         for field in AWG_OBFUSCATION_FIELDS:
             if field not in self:
