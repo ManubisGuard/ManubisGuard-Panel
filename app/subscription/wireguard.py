@@ -41,6 +41,10 @@ class WireGuardConfiguration(BaseSubscription):
                 "Endpoint": f"{address}:{inbound.port}",
             },
         }
+        if inbound.amneziawg:
+            for key, value in inbound.amneziawg_params.items():
+                if value is not None and value != "":
+                    config_data["Interface"][key.upper()] = str(value)
 
         # Optional Interface settings
         if mtu := payload.get("mtu"):
