@@ -7,6 +7,7 @@ class ProxyProtocol(IntEnum):
     trojan = 3
     shadowsocks = 4
     wireguard = 5
+    amneziawg = 7
     hysteria = 6
 
     @classmethod
