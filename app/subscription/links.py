@@ -55,6 +55,7 @@ class StandardLinks(BaseSubscription):
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
             "wireguard": self._build_wireguard,
+            "amneziawg": self._build_wireguard,
         }
 
     def add_link(self, link):
