@@ -52,3 +52,29 @@ def test_amneziawg_rejects_padding_and_header_collisions():
     config.update({"h1": "100-200", "h2": "200-300", "h3": "400", "h4": "500"})
     with pytest.raises(ValueError, match="ranges must not overlap"):
         AmneziaWGConfig(config)
+
+
+def test_amneziawg_subscription_uses_canonical_key_names():
+    from app.subscription.wireguard import WireGuardConfiguration
+
+    renderer = WireGuardConfiguration()
+    output = renderer._render_config(
+        {
+            "Interface": {
+                "Jc": "3",
+                "Jmin": "64",
+                "Jmax": "128",
+                "S1": "16",
+                "H1": "123456-123999",
+                "I1": "<r 16>",
+            }
+        }
+    )
+
+    assert "Jc = 3" in output
+    assert "Jmin = 64" in output
+    assert "Jmax = 128" in output
+    assert "S1 = 16" in output
+    assert "H1 = 123456-123999" in output
+    assert "I1 = <r 16>" in output
+    assert "JC =" not in output
