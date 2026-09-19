@@ -40,3 +40,15 @@ def test_amneziawg_config_rejects_invalid_values(field: str, value: int):
 
     with pytest.raises(ValueError):
         AmneziaWGConfig(config)
+
+
+def test_amneziawg_rejects_padding_and_header_collisions():
+    config = _base_config()
+    config.update({"s1": 0, "s2": 56, "s3": 0, "s4": 8})
+    with pytest.raises(ValueError, match="colliding packet sizes"):
+        AmneziaWGConfig(config)
+
+    config = _base_config()
+    config.update({"h1": "100-200", "h2": "200-300", "h3": "400", "h4": "500"})
+    with pytest.raises(ValueError, match="ranges must not overlap"):
+        AmneziaWGConfig(config)
