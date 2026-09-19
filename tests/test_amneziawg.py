@@ -32,6 +32,8 @@ def test_amneziawg_config_sets_type_and_preserves_params():
         ("jmin", 63),
         ("jmax", 1025),
         ("s4", 33),
+        ("jmin", 128),
+        ("jmax", 64),
     ],
 )
 def test_amneziawg_config_rejects_invalid_values(field: str, value: int):
