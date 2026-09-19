@@ -213,7 +213,7 @@ export default function CoreEditorPage() {
 
   useEffect(() => {
     if (isNew) {
-      const k = (searchParams.get('kind') as CoreKind | null) === 'wg' ? 'wg' : 'xray'
+      const k = (searchParams.get('kind') as CoreKind | null) === 'wg' || searchParams.get('kind') === 'amneziawg' ? 'wg' : 'xray'
       const currentName = useCoreEditorStore.getState().coreName
       initNew(k, currentName)
     }
@@ -288,7 +288,7 @@ export default function CoreEditorPage() {
           const res = await createMutation.mutateAsync({
             data: {
               name,
-              type: 'wg',
+              type: cfg.amneziawg === true ? 'amneziawg' : 'wg',
               config: cfg,
               exclude_inbound_tags: [],
               fallbacks_inbound_tags: [],
@@ -304,7 +304,7 @@ export default function CoreEditorPage() {
             coreId: numericId,
             data: {
               name,
-              type: 'wg',
+              type: cfg.amneziawg === true ? 'amneziawg' : 'wg',
               config: cfg,
               exclude_inbound_tags: [],
               fallbacks_inbound_tags: [],
