@@ -73,7 +73,7 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
     updateWgDraft(d => {
       const extra = { ...d.extra }
       if (value.trim() === '') delete extra[key]
-      else extra[key] = /^\\d+$/.test(value.trim()) ? Number(value.trim()) : value.trim()
+      else extra[key] = /^\d+$/.test(value.trim()) ? Number(value.trim()) : value.trim()
       return { ...d, extra }
     })
   }
