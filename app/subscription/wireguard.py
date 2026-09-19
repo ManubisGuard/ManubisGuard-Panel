@@ -42,9 +42,27 @@ class WireGuardConfiguration(BaseSubscription):
             },
         }
         if inbound.amneziawg:
+            awg_key_names = {
+                "jc": "Jc",
+                "jmin": "Jmin",
+                "jmax": "Jmax",
+                "s1": "S1",
+                "s2": "S2",
+                "s3": "S3",
+                "s4": "S4",
+                "h1": "H1",
+                "h2": "H2",
+                "h3": "H3",
+                "h4": "H4",
+                "i1": "I1",
+                "i2": "I2",
+                "i3": "I3",
+                "i4": "I4",
+                "i5": "I5",
+            }
             for key, value in inbound.amneziawg_params.items():
                 if value is not None and value != "":
-                    config_data["Interface"][key.upper()] = str(value)
+                    config_data["Interface"][awg_key_names.get(key, key)] = str(value)
 
         # Optional Interface settings
         if mtu := payload.get("mtu"):
