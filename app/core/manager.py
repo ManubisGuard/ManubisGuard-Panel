@@ -12,6 +12,7 @@ from app import on_shutdown, on_startup
 from app.core.abstract_core import AbstractCore
 from app.core.wireguard import WireGuardConfig
 from app.core.amneziawg import AmneziaWGConfig
+from app.core.amneziawg import AmneziaWGConfig
 from app.core.xray import XRayConfig
 from app.db import GetDB
 from app.db.crud.core import get_core_configs
@@ -31,6 +32,7 @@ class CoreManager:
     CORE_CLASSES: ClassVar[dict] = {
         CoreType.xray: XRayConfig,
         CoreType.wg: WireGuardConfig,
+        CoreType.amneziawg: AmneziaWGConfig,
     }
 
     def __init__(self):
