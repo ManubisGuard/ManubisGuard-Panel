@@ -113,6 +113,10 @@ class AmneziaWGConfig(WireGuardConfig):
                     if start_a <= end_b and start_b <= end_a:
                         raise ValueError("h1, h2, h3 and h4 ranges must not overlap")
 
+        init_chain = [self.get(field) for field in ("i1", "i2", "i3", "i4", "i5")]
+        if any(value not in (None, "") for value in init_chain) and any(value in (None, "") for value in init_chain):
+            raise ValueError("i1, i2, i3, i4 and i5 must be configured together")
+
     def _resolve_inbounds(self):
         super()._resolve_inbounds()
         for metadata in self._inbounds_by_tag.values():
