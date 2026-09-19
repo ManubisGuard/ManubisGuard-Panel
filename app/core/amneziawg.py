@@ -70,10 +70,48 @@ class AmneziaWGConfig(WireGuardConfig):
         if jmin is not None and jmax is not None and jmax < jmin:
             raise ValueError("jmax must be greater than or equal to jmin")
 
+        padding = {}
         for field in ("s1", "s2", "s3", "s4"):
             value = self.get(field)
             if value is not None and (value < 0 or value > (32 if field == "s4" else 64)):
                 raise ValueError(f"{field} is outside the supported AmneziaWG kernel range")
+            if value is not None:
+                padding[field] = value
+
+        if len(padding) == 4:
+            if len(set(padding.values())) != 4:
+                raise ValueError("s1, s2, s3 and s4 should be unique")
+            packet_sizes = {
+                "s1": padding["s1"] + 148,
+                "s2": padding["s2"] + 92,
+                "s3": padding["s3"] + 64,
+            }
+            if len(set(packet_sizes.values())) != 3:
+                raise ValueError("S1/S2/S3 produce colliding packet sizes")
+
+        def _header_range(value: str, field: str) -> tuple[int, int]:
+            parts = value.split("-", 1)
+            try:
+                start = int(parts[0].strip())
+                end = int(parts[1].strip()) if len(parts) == 2 else start
+            except ValueError as exc:
+                raise ValueError(f"{field} must be a number or a numeric range") from exc
+            if start < 0 or end < 0 or start > 2_147_483_647 or end > 2_147_483_647 or start > end:
+                raise ValueError(f"{field} is outside the supported AmneziaWG header range")
+            return start, end
+
+        header_ranges = {}
+        for field in ("h1", "h2", "h3", "h4"):
+            value = self.get(field)
+            if value:
+                header_ranges[field] = _header_range(value, field)
+
+        if len(header_ranges) == 4:
+            ordered = list(header_ranges.values())
+            for index, (start_a, end_a) in enumerate(ordered):
+                for start_b, end_b in ordered[index + 1 :]:
+                    if start_a <= end_b and start_b <= end_a:
+                        raise ValueError("h1, h2, h3 and h4 ranges must not overlap")
 
 
     def _resolve_inbounds(self):
