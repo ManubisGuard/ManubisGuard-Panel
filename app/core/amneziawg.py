@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import secrets
 
 from app.core.wireguard import WireGuardConfig
 
@@ -64,14 +65,53 @@ class AmneziaWGConfig(WireGuardConfig):
             # blocked by stale UI-side limits.
             self[field] = value
 
-        jmin = self.get("jmin")
-        jmax = self.get("jmax")
-        if jmin is not None and jmax is not None and jmin > jmax:
+        # Match Nova's operational model: a newly-created AWG core must
+        # have a complete, known-good obfuscation profile instead of silently
+        # falling back to plain WireGuard. Explicit operator values always win.
+        defaults = {
+            "jc": 3,
+            "jmin": 20,
+            "jmax": 50,
+            "s1": 15,
+            "s2": 64,
+            "s3": 25,
+            "s4": 8,
+        }
+        for field, default in defaults.items():
+            if field not in self:
+                self[field] = default
+
+        jmin = self["jmin"]
+        jmax = self["jmax"]
+        if jmin > jmax:
             raise ValueError("jmin must be less than or equal to jmax")
 
-        # The node performs the final protocol/kernel validation before applying
-        # the configuration. The panel intentionally avoids duplicating a fixed
-        # AWG range so newer kernel/runtime capabilities are not blocked here.
+        # H1-H4 are per-interface magic headers. Mint unique values when they
+        # are absent, exactly like a normal Nova AWG deployment. Keep them as
+        # strings because the node/awg userspace accepts both single values and
+        # ranges.
+        used_headers: set[int] = set()
+        for field in ("h1", "h2", "h3", "h4"):
+            raw = self.get(field)
+            if raw is None or (isinstance(raw, str) and not raw.strip()):
+                while True:
+                    value = secrets.randbelow(2_147_483_642) + 5
+                    if value not in used_headers:
+                        used_headers.add(value)
+                        self[field] = str(value)
+                        break
+            else:
+                text = str(raw).strip()
+                self[field] = text
+                # Single numeric headers can be checked for uniqueness here;
+                # ranges are left to the node/kernel validator.
+                if text.isdigit():
+                    value = int(text)
+                    if value in used_headers:
+                        raise ValueError("h1-h4 single-value headers must be unique")
+                    used_headers.add(value)
+
+        # The node remains the final authority for kernel-specific representability.
 
     def _resolve_inbounds(self):
         super()._resolve_inbounds()
