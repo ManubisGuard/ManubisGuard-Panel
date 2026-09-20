@@ -1377,7 +1377,7 @@ def test_amneziawg_subscription_includes_awg2_parameters(access_token):
             "interface_name": interface_name,
             "private_key": interface_private_key,
             "listen_port": 51820,
-            "address": ["10.50.0.1/24"],
+            "address": ["172.31.50.1/24"],
             "jc": 3,
             "jmin": 64,
             "jmax": 128,
