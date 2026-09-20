@@ -1364,6 +1364,103 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         delete_core(access_token, core["id"])
 
 
+def test_amneziawg_subscription_includes_awg2_parameters(access_token):
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_public_key = get_wireguard_public_key(interface_private_key)
+    interface_name = unique_name("awg_subscription")
+    endpoint = "198.51.100.20"
+
+    core = create_core(
+        access_token,
+        name=unique_name("amneziawg_subscription_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.50.0.1/24"],
+            "jc": 3,
+            "jmin": 64,
+            "jmax": 128,
+            "s1": 15,
+            "s2": 64,
+            "s3": 25,
+            "s4": 8,
+            "h1": "1851500115",
+            "h2": "163827579",
+            "h3": "775454101",
+            "h4": "1260834266",
+        },
+        type="amneziawg",
+        fallbacks=[],
+    )
+
+    host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "AWG {USERNAME}",
+            "address": [endpoint],
+            "port": 51820,
+            "inbound_tag": interface_name,
+            "priority": 1,
+            "wireguard_overrides": {
+                "dns": ["1.1.1.1", "8.8.8.8"],
+            },
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host_id = host_response.json()["id"]
+
+    group = create_group(access_token, name=unique_name("awg_subscription_group"), inbound_tags=[interface_name])
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("awg_user")})
+
+    try:
+        links_response = client.get(f"{user['subscription_url']}/links")
+        wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
+
+        assert links_response.status_code == status.HTTP_200_OK
+        assert wireguard_response.status_code == status.HTTP_200_OK
+
+        link = links_response.text.strip()
+        assert link.startswith("wireguard://")
+
+        parsed = urlsplit(link)
+        query = parse_qs(parsed.query)
+        assert unquote(parsed.username or "") == user["proxy_settings"]["wireguard"]["private_key"]
+        assert parsed.hostname == endpoint
+        assert parsed.port == 51820
+        assert query["publickey"] == [interface_public_key]
+        assert query["jc"] == ["3"]
+        assert query["jmin"] == ["64"]
+        assert query["jmax"] == ["128"]
+        assert query["s1"] == ["15"]
+        assert query["s2"] == ["64"]
+        assert query["s3"] == ["25"]
+        assert query["s4"] == ["8"]
+        assert query["h1"] == ["1851500115"]
+        assert query["h4"] == ["1260834266"]
+
+        config_bodies = extract_wireguard_config_bodies(wireguard_response)
+        assert len(config_bodies) == 1
+        body = config_bodies[0]
+        assert "Jc = 3" in body
+        assert "Jmin = 64" in body
+        assert "Jmax = 128" in body
+        assert "S1 = 15" in body
+        assert "S2 = 64" in body
+        assert "S3 = 25" in body
+        assert "S4 = 8" in body
+        assert "H1 = 1851500115" in body
+        assert "H4 = 1260834266" in body
+        assert "DNS = 1.1.1.1, 8.8.8.8" in body
+        assert f"Endpoint = {endpoint}:51820" in body
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
 def test_xray_subscription_includes_wireguard_outbound(access_token):
     interface_private_key, _ = generate_wireguard_keypair()
     interface_public_key = get_wireguard_public_key(interface_private_key)
