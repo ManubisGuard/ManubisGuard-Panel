@@ -57,15 +57,11 @@ class AmneziaWGConfig(WireGuardConfig):
             if isinstance(value, bool) or not isinstance(value, int):
                 raise TypeError(f"{field} must be an integer")
 
-            if field == "jc" and not 0 <= value <= 10:
-                raise ValueError(f"{field} must be between 0 and 10")
-            if field in ("jmin", "jmax") and not 64 <= value <= 1024:
-                raise ValueError(f"{field} must be between 64 and 1024")
-            if field in ("s1", "s2", "s3") and not 0 <= value <= 64:
-                raise ValueError(f"{field} must be between 0 and 64")
-            if field == "s4" and not 0 <= value <= 32:
-                raise ValueError(f"{field} must be between 0 and 32")
-
+            # Do not impose an application-defined AWG numeric range here.
+            # The node/kernel implementation remains the final authority for
+            # protocol-level representability and safety. Keep only the type
+            # contract at the panel boundary so valid future AWG values are not
+            # blocked by stale UI-side limits.
             self[field] = value
 
         jmin = self.get("jmin")
