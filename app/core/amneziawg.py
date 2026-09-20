@@ -69,8 +69,9 @@ class AmneziaWGConfig(WireGuardConfig):
         if jmin is not None and jmax is not None and jmin > jmax:
             raise ValueError("jmin must be less than or equal to jmax")
 
-        # Keep validation semantics aligned with the AWG 2.x runtime implementation.
-        # The node validates the same values with awgctrl-go before applying them.
+        # The node performs the final protocol/kernel validation before applying
+        # the configuration. The panel intentionally avoids duplicating a fixed
+        # AWG range so newer kernel/runtime capabilities are not blocked here.
 
     def _resolve_inbounds(self):
         super()._resolve_inbounds()
