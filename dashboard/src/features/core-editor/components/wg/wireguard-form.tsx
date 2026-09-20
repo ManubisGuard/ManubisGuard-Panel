@@ -73,13 +73,27 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
     updateWgDraft(d => {
       const extra = { ...d.extra }
       if (value.trim() === '') delete extra[key]
-      else extra[key] = /^\d+$/.test(value.trim()) ? Number(value.trim()) : value.trim()
+      else extra[key] = key.startsWith('h') || key.startsWith('i') ? value.trim() : Number(value.trim())
       return { ...d, extra }
     })
   }
   const awgFields = [
-    ['jc', 'Jc'], ['jmin', 'Jmin'], ['jmax', 'Jmax'], ['s1', 'S1'], ['s2', 'S2'], ['s3', 'S3'], ['s4', 'S4'],
-    ['h1', 'H1'], ['h2', 'H2'], ['h3', 'H3'], ['h4', 'H4'], ['i1', 'I1'], ['i2', 'I2'], ['i3', 'I3'], ['i4', 'I4'], ['i5', 'I5'],
+    ['jc', 'Jc — Junk Packet Count (تعداد بسته‌های بی‌محتوا)'],
+    ['jmin', 'Jmin — Minimum Junk Packet Size (حداقل اندازه بسته‌های بی‌محتوا)'],
+    ['jmax', 'Jmax — Maximum Junk Packet Size (حداکثر اندازه بسته‌های بی‌محتوا)'],
+    ['s1', 'S1 — Init Message Padding (پدینگ پیام آغاز Handshake)'],
+    ['s2', 'S2 — Response Message Padding (پدینگ پیام پاسخ Handshake)'],
+    ['s3', 'S3 — Cookie Reply Padding (پدینگ پیام Cookie)'],
+    ['s4', 'S4 — Transport Data Padding (پدینگ داده‌های انتقالی)'],
+    ['h1', 'H1 — Init Message Header Range (رنج هدر پیام آغاز Handshake)'],
+    ['h2', 'H2 — Response Message Header Range (رنج هدر پیام پاسخ Handshake)'],
+    ['h3', 'H3 — Cookie Message Header Range (رنج هدر پیام Cookie)'],
+    ['h4', 'H4 — Transport Data Header Range (رنج هدر داده‌های انتقالی)'],
+    ['i1', 'I1 — Custom Signature Packet 1 (بسته امضای سفارشی ۱)'],
+    ['i2', 'I2 — Custom Signature Packet 2 (بسته امضای سفارشی ۲)'],
+    ['i3', 'I3 — Custom Signature Packet 3 (بسته امضای سفارشی ۳)'],
+    ['i4', 'I4 — Custom Signature Packet 4 (بسته امضای سفارشی ۴)'],
+    ['i5', 'I5 — Custom Signature Packet 5 (بسته امضای سفارشی ۵)'],
   ] as const
 
   const form = useForm<Record<string, string>>({ values })
