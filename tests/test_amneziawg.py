@@ -143,3 +143,19 @@ def test_amneziawg_allows_partial_init_chain():
     config["i1"] = "<r 16>"
     awg = AmneziaWGConfig(config)
     assert awg["i1"] == "<r 16>"
+
+
+def test_amneziawg_generates_nova_style_defaults_when_missing():
+    awg = AmneziaWGConfig(_base_config())
+
+    assert awg["jc"] == 3
+    assert awg["jmin"] == 20
+    assert awg["jmax"] == 50
+    assert awg["s1"] == 15
+    assert awg["s2"] == 64
+    assert awg["s3"] == 25
+    assert awg["s4"] == 8
+
+    headers = [int(awg[f"h{i}"]) for i in range(1, 5)]
+    assert len(set(headers)) == 4
+    assert all(5 <= value <= 2_147_483_647 for value in headers)
