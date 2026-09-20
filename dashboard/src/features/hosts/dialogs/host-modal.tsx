@@ -693,7 +693,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   const inbounds = useMemo(() => inboundDetails?.map(inbound => inbound.tag) || [], [inboundDetails])
   const selectedInbound = useMemo(() => inboundDetails?.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
-  const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
+  const isWireGuardInbound = selectedInbound?.protocol === 'wireguard' || selectedInbound?.protocol === 'amneziawg'
   const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
   const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
 
@@ -738,7 +738,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }
 
     if (selectedInbound) {
-      setResolvedHostMode(selectedInbound.protocol === 'wireguard' ? 'wireguard' : 'xray')
+      setResolvedHostMode(selectedInbound.protocol === 'wireguard' || selectedInbound.protocol === 'amneziawg' ? 'wireguard' : 'xray')
       return
     }
 
