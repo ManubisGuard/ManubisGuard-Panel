@@ -17,7 +17,6 @@ import { getWireGuardPersistConfig } from '@/features/core-editor/kit/wireguard-
 import { selectCoreEditorHasActualChanges } from '@/features/core-editor/kit/core-editor-change-state'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import type { WgCoreSection, XrayCoreSection } from '@/features/core-editor/state/core-editor-store'
-import type { CoreKind } from '@pasarguard/core-kit'
 import { getGetCoreConfigQueryKey, useCreateCoreConfig, useGetCoreConfig, useModifyCoreConfig } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { ArrowLeft } from 'lucide-react'
