@@ -3,7 +3,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
@@ -66,9 +65,6 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
 
   const awgExtra = (draft?.extra ?? {}) as Record<string, unknown>
   const awgEnabled = awgExtra.amneziawg === true
-  const setAwg = (enabled: boolean) => {
-    updateWgDraft(d => ({ ...d, extra: { ...d.extra, amneziawg: enabled } }))
-  }
   const setAwgField = (key: string, value: string) => {
     updateWgDraft(d => {
       const extra = { ...d.extra }
@@ -370,9 +366,8 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="font-medium">AmneziaWG</div>
-              <div className="text-muted-foreground text-xs">AmneziaWG obfuscation parameters for this WireGuard interface.</div>
+              <div className="text-muted-foreground text-xs">AmneziaWG 2.x obfuscation parameters. This section is shown only when the selected core is AmneziaWG.</div>
             </div>
-            <Switch checked={awgEnabled} onCheckedChange={setAwg} aria-label="Enable AmneziaWG" />
           </div>
           {awgEnabled && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
