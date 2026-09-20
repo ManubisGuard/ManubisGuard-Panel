@@ -22,7 +22,7 @@ def test_amneziawg_users_receive_unique_peer_ips(access_token):
             "interface_name": unique_name("awg"),
             "private_key": private_key,
             "listen_port": 51820,
-            "address": ["10.88.0.1/24"],
+            "address": ["172.31.88.1/24"],
             "jc": 3,
             "jmin": 64,
             "jmax": 128,
@@ -52,8 +52,8 @@ def test_amneziawg_users_receive_unique_peer_ips(access_token):
         peer1 = user1["proxy_settings"]["wireguard"]["peer_ips"]
         peer2 = user2["proxy_settings"]["wireguard"]["peer_ips"]
 
-        assert peer1 == ["10.88.0.2/32"]
-        assert peer2 == ["10.88.0.3/32"]
+        assert peer1 == ["172.31.88.2/32"]
+        assert peer2 == ["172.31.88.3/32"]
         assert set(peer1).isdisjoint(peer2)
 
         delete_user(access_token, user1["username"])
@@ -62,7 +62,7 @@ def test_amneziawg_users_receive_unique_peer_ips(access_token):
         user3 = create_user(access_token, username=unique_name("awg_pool_user3"), group_ids=[group["id"]])
         users.append(user3)
 
-        assert user3["proxy_settings"]["wireguard"]["peer_ips"] == ["10.88.0.2/32"]
+        assert user3["proxy_settings"]["wireguard"]["peer_ips"] == ["172.31.88.2/32"]
     finally:
         for user in users:
             delete_user(access_token, user["username"])
