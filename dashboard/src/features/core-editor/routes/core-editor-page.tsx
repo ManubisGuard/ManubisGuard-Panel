@@ -213,9 +213,13 @@ export default function CoreEditorPage() {
 
   useEffect(() => {
     if (isNew) {
-      const k = (searchParams.get('kind') as CoreKind | null) === 'wg' || searchParams.get('kind') === 'amneziawg' ? 'wg' : 'xray'
+      const selectedKind = searchParams.get('kind')
+      const k = selectedKind === 'wg' || selectedKind === 'amneziawg' ? 'wg' : 'xray'
       const currentName = useCoreEditorStore.getState().coreName
       initNew(k, currentName)
+      if (selectedKind === 'amneziawg') {
+        useCoreEditorStore.getState().updateWgDraft(d => ({ ...d, extra: { ...d.extra, amneziawg: true } }))
+      }
     }
   }, [isNew, initNew, searchParams])
 
@@ -415,14 +419,15 @@ export default function CoreEditorPage() {
               aria-invalid={showNameRequired}
             />
             <Select
-              value={kind === 'wg' ? 'wg' : 'xray'}
+              value={kind === 'wg' ? (wgDraft?.extra?.amneziawg === true ? 'amneziawg' : 'wg') : 'xray'}
               onValueChange={value => {
-                const nextKind = value === 'wg' ? 'wg' : 'xray'
+                const nextKind = value === 'wg' || value === 'amneziawg' ? 'wg' : 'xray'
                 if (isNew) {
                   setSearchParams(
                     prev => {
                       const p = new URLSearchParams(prev)
-                      if (nextKind === 'wg') p.set('kind', 'wg')
+                      if (value === 'amneziawg') p.set('kind', 'amneziawg')
+                      else if (nextKind === 'wg') p.set('kind', 'wg')
                       else p.delete('kind')
                       return p
                     },
@@ -431,6 +436,15 @@ export default function CoreEditorPage() {
                   return
                 }
                 switchKind(nextKind)
+                if (value === 'amneziawg') {
+                  useCoreEditorStore.getState().updateWgDraft(d => ({ ...d, extra: { ...d.extra, amneziawg: true } }))
+                } else if (value === 'wg') {
+                  useCoreEditorStore.getState().updateWgDraft(d => {
+                    const extra = { ...d.extra }
+                    delete extra.amneziawg
+                    return { ...d, extra }
+                  })
+                }
               }}
             >
               <SelectTrigger className="h-10 w-28 shrink-0 px-2 sm:w-[180px] sm:px-3" aria-label={t('coreConfigModal.backendType', { defaultValue: 'Backend type' })}>
@@ -439,6 +453,7 @@ export default function CoreEditorPage() {
               <SelectContent>
                 <SelectItem value="xray">Xray</SelectItem>
                 <SelectItem value="wg">WireGuard</SelectItem>
+                <SelectItem value="amneziawg">AmneziaWG</SelectItem>
               </SelectContent>
             </Select>
           </div>
