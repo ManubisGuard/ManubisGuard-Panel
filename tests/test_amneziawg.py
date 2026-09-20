@@ -25,21 +25,27 @@ def test_amneziawg_config_sets_type_and_preserves_params():
     assert awg.inbounds_by_tag["awg0"]["amneziawg"]["i1"] == "<r 16>"
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("jc", 11),
-        ("jmin", 63),
-        ("jmax", 1025),
-        ("s4", 33),
-    ],
-)
-def test_amneziawg_config_rejects_invalid_values(field: str, value: int):
+def test_amneziawg_config_accepts_values_beyond_legacy_panel_ranges():
     config = _base_config()
-    config[field] = value
+    config.update({
+        "jc": 25,
+        "jmin": 32,
+        "jmax": 4096,
+        "s1": 1024,
+        "s2": 2048,
+        "s3": 512,
+        "s4": 256,
+    })
 
-    with pytest.raises(ValueError):
-        AmneziaWGConfig(config)
+    awg = AmneziaWGConfig(config)
+
+    assert awg["jc"] == 25
+    assert awg["jmin"] == 32
+    assert awg["jmax"] == 4096
+    assert awg["s1"] == 1024
+    assert awg["s2"] == 2048
+    assert awg["s3"] == 512
+    assert awg["s4"] == 256
 
 
 def test_amneziawg_rejects_jmin_greater_than_jmax():
