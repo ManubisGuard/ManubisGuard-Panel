@@ -1,5 +1,5 @@
 {
-  "pasarguard": "پاسارگارد",
+  "manubisguard": "پاسارگارد",
   "dashboard": "داشبورد",
   "master": "کلی",
   "dashboardDescription": "داشبورد مدیریت پاسارگارد",
@@ -1568,7 +1568,7 @@
   "monitorServers": "نظارت بر سرورها و کاربران شما",
   "manageServers": "کنترل جزئیات سرور شما",
   "nodes.addHostForEveryInbound": "استفاده از این گره به عنوان هاست تمام ورودی‌ها",
-  "nodes.addNewPasarGuardNode": "افزودن گره پاسارگارد",
+  "nodes.addNewManubisGuardNode": "افزودن گره پاسارگارد",
   "nodes.addNode": "افزودن گره",
   "nodes.addNodeSuccess": "گره {{name}} با موفقیت افزوده شد",
   "nodes.apply": "ویرایش گره",
