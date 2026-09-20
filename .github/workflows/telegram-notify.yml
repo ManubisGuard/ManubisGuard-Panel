@@ -1,0 +1,45 @@
+name: Telegram Push Notify
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build commit list
+        id: commits
+        run: |
+          COUNT=$(echo '${{ toJson(github.event.commits) }}' | jq 'length')
+          LIST=$(echo '${{ toJson(github.event.commits) }}' | jq -r '.[] | "• \(.id[0:7]) — \(.message | split("\n")[0])"' | head -n 10)
+          {
+            echo "count=$COUNT"
+            echo "list<<EOF"
+            echo "$LIST"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send to Telegram
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            📝 *${{ steps.commits.outputs.count }} new commit(s)*
+
+            📦 Repository: ${{ github.repository }}
+            🌿 Branch: ${{ github.ref_name }}
+            👤 Pusher: @${{ github.actor }}
+
+            ${{ steps.commits.outputs.list }}
+
+            [Open compare →](${{ github.event.compare }})
+            
