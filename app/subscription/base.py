@@ -247,6 +247,15 @@ class BaseSubscription:
         if inbound.finalmask_link:
             payload["fm"] = inbound.finalmask_link
 
+        # AmneziaWG keeps the standard WireGuard URI scheme, but carries the
+        # AWG2 device parameters as additional query fields so subscription
+        # pages can reconstruct a complete .conf file for AWG clients.
+        if inbound.amneziawg:
+            for field in ("jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4", "i1", "i2", "i3", "i4", "i5"):
+                value = inbound.amneziawg_params.get(field)
+                if value is not None and value != "":
+                    payload[field] = value
+
         payload = self._normalize_and_remove_none_values(payload)
         uri_payload = dict(payload)
 
