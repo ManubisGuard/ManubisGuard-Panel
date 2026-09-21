@@ -157,6 +157,7 @@ def test_amneziawg_subscription_renders_interface_defaults_and_omits_psk():
 
 def test_amneziawg_host_subscription_defaults():
     from app.core.hosts import _resolve_wireguard_subscription_overrides
+    from app.models.host import WireGuardHostOverrides
 
     allowed, keepalive, reserved, dns, mtu = _resolve_wireguard_subscription_overrides("amneziawg", None)
 
@@ -168,13 +169,13 @@ def test_amneziawg_host_subscription_defaults():
 
     allowed, keepalive, reserved, dns, mtu = _resolve_wireguard_subscription_overrides(
         "amneziawg",
-        type("Overrides", (), {
-            "allowed_ips": ["10.0.0.0/8"],
-            "keepalive_seconds": 0,
-            "reserved": "1,2,3",
-            "dns": ["9.9.9.9"],
-            "mtu": 1400,
-        })(),
+        WireGuardHostOverrides(
+            allowed_ips=["10.0.0.0/8"],
+            keepalive_seconds=0,
+            reserved="1,2,3",
+            dns=["9.9.9.9"],
+            mtu=1400,
+        ),
     )
 
     assert allowed == ["10.0.0.0/8"]
