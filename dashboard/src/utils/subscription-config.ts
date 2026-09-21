@@ -269,45 +269,6 @@ export const convertWireGuardUrlToConfig = (value: string) => {
   }
 
   const lines: string[] = []
-
-  if (parsed.remark) {
-    lines.push(`# Name = ${parsed.remark}`)
-  }
-
-  lines.push('[Interface]')
-  lines.push(`PrivateKey = ${parsed.privateKey}`)
-  lines.push(`Address = ${formatCommaSeparatedValue(parsed.address)}`)
-
-  if (parsed.dns) {
-    lines.push(`DNS = ${formatCommaSeparatedValue(parsed.dns)}`)
-  }
-
-  if (parsed.mtu) {
-    lines.push(`MTU = ${parsed.mtu}`)
-  }
-
-  if (parsed.reserved) {
-    lines.push(`Reserved = ${parsed.reserved}`)
-  }
-
-  lines.push('')
-  lines.push('[Peer]')
-  lines.push(`PublicKey = ${parsed.publicKey}`)
-
-  if (parsed.preSharedKey) {
-    lines.push(`PresharedKey = ${parsed.preSharedKey}`)
-  }
-
-  if (parsed.allowedIps) {
-    lines.push(`AllowedIPs = ${formatCommaSeparatedValue(parsed.allowedIps)}`)
-  }
-
-  lines.push(`Endpoint = ${parsed.endpoint}`)
-
-  if (parsed.keepalive) {
-    lines.push(`PersistentKeepalive = ${parsed.keepalive}`)
-  }
-
   const awgFields: Array<[string, string]> = [
     ['Jc', parsed.jc],
     ['Jmin', parsed.jmin],
@@ -326,12 +287,61 @@ export const convertWireGuardUrlToConfig = (value: string) => {
     ['I4', parsed.i4],
     ['I5', parsed.i5],
   ]
+  const isAmneziaWg = awgFields.some(([, value]) => Boolean(value))
+
+  if (!isAmneziaWg && parsed.remark) {
+    lines.push(`# Name = ${parsed.remark}`)
+  }
+
+  lines.push('[Interface]')
+  lines.push(`PrivateKey = ${parsed.privateKey}`)
+  lines.push(`Address = ${formatCommaSeparatedValue(parsed.address)}`)
+
+  if (parsed.mtu) {
+    lines.push(`MTU = ${parsed.mtu}`)
+  }
+
+  if (parsed.dns) {
+    lines.push(`DNS = ${formatCommaSeparatedValue(parsed.dns)}`)
+  }
+
+  if (parsed.reserved) {
+    lines.push(`Reserved = ${parsed.reserved}`)
+  }
+
   for (const [key, value] of awgFields) {
     if (value) lines.push(`${key} = ${value}`)
   }
 
   lines.push('')
-  lines.push(`# URI: ${parsed.source}`)
+  lines.push('[Peer]')
+  lines.push(`PublicKey = ${parsed.publicKey}`)
+
+  // AmneziaWG uses its own interface-level obfuscation parameters; the
+  // Panel's AWG profile does not export a WireGuard PSK into the client file.
+  if (!isAmneziaWg && parsed.preSharedKey) {
+    lines.push(`PresharedKey = ${parsed.preSharedKey}`)
+  }
+
+  if (parsed.allowedIps) {
+    lines.push(`AllowedIPs = ${formatCommaSeparatedValue(parsed.allowedIps)}`)
+  }
+
+  lines.push(`Endpoint = ${parsed.endpoint}`)
+
+  if (parsed.keepalive) {
+    lines.push(`PersistentKeepalive = ${parsed.keepalive}`)
+  }
+
+  // Keep legacy comment metadata for plain WireGuard, but emit a clean
+  // AmneziaWG .conf matching the native client layout.
+  if (!isAmneziaWg) {
+    lines.push('')
+    if (parsed.remark) {
+      lines.unshift(`# Name = ${parsed.remark}`)
+    }
+    lines.push(`# URI: ${parsed.source}`)
+  }
 
   return lines.join('\n')
 }
