@@ -431,7 +431,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarTriggerWithBadge showUpdateBadge={canReadSystem && hasUpdate} />
         </div>
       </div>
-      <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
+      <Sidebar variant="sidebar" collapsible="icon" {...props} className="premium-sidebar border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
         <Snowfall className="snowfall--sidebar" />
         <SidebarRail />
         <SidebarHeader>
@@ -491,7 +491,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </div>
               ) : state !== 'collapsed' && !isMobile ? (
                 <div className={cn('relative', isRTL ? 'pl-10' : 'pr-10')}>
-                  <SidebarMenuButton size="lg" className={cn('w-full !gap-2')}>
+                  <SidebarMenuButton size="lg" className={cn('premium-brand w-full !gap-2')}>
                     <a href={REPO_URL} target="_blank" className="flex min-w-0 flex-1 items-center gap-2">
                       <img
                         src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
@@ -540,7 +540,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </TooltipProvider>
                 </div>
               ) : (
-                <SidebarMenuButton size="lg" asChild className="!gap-2">
+                <SidebarMenuButton size="lg" asChild className="premium-brand !gap-2">
                   <a href={REPO_URL} target="_blank">
                     <img
                       src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
