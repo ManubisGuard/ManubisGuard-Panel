@@ -100,12 +100,13 @@ const Dashboard = () => {
 
   return (
     <div className="flex w-full flex-col items-start gap-2">
+      <div className="premium-page-content">
       <div className="w-full">
         <PageHeader title="dashboard" description="dashboardDescription" buttonIcon={Bookmark} buttonText="quickActions.title" onButtonClick={handleOpenQuickActions} />
         <Separator />
       </div>
 
-      <div className="w-full px-3 pt-2 sm:px-4">
+      <div className="premium-page-content w-full px-3 pt-3 sm:px-5 lg:px-6">
         <div className="flex flex-col gap-4 sm:gap-6">
           <DashboardStatistics resourceData={systemResourceStatsData} usersData={systemUsersStatsData} />
           {canReadNodeStats && <WorkersHealthCard />}
@@ -139,6 +140,8 @@ const Dashboard = () => {
             <AdminStatisticsCard showAdminInfo={false} admin={currentAdmin} systemStats={systemUsersStatsData} currentAdmin={currentAdmin} skipStatsFetch />
           )}
         </div>
+      </div>
+
       </div>
 
       {isUserModalOpen && <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={handleCreateUserSuccess} />}
