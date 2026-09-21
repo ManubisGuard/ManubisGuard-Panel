@@ -35,7 +35,9 @@ async def get_core_config_by_id(db: AsyncSession, core_id: int) -> CoreConfig | 
     return (await db.execute(select(CoreConfig).where(CoreConfig.id == core_id))).unique().scalar_one_or_none()
 
 
-async def create_core_config(db: AsyncSession, core_config: CoreCreate) -> CoreConfig:
+async def create_core_config(
+    db: AsyncSession, core_config: CoreCreate, validated_config: dict | None = None
+) -> CoreConfig:
     """
     Creates a new core configuration in the database.
 
@@ -49,7 +51,7 @@ async def create_core_config(db: AsyncSession, core_config: CoreCreate) -> CoreC
     db_core_config = CoreConfig(
         name=core_config.name,
         type=core_config.type,
-        config=core_config.config,
+        config=validated_config if validated_config is not None else core_config.config,
         exclude_inbound_tags=core_config.exclude_inbound_tags or set(),
         fallbacks_inbound_tags=core_config.fallbacks_inbound_tags or set(),
     )
@@ -60,7 +62,10 @@ async def create_core_config(db: AsyncSession, core_config: CoreCreate) -> CoreC
 
 
 async def modify_core_config(
-    db: AsyncSession, db_core_config: CoreConfig, modified_core_config: CoreCreate
+    db: AsyncSession,
+    db_core_config: CoreConfig,
+    modified_core_config: CoreCreate,
+    validated_config: dict | None = None,
 ) -> CoreConfig:
     """
     Modifies an existing core configuration with new information.
@@ -74,6 +79,8 @@ async def modify_core_config(
         CoreConfig: The updated CoreConfig object.
     """
     core_data = modified_core_config.model_dump(exclude_none=True)
+    if validated_config is not None:
+        core_data["config"] = validated_config
 
     for key, value in core_data.items():
         setattr(db_core_config, key, value)

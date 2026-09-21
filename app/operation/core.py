@@ -104,7 +104,8 @@ class CoreOperation(BaseOperation):
                 new_core.fallbacks_inbound_tags,
                 new_core.type,
             )
-            db_core = await create_core_config(db, new_core)
+            validated_config = dict(validated_core) if new_core.type == CoreType.amneziawg else None
+            db_core = await create_core_config(db, new_core, validated_config=validated_config)
         except Exception as e:
             await self.raise_error(message=e, code=400, db=db)
 
@@ -146,7 +147,14 @@ class CoreOperation(BaseOperation):
                 modified_core.fallbacks_inbound_tags,
                 modified_core.type,
             )
-            db_core = await modify_core_config(db, db_core, modified_core)
+            effective_type = modified_core.type or db_core.type
+            validated_config = dict(validated_core) if effective_type == CoreType.amneziawg else None
+            db_core = await modify_core_config(
+                db,
+                db_core,
+                modified_core,
+                validated_config=validated_config,
+            )
         except Exception as e:
             await self.raise_error(message=e, code=400, db=db)
 

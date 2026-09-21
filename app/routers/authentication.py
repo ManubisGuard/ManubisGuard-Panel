@@ -126,7 +126,7 @@ async def _get_admin_from_api_key_internal(
 
 
 async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
-    payload = await get_admin_payload(token)
+    payload = await get_admin_payload(token, db=db)
     if not payload:
         return None
 
@@ -150,7 +150,7 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
 
 
 async def get_admin_with_metrics(db: AsyncSession, token: str) -> AdminDetails | None:
-    payload = await get_admin_payload(token)
+    payload = await get_admin_payload(token, db=db)
     if not payload:
         return None
 

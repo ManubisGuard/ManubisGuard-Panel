@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import secrets
+from copy import deepcopy
 
 from app.core.wireguard import WireGuardConfig
 

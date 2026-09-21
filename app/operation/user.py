@@ -211,7 +211,7 @@ class UserOperation(BaseOperation):
         )
 
     @staticmethod
-    async def generate_subscription_url(user: UserNotificationResponse):
+    async def generate_subscription_url(user: UserNotificationResponse, db: AsyncSession | None = None):
         salt = secrets.token_hex(8)
         settings = await subscription_settings()
         url_prefix = (
@@ -219,7 +219,7 @@ class UserOperation(BaseOperation):
             if user.admin and user.admin.sub_domain
             else (settings.url_prefix).replace("*", salt)
         )
-        token = await create_subscription_token(user.id)
+        token = await create_subscription_token(user.id, db=db)
         return f"{url_prefix}/{subscription_env_settings.path}/{token}"
 
     async def _generate_usernames(
@@ -407,11 +407,13 @@ class UserOperation(BaseOperation):
 
         users_list = []
         for db_user in db_users:
-            users_list.append(await self.validate_user(db_user))
+            users_list.append(await self.validate_user(db_user, db=db))
 
         return [user.subscription_url for user in users_list]
 
-    async def validate_user(self, db_user: User, include_subscription_url: bool = True) -> UserNotificationResponse:
+    async def validate_user(
+        self, db_user: User, include_subscription_url: bool = True, db: AsyncSession | None = None
+    ) -> UserNotificationResponse:
         lifetime_used_traffic = db_user.lifetime_used_traffic
         group_ids = list(db_user.group_ids or [])
         group_names = list(db_user.group_names or [])
@@ -420,15 +422,21 @@ class UserOperation(BaseOperation):
         user.group_ids = group_ids
         user.group_names = group_names
         if include_subscription_url:
-            user.subscription_url = await self.generate_subscription_url(user)
+            if db is None:
+                user.subscription_url = await self.generate_subscription_url(user)
+            else:
+                user.subscription_url = await self.generate_subscription_url(user, db=db)
         return user
 
-    async def update_user(self, db_user: User, include_subscription_url: bool = True) -> UserNotificationResponse:
+    async def update_user(
+        self, db_user: User, include_subscription_url: bool = True, db: AsyncSession | None = None
+    ) -> UserNotificationResponse:
         await sync_user(db_user)
 
         user = await self.validate_user(
             db_user,
             include_subscription_url=include_subscription_url,
+            db=db,
         )
         return user
 
@@ -691,7 +699,7 @@ class UserOperation(BaseOperation):
         except ValueError as exc:  # WireGuard subnet exhausted
             await self.raise_error(message=str(exc), code=400, db=db)
 
-        user = await self.update_user(db_user)
+        user = await self.update_user(db_user, db=db)
 
         logger.info(f'New user "{db_user.username}" with id "{db_user.id}" added by admin "{admin.username}"')
 
@@ -849,7 +857,7 @@ class UserOperation(BaseOperation):
             db_user = await crud_modify_user(db, db_user, modified_user, groups=validated_groups)
         except ValueError as exc:  # WireGuard subnet exhausted
             await self.raise_error(message=str(exc), code=400, db=db)
-        user = await self.update_user(db_user)
+        user = await self.update_user(db_user, db=db)
 
         logger.info(f'User "{user.username}" with id "{db_user.id}" modified by admin "{admin.username}"')
 
@@ -880,7 +888,7 @@ class UserOperation(BaseOperation):
             await db.commit()
             await load_user_attrs(db_user, load_admin_role=True)
 
-        user = await self.update_user(db_user)
+        user = await self.update_user(db_user, db=db)
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
@@ -1043,7 +1051,7 @@ class UserOperation(BaseOperation):
             clean_chart_data = usage_settings.reset_user_usage_clean_chart_data
 
         db_user = await reset_user_data_usage(db=db, db_user=db_user, clean_chart_data=clean_chart_data)
-        user = await self.update_user(db_user)
+        user = await self.update_user(db_user, db=db)
 
         if emit_status_change_notification and user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
@@ -1084,7 +1092,7 @@ class UserOperation(BaseOperation):
         )
         await sync_users(db_users)
 
-        users = [await self.validate_user(db_user) for db_user in db_users]
+        users = [await self.validate_user(db_user, db=db) for db_user in db_users]
         for user in users:
             if user.status != old_statuses[user.id]:
                 asyncio.create_task(notification.user_status_change(user, admin))
@@ -1096,7 +1104,7 @@ class UserOperation(BaseOperation):
     async def _revoke_user_sub(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> UserResponse:
         proxy_settings = await self._prepare_revoked_proxy_settings(db, db_user)
         db_user = await revoke_user_sub(db=db, db_user=db_user, proxy_settings=proxy_settings.dict())
-        user = await self.update_user(db_user)
+        user = await self.update_user(db_user, db=db)
 
         asyncio.create_task(notification.user_subscription_revoked(user, admin))
         logger.info(f'User "{db_user.username}" subscription was revoked by admin "{admin.username}"')
@@ -1132,7 +1140,7 @@ class UserOperation(BaseOperation):
         db_users = await bulk_revoke_user_sub(db, db_users, proxy_settings_by_user_id=proxy_settings_by_user_id)
         await sync_users(db_users)
 
-        users = [await self.validate_user(db_user) for db_user in db_users]
+        users = [await self.validate_user(db_user, db=db) for db_user in db_users]
         for user in users:
             asyncio.create_task(notification.user_subscription_revoked(user, admin))
             logger.info(f'User "{user.username}" subscription was revoked by admin "{admin.username}"')
@@ -1173,7 +1181,7 @@ class UserOperation(BaseOperation):
         modified_db_users = await self._load_users_by_ids(db, modified_user_ids)
         await sync_users(modified_db_users)
 
-        users = [await self.validate_user(db_user) for db_user in modified_db_users]
+        users = [await self.validate_user(db_user, db=db) for db_user in modified_db_users]
         users_by_id = {user.id: user for user in users}
         for db_user, _, _, original_status in prepared_updates:
             user = users_by_id.get(db_user.id)
@@ -1219,7 +1227,7 @@ class UserOperation(BaseOperation):
         if changed_user_ids:
             changed_db_users = await self._load_users_by_ids(db, changed_user_ids)
             await sync_users(changed_db_users)
-            users = [await self.validate_user(db_user) for db_user in changed_db_users]
+            users = [await self.validate_user(db_user, db=db) for db_user in changed_db_users]
         else:
             users = []
 
@@ -1276,7 +1284,7 @@ class UserOperation(BaseOperation):
             db_user=db_user,
             clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
         )
-        user = await self.update_user(db_user)
+        user = await self.update_user(db_user, db=db)
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
@@ -1302,7 +1310,7 @@ class UserOperation(BaseOperation):
 
     async def _set_owner(self, db: AsyncSession, db_user: User, new_admin, admin: AdminDetails) -> UserResponse:
         db_user = await set_owner(db, db_user, new_admin)
-        user = await self.validate_user(db_user)
+        user = await self.validate_user(db_user, db=db)
         logger.info(
             f'User "{user.username}" owner successfully set to "{new_admin.username}" by admin "{admin.username}"'
         )
@@ -1337,7 +1345,7 @@ class UserOperation(BaseOperation):
         )
 
         db_users = await bulk_set_owner(db, db_users, new_admin)
-        users = [await self.validate_user(db_user) for db_user in db_users]
+        users = [await self.validate_user(db_user, db=db) for db_user in db_users]
         for user in users:
             logger.info(
                 f'User "{user.username}" owner successfully set to "{new_admin.username}" by admin "{admin.username}"'
@@ -1422,7 +1430,7 @@ class UserOperation(BaseOperation):
             join_groups=True,
             load_lifetime_used_traffic=True,
         )
-        return await self.validate_user(db_user)
+        return await self.validate_user(db_user, db=db)
 
     async def get_user_by_id(self, db: AsyncSession, user_id: int, admin: AdminDetails) -> UserNotificationResponse:
         db_user = await self.get_validated_user_by_id(
@@ -1433,7 +1441,7 @@ class UserOperation(BaseOperation):
             join_groups=True,
             load_lifetime_used_traffic=True,
         )
-        return await self.validate_user(db_user)
+        return await self.validate_user(db_user, db=db)
 
     async def get_users(
         self,
@@ -1455,7 +1463,7 @@ class UserOperation(BaseOperation):
         )
 
         if query.load_sub:
-            tasks = [self.generate_subscription_url(user) for user in users]
+            tasks = [self.generate_subscription_url(user, db=db) for user in users]
             urls = await asyncio.gather(*tasks)
 
             for user, url in zip(users, urls):
@@ -1825,7 +1833,7 @@ class UserOperation(BaseOperation):
         await sync_users(created_users)
 
         for db_user in created_users:
-            user = await self.validate_user(db_user)
+            user = await self.validate_user(db_user, db=db)
             asyncio.create_task(notification.create_user(user, admin))
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
@@ -1893,7 +1901,7 @@ class UserOperation(BaseOperation):
         modified_db_users = await self._load_users_by_ids(db, modified_user_ids)
         await sync_users(modified_db_users)
 
-        users = [await self.validate_user(db_user) for db_user in modified_db_users]
+        users = [await self.validate_user(db_user, db=db) for db_user in modified_db_users]
         users_by_id = {user.id: user for user in users}
         for db_user, _, _, original_status, emit_reset_status_change in prepared_updates:
             user = users_by_id.get(db_user.id)

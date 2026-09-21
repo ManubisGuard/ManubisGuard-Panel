@@ -461,7 +461,7 @@ class SubscriptionOperation(BaseOperation):
                 )
                 links = conf.splitlines()
 
-            format_variables = await self.get_format_variables(user)
+            format_variables = await self.get_format_variables(user, db=db)
             formatted_announce = self._format_announce(sub_settings, format_variables)
 
             return HTMLResponse(
@@ -504,12 +504,12 @@ class SubscriptionOperation(BaseOperation):
             try:
                 response_headers.update(
                     self._format_subscription_response_headers(
-                        sub_settings, await self._get_rule_response_header_variables(user, client_type)
+                        sub_settings, await self._get_rule_response_header_variables(user, client_type, db=db)
                     )
                 )
                 response_headers.update(
                     self._format_rule_response_headers(
-                        matched_rule, await self._get_rule_response_header_variables(user, client_type)
+                        matched_rule, await self._get_rule_response_header_variables(user, client_type, db=db)
                     )
                 )
                 response_headers = self.sanitize_response_headers(response_headers)
@@ -519,12 +519,12 @@ class SubscriptionOperation(BaseOperation):
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
-    async def get_format_variables(self, user: UsersResponseWithInbounds) -> dict:
+    async def get_format_variables(self, user: UsersResponseWithInbounds, db: AsyncSession | None = None) -> dict:
         """Get format variables for URL formatting."""
         sub_settings: SubSettings = await subscription_settings()
         custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
         format_variables = setup_format_variables(user, sub_settings.custom_variables)
-        sub_url = await UserOperation.generate_subscription_url(user)
+        sub_url = await UserOperation.generate_subscription_url(user, db=db)
         format_variables.update({"url": sub_url})
         formatted_title = SubscriptionOperation._format_profile_title(user, format_variables, sub_settings)
 
@@ -534,9 +534,9 @@ class SubscriptionOperation(BaseOperation):
         return format_variables
 
     async def _get_rule_response_header_variables(
-        self, user: UsersResponseWithInbounds, client_format: ConfigFormat
+        self, user: UsersResponseWithInbounds, client_format: ConfigFormat, db: AsyncSession | None = None
     ) -> dict[str, str | int | float]:
-        format_variables = await self.get_format_variables(user)
+        format_variables = await self.get_format_variables(user, db=db)
         format_variables.update({"format": client_format.value})
         sub_settings: SubSettings = await subscription_settings()
         apply_custom_format_variables(
@@ -581,7 +581,7 @@ class SubscriptionOperation(BaseOperation):
         try:
             response_headers.update(
                 self._format_subscription_response_headers(
-                    sub_settings, await self._get_rule_response_header_variables(user, client_type)
+                    sub_settings, await self._get_rule_response_header_variables(user, client_type, db=db)
                 )
             )
             response_headers = self.sanitize_response_headers(response_headers)
@@ -640,13 +640,13 @@ class SubscriptionOperation(BaseOperation):
         if sub_settings.allow_browser_config:
             conf, _ = await self.fetch_config(user, ConfigFormat.links)
             links = conf.splitlines()
-        format_variables = await self.get_format_variables(user)
+        format_variables = await self.get_format_variables(user, db=db)
         formatted_announce = self._format_announce(sub_settings, format_variables)
         response_headers = self.create_response_headers(user, request_url, sub_settings)
         try:
             response_headers.update(
                 self._format_subscription_response_headers(
-                    sub_settings, await self._get_rule_response_header_variables(user, ConfigFormat.links)
+                    sub_settings, await self._get_rule_response_header_variables(user, ConfigFormat.links, db=db)
                 )
             )
             response_headers = self.sanitize_response_headers(response_headers)
@@ -668,6 +668,7 @@ class SubscriptionOperation(BaseOperation):
         db_user: User,
         client_type: ConfigFormat,
         request_url: str = "",
+        db: AsyncSession | None = None,
     ):
         if client_type == ConfigFormat.block:
             await self.raise_error(message="Client not supported", code=406)
@@ -681,7 +682,7 @@ class SubscriptionOperation(BaseOperation):
         try:
             response_headers.update(
                 self._format_subscription_response_headers(
-                    sub_settings, await self._get_rule_response_header_variables(user, client_type)
+                    sub_settings, await self._get_rule_response_header_variables(user, client_type, db=db)
                 )
             )
             response_headers = self.sanitize_response_headers(response_headers)
@@ -695,7 +696,7 @@ class SubscriptionOperation(BaseOperation):
         self, db: AsyncSession, user_id: int, admin: AdminDetails, client_type: ConfigFormat, request_url: str = ""
     ):
         db_user = await self.get_validated_user_by_id(db, user_id, admin)
-        return await self.user_subscription_by_user(db_user, client_type, request_url)
+        return await self.user_subscription_by_user(db_user, client_type, request_url, db=db)
 
     async def user_subscription_info(
         self, db: AsyncSession, token: str, ip: str | None = None
@@ -723,7 +724,7 @@ class SubscriptionOperation(BaseOperation):
         user = await self.validated_user(db_user)
         is_hwid_enabled = await self.is_user_hwid_enabled(db_user)
         sub_settings: SubSettings = await subscription_settings()
-        format_variables = await self.get_format_variables(user)
+        format_variables = await self.get_format_variables(user, db=db)
         return self._make_apps_import_urls(
             sub_settings.applications,
             format_variables,
@@ -784,12 +785,12 @@ class SubscriptionOperation(BaseOperation):
             try:
                 response_headers.update(
                     self._format_subscription_response_headers(
-                        sub_settings, await self._get_rule_response_header_variables(user, client_type)
+                        sub_settings, await self._get_rule_response_header_variables(user, client_type, db=db)
                     )
                 )
                 response_headers.update(
                     self._format_rule_response_headers(
-                        matched_rule, await self._get_rule_response_header_variables(user, client_type)
+                        matched_rule, await self._get_rule_response_header_variables(user, client_type, db=db)
                     )
                 )
                 response_headers = self.sanitize_response_headers(response_headers)

@@ -151,7 +151,7 @@ class BaseOperation:
         load_groups: bool = True,
         load_lifetime_used_traffic: bool = False,
     ) -> User:
-        sub = await get_subscription_payload(token)
+        sub = await get_subscription_payload(token, db=db)
 
         db_user = None
         if sub:

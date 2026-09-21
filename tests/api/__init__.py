@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 from alembic.command import upgrade
 from alembic.config import Config
@@ -27,6 +28,7 @@ test_settings = TestSettings()
 XRAY_JSON_TEST_FILE = "tests/api/xray_config-test.json"
 
 TEST_FROM = test_settings.test_from
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # In local mode, use in-memory SQLite by default, but allow override via DATABASE_URL env var
 if TEST_FROM == "local":
     # DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -34,6 +36,9 @@ if TEST_FROM == "local":
 
 else:
     DATABASE_URL = database_settings.url
+
+if DATABASE_URL.startswith("sqlite+aiosqlite:///./"):
+    DATABASE_URL = f"sqlite+aiosqlite:///{(PROJECT_ROOT / DATABASE_URL.removeprefix('sqlite+aiosqlite:///./')).resolve()}"
 print(f"TEST_FROM: {TEST_FROM}")
 print(f"DATABASE_URL: {DATABASE_URL}")
 

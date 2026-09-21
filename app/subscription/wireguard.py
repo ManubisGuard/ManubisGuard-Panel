@@ -1,4 +1,5 @@
 import io
+import re
 import zipfile
 
 from app.models.subscription import SubscriptionInboundData
@@ -89,7 +90,8 @@ class WireGuardConfiguration(BaseSubscription):
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for remark, config_content in self.configs:
-                hostname = remark.replace(" ", "_").replace("/", "_")
+                hostname = re.sub(r"[\\/]+", "_", remark.replace(" ", "_"))
+                hostname = re.sub(r"\.{2,}", "_", hostname).strip("._") or "config"
                 filename = f"{hostname}.conf"
                 zip_file.writestr(filename, config_content)
 

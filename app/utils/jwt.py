@@ -8,9 +8,18 @@ from math import ceil
 import jwt
 from aiocache import cached
 
-from app.db import GetDB
+from app.db import AsyncSession, GetDB
 from app.db.crud.general import get_jwt_secret_key
 from config import jwt_settings
+
+_DB_SECRET_KEY_CACHE: dict[str, str] = {}
+
+
+async def _get_secret_key_for_db(db: AsyncSession) -> str:
+    cache_key = str(db.get_bind().url)
+    if cache_key not in _DB_SECRET_KEY_CACHE:
+        _DB_SECRET_KEY_CACHE[cache_key] = await get_jwt_secret_key(db=db)
+    return _DB_SECRET_KEY_CACHE[cache_key]
 
 
 @cached()
@@ -20,20 +29,22 @@ async def get_secret_key():
         return key
 
 
-async def create_admin_token(admin_id: int | None, username: str) -> str:
+async def create_admin_token(admin_id: int | None, username: str, db: AsyncSession | None = None) -> str:
     data = {"sub": username, "access": "admin", "iat": datetime.now(UTC)}
     if admin_id is not None:
         data["aid"] = int(admin_id)
     if jwt_settings.access_token_expire_minutes > 0:
         expire = datetime.now(UTC) + timedelta(minutes=jwt_settings.access_token_expire_minutes)
         data["exp"] = expire
-    encoded_jwt = jwt.encode(data, await get_secret_key(), algorithm="HS256")
+    secret_key = await _get_secret_key_for_db(db) if db is not None else await get_secret_key()
+    encoded_jwt = jwt.encode(data, secret_key, algorithm="HS256")
     return encoded_jwt
 
 
-async def get_admin_payload(token: str) -> dict | None:
+async def get_admin_payload(token: str, db: AsyncSession | None = None) -> dict | None:
     try:
-        payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"], leeway=5)
+        secret_key = await _get_secret_key_for_db(db) if db is not None else await get_secret_key()
+        payload = jwt.decode(token, secret_key, algorithms=["HS256"], leeway=5)
         username: str = payload.get("sub")
         access: str = payload.get("access")
         admin_id = payload.get("aid")
@@ -58,10 +69,10 @@ async def get_admin_payload(token: str) -> dict | None:
         return
 
 
-async def create_subscription_token(user_id: int) -> str:
+async def create_subscription_token(user_id: int, db: AsyncSession | None = None) -> str:
     data = "v3," + str(user_id) + "," + str(ceil(time.time()))
     data_b64_str = b64encode(data.encode("utf-8"), altchars=b"-_").decode("utf-8").rstrip("=")
-    secret = await get_secret_key()
+    secret = await _get_secret_key_for_db(db) if db is not None else await get_secret_key()
     # HMAC-SHA256 over the payload, url-safe base64, no truncation.
     # The "." separator never occurs in the legacy format (altchars=-_ payload + hex/_-  signature),
     # so its presence is what marks a token as the new HMAC format.
@@ -116,13 +127,15 @@ def _decode_b64_token(data_b64_str: str) -> str | None:
         return
 
 
-async def get_subscription_payload(token: str) -> dict | None:
+async def get_subscription_payload(token: str, db: AsyncSession | None = None) -> dict | None:
     try:
         if len(token) < 15:
             return
 
+        secret_key = await _get_secret_key_for_db(db) if db is not None else await get_secret_key()
+
         if token.startswith("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."):
-            payload = jwt.decode(token, await get_secret_key(), algorithms=["HS256"])
+            payload = jwt.decode(token, secret_key, algorithms=["HS256"])
             if payload.get("access") == "subscription":
                 username = payload.get("sub")
                 if not username:
@@ -138,7 +151,7 @@ async def get_subscription_payload(token: str) -> dict | None:
         # legacy format, so it unambiguously identifies a new-style token.
         if "." in token:
             data_b64_str, _, u_signature = token.rpartition(".")
-            secret = await get_secret_key()
+            secret = secret_key
             expected = (
                 b64encode(
                     hmac.new(secret.encode("utf-8"), data_b64_str.encode("utf-8"), sha256).digest(),
@@ -163,7 +176,7 @@ async def get_subscription_payload(token: str) -> dict | None:
         u_token_dec_str = _decode_b64_token(u_token)
         if u_token_dec_str is None:
             return
-        secret = await get_secret_key()
+        secret = secret_key
         u_token_resign = b64encode(sha256((u_token + secret).encode("utf-8")).digest(), altchars=b"-_").decode("utf-8")[
             :10
         ]
