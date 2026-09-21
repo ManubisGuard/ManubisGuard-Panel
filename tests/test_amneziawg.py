@@ -135,7 +135,19 @@ def test_amneziawg_subscription_renders_interface_defaults_and_omits_psk():
     )
 
     renderer = WireGuardConfiguration()
-    renderer.add(
+    components = renderer._build_wireguard_components(
+        "AWG",
+        "test.example.com",
+        inbound,
+        {
+            "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "peer_ips": ["10.13.13.2/32"],
+        },
+    )
+    assert components is not None
+    assert "presharedkey" not in components["payload"]
+    assert "presharedkey" not in components["uri"]
+
         "AWG",
         "test.example.com",
         inbound,
