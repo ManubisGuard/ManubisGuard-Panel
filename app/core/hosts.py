@@ -48,6 +48,44 @@ def _string_list(value) -> list[str]:
         return [str(value)]
 
 
+AMNEZIAWG_DEFAULT_MTU = 1320
+AMNEZIAWG_DEFAULT_DNS = ["1.1.1.1", "1.0.0.1"]
+AMNEZIAWG_DEFAULT_KEEPALIVE = 25
+
+
+def _resolve_wireguard_subscription_overrides(
+    protocol: str,
+    overrides: WireGuardHostOverrides | None,
+) -> tuple[list[str], int | None, str | None, list[str] | None, int | None]:
+    """Resolve per-host WireGuard overrides with AWG-native defaults."""
+    wg_over = overrides or WireGuardHostOverrides()
+
+    default_allowed = ["0.0.0.0/0", "::/0"]
+    allowed_ips = (
+        list(wg_over.allowed_ips)
+        if wg_over.allowed_ips is not None and len(wg_over.allowed_ips) > 0
+        else list(default_allowed)
+    )
+
+    keepalive = None
+    if wg_over.keepalive_seconds is not None:
+        keepalive = wg_over.keepalive_seconds if wg_over.keepalive_seconds > 0 else None
+
+    reserved = wg_over.reserved.strip() if wg_over.reserved else None
+    dns = list(wg_over.dns) if wg_over.dns else None
+    mtu = wg_over.mtu
+
+    if protocol == "amneziawg":
+        if mtu is None:
+            mtu = AMNEZIAWG_DEFAULT_MTU
+        if wg_over.keepalive_seconds is None:
+            keepalive = AMNEZIAWG_DEFAULT_KEEPALIVE
+        if dns is None:
+            dns = list(AMNEZIAWG_DEFAULT_DNS)
+
+    return allowed_ips, keepalive, reserved, dns, mtu
+
+
 def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None) -> str | None:
     if not final_mask_settings:
         return None
@@ -94,24 +132,10 @@ async def _prepare_subscription_inbound_data(
     finalmask_link = _normalize_finalmask_link(final_mask_settings)
 
     if protocol in ("wireguard", "amneziawg"):
-        wg_over: WireGuardHostOverrides | None = host.wireguard_overrides
-        if wg_over is None:
-            wg_over = WireGuardHostOverrides()
-
-        default_allowed = ["0.0.0.0/0", "::/0"]
-        allowed_ips = (
-            list(wg_over.allowed_ips)
-            if wg_over.allowed_ips is not None and len(wg_over.allowed_ips) > 0
-            else list(default_allowed)
+        allowed_ips, keepalive, reserved, dns, mtu = _resolve_wireguard_subscription_overrides(
+            protocol,
+            host.wireguard_overrides,
         )
-
-        keepalive = None
-        if wg_over.keepalive_seconds is not None:
-            keepalive = wg_over.keepalive_seconds if wg_over.keepalive_seconds > 0 else None
-
-        reserved = wg_over.reserved.strip() if wg_over.reserved else None
-
-        dns = list(wg_over.dns) if wg_over.dns else None
 
         return SubscriptionInboundData(
             remark=host.remark,
@@ -128,7 +152,7 @@ async def _prepare_subscription_inbound_data(
             wireguard_local_address=inbound_config.get("address", []) or [],
             wireguard_allowed_ips=allowed_ips,
             wireguard_keepalive=keepalive,
-            wireguard_mtu=wg_over.mtu,
+            wireguard_mtu=mtu,
             wireguard_reserved=reserved,
             wireguard_dns=dns,
             amneziawg=protocol == "amneziawg",
