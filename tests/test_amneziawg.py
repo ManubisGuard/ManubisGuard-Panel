@@ -97,6 +97,93 @@ def test_amneziawg_subscription_uses_canonical_key_names():
     assert "JC =" not in output
 
 
+def test_amneziawg_subscription_renders_interface_defaults_and_omits_psk():
+    from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
+    from app.subscription.wireguard import WireGuardConfiguration
+
+    inbound = SubscriptionInboundData(
+        remark="AWG",
+        inbound_tag="awg0",
+        protocol="amneziawg",
+        address=["test.example.com"],
+        port=[51820],
+        network="udp",
+        tls_config=TLSConfig(),
+        transport_config=TCPTransportConfig(),
+        wireguard_public_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        wireguard_pre_shared_key="BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+        wireguard_local_address=["10.13.13.1/24"],
+        wireguard_allowed_ips=["0.0.0.0/0", "::/0"],
+        wireguard_keepalive=25,
+        wireguard_mtu=1320,
+        wireguard_reserved=None,
+        wireguard_dns=["1.1.1.1", "1.0.0.1"],
+        amneziawg=True,
+        amneziawg_params={
+            "jc": 4,
+            "jmin": 40,
+            "jmax": 70,
+            "s1": 86,
+            "s2": 574,
+            "s3": 45,
+            "s4": 12,
+            "h1": "104477831",
+            "h2": "630113070",
+            "h3": "1726947978",
+            "h4": "1830566748",
+        },
+    )
+
+    renderer = WireGuardConfiguration()
+    renderer.add(
+        "AWG",
+        "test.example.com",
+        inbound,
+        {
+            "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "peer_ips": ["10.13.13.2/32"],
+        },
+    )
+    output = renderer.configs[0][1]
+
+    assert output.index("MTU = 1320") < output.index("[Peer]")
+    assert output.index("DNS = 1.1.1.1, 1.0.0.1") < output.index("[Peer]")
+    assert output.index("Jc = 4") < output.index("[Peer]")
+    assert output.index("H4 = 1830566748") < output.index("[Peer]")
+    assert "PresharedKey =" not in output
+    assert "PersistentKeepalive = 25" in output
+    assert "Address = 10.13.13.2/32" in output
+
+
+def test_amneziawg_host_subscription_defaults():
+    from app.core.hosts import _resolve_wireguard_subscription_overrides
+
+    allowed, keepalive, reserved, dns, mtu = _resolve_wireguard_subscription_overrides("amneziawg", None)
+
+    assert allowed == ["0.0.0.0/0", "::/0"]
+    assert keepalive == 25
+    assert reserved is None
+    assert dns == ["1.1.1.1", "1.0.0.1"]
+    assert mtu == 1320
+
+    allowed, keepalive, reserved, dns, mtu = _resolve_wireguard_subscription_overrides(
+        "amneziawg",
+        type("Overrides", (), {
+            "allowed_ips": ["10.0.0.0/8"],
+            "keepalive_seconds": 0,
+            "reserved": "1,2,3",
+            "dns": ["9.9.9.9"],
+            "mtu": 1400,
+        })(),
+    )
+
+    assert allowed == ["10.0.0.0/8"]
+    assert keepalive is None
+    assert reserved == "1,2,3"
+    assert dns == ["9.9.9.9"]
+    assert mtu == 1400
+
+
 def test_amneziawg_subscription_emits_all_canonical_keys_and_ignores_unknown():
     from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
     from app.subscription.wireguard import WireGuardConfiguration
