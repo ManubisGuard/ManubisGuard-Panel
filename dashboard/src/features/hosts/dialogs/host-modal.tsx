@@ -781,6 +781,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('random_user_agent', false, { shouldDirty: true })
     form.setValue('use_sni_as_host', false, { shouldDirty: true })
     form.setValue('vless_route', '', { shouldDirty: true })
+    form.setValue('subscription_templates', undefined, { shouldDirty: true })
     form.setValue('ech_config_list', undefined, { shouldDirty: true })
     form.setValue('ech_query_strategy', undefined, { shouldDirty: true })
     form.setValue('mihomo_ech_config', undefined, { shouldDirty: true })
@@ -844,6 +845,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         payload.random_user_agent = false
         payload.use_sni_as_host = false
         payload.vless_route = ''
+        payload.subscription_templates = undefined
         payload.ech_config_list = undefined
         payload.ech_query_strategy = undefined
         payload.mihomo_ech_config = undefined
