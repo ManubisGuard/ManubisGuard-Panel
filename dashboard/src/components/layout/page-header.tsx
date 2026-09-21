@@ -28,7 +28,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
   const docsUrl = tutorialUrl || getDocsUrl(location.pathname)
 
   return (
-    <div dir={dir} className={cn('bg-background/80 sticky top-0 z-20 mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-4 py-4 backdrop-blur-md md:pt-6', className)}>
+    <div dir={dir} className={cn('premium-page-header sticky top-0 z-20 mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-4 py-4 backdrop-blur-md md:pt-5', className)}>
       <Snowfall className="snowfall--header" />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-y-1">
         <div className="flex min-w-0 items-center gap-2.5">
