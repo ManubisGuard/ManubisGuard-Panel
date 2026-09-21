@@ -242,7 +242,7 @@ class BaseSubscription:
             payload["reserved"] = inbound.wireguard_reserved
         if inbound.wireguard_dns:
             payload["dns"] = ",".join(inbound.wireguard_dns)
-        if inbound.wireguard_pre_shared_key:
+        if inbound.wireguard_pre_shared_key and not inbound.amneziawg:
             payload["presharedkey"] = inbound.wireguard_pre_shared_key
         if inbound.finalmask_link:
             payload["fm"] = inbound.finalmask_link
