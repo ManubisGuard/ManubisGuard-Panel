@@ -144,10 +144,12 @@ def test_amneziawg_subscription_renders_interface_defaults_and_omits_psk():
             "peer_ips": ["10.13.13.2/32"],
         },
     )
+
     assert components is not None
     assert "presharedkey" not in components["payload"]
     assert "presharedkey" not in components["uri"]
 
+    renderer.add(
         "AWG",
         "test.example.com",
         inbound,
