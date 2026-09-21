@@ -801,8 +801,9 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       return
     }
 
-    // Don't modify wireguard_overrides when editing an existing host
-    if (editingHost) {
+    // Preserve existing values while editing, but populate AWG defaults
+    // when the selected inbound is AmneziaWG and the host has no overrides yet.
+    if (editingHost && selectedInbound?.protocol !== 'amneziawg') {
       return
     }
 
