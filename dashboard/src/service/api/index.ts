@@ -1553,6 +1553,7 @@ export interface Forbidden {
 export interface General {
   default_method?: ShadowsocksMethods;
   custom_variables?: CustomVariable[] | null;
+  reality_sni_pool?: string[];
 }
 
 export type GeoFilseRegion = typeof GeoFilseRegion[keyof typeof GeoFilseRegion];
