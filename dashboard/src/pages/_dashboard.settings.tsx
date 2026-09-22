@@ -3,7 +3,7 @@ import { useAdmin } from '@/hooks/use-admin'
 import { cn } from '@/lib/utils'
 import { getGetGeneralSettingsQueryKey, getGetSettingsQueryKey, useGetSettings, useModifySettings } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, Database, Fingerprint, ListTodo, LucideIcon, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
+import { Bell, Database, Fingerprint, Globe2, ListTodo, LucideIcon, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
 import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
@@ -38,6 +38,7 @@ export const useSettingsContext = () => {
 
 const allTabs: Tab[] = [
   { id: 'general', label: 'settings.general.title', icon: SettingsIcon, url: '/settings/general' },
+  { id: 'domains', label: 'Domains & SSL', icon: Globe2, url: '/settings/domains' },
   { id: 'notifications', label: 'settings.notifications.title', icon: Bell, url: '/settings/notifications' },
   { id: 'subscriptions', label: 'settings.subscriptions.title', icon: ListTodo, url: '/settings/subscriptions' },
   { id: 'hwid', label: 'settings.hwid.title', icon: Fingerprint, url: '/settings/hwid' },
@@ -150,6 +151,9 @@ export default function Settings() {
 
       // Only include data relevant to the active tab
       switch (activeTab) {
+        case 'domains':
+          filteredData = { general: { domains: data.domains, primary_domain: data.primary_domain, server_addresses: data.server_addresses } }
+          break
         case 'notifications':
           if (data.data) {
             // If data is already wrapped, use it as is
