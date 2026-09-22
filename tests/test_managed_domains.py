@@ -25,3 +25,17 @@ def test_managed_server_address_accepts_ip_or_hostname(address):
 def test_managed_server_address_rejects_url_forms(address):
     with pytest.raises(ValueError):
         ManagedServerAddress(id="a1", address=address)
+
+
+def test_managed_domain_rejects_url_and_invalid_hostname():
+    with pytest.raises(ValueError):
+        ManagedDomain(id="d1", domain="https://edge.example.com")
+    with pytest.raises(ValueError):
+        ManagedDomain(id="d1", domain="edge.example.com:443")
+    with pytest.raises(ValueError):
+        ManagedDomain(id="d1", domain="localhost")
+
+
+def test_managed_domain_normalizes_valid_hostname():
+    item = ManagedDomain(id="d1", domain="  Edge.Example.COM  ")
+    assert item.domain == "edge.example.com"
