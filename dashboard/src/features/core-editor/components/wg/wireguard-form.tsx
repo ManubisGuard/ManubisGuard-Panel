@@ -65,6 +65,48 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
 
   const awgExtra = (draft?.extra ?? {}) as Record<string, unknown>
   const awgEnabled = awgExtra.amneziawg === true
+  const awgDisplay = {
+    jc: 3,
+    jmin: 20,
+    jmax: 50,
+    s1: 15,
+    s2: 64,
+    s3: 25,
+    s4: 8,
+    ...awgExtra,
+  } as Record<string, unknown>
+
+  const generateRandomAwgProfile = () => {
+    const headers = new Set<number>()
+    const randomHeader = () => {
+      let value = 0
+      do {
+        value = Math.floor(Math.random() * 2147483643) + 5
+      } while (headers.has(value))
+      headers.add(value)
+      return String(value)
+    }
+
+    updateWgDraft(d => ({
+      ...d,
+      extra: {
+        ...d.extra,
+        amneziawg: true,
+        jc: 3,
+        jmin: 20,
+        jmax: 50,
+        s1: 15,
+        s2: 64,
+        s3: 25,
+        s4: 8,
+        h1: randomHeader(),
+        h2: randomHeader(),
+        h3: randomHeader(),
+        h4: randomHeader(),
+      },
+    }))
+    toast.success('Random AmneziaWG 2.x profile generated')
+  }
   const setAwgField = (key: string, value: string) => {
     updateWgDraft(d => {
       const extra = { ...d.extra }
@@ -368,6 +410,12 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
               <div className="font-medium">AmneziaWG</div>
               <div className="text-muted-foreground text-xs">AmneziaWG 2.x obfuscation parameters. This section is shown only when the selected core is AmneziaWG.</div>
             </div>
+            {awgEnabled && (
+              <Button type="button" variant="outline" size="sm" onClick={generateRandomAwgProfile}>
+                <RefreshCcw className="mr-2 h-3 w-3" />
+                Generate Random
+              </Button>
+            )}
           </div>
           {awgEnabled && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -377,7 +425,7 @@ export function WireGuardCoreForm({ className }: { className?: string }) {
                   <Input
                     type="text"
                     inputMode={key.startsWith('h') || key.startsWith('i') ? 'text' : 'numeric'}
-                    value={String(awgExtra[key] ?? '')}
+                    value={String(awgDisplay[key] ?? '')}
                     onChange={e => setAwgField(key, e.target.value)}
                     placeholder={key.startsWith('h') ? 'e.g. 1234567-2345678' : key.startsWith('i') ? '<r 32>' : ''}
                     className="text-xs"
