@@ -2,31 +2,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { useGetGeneralSettings, useGetNodesSimple } from '@/service/api'
+import { useGetGeneralSettings, useGetNodesSimple, type ManagedDomain as ApiManagedDomain, type ManagedServerAddress as ApiManagedServerAddress } from '@/service/api'
 import { Globe2, Plus, RefreshCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSettingsContext } from './_dashboard.settings'
-
-type ManagedDomain = {
-  id: string
-  domain: string
-  node_id?: number | null
-  certificate_method: 'letsencrypt' | 'cloudflare' | 'existing'
-  address_mode: 'additional' | 'alias' | 'both'
-  protocols: string[]
-  email?: string | null
-  auto_renew: boolean
-  status: 'pending' | 'active' | 'expiring' | 'failed'
-  certificate_expires_at?: string | null
-  last_checked_at?: string | null
-}
-
-type ManagedServerAddress = {
-  id: string
-  node_id?: number | null
-  address: string
-  enabled: boolean
-}
 
 const protocolOptions = ['Xray', 'Reality', 'AmneziaWG', 'Mieru', 'Shadowsocks', 'TUIC', 'Hysteria2', 'NaiveProxy', 'sing-box']
 
@@ -34,7 +13,7 @@ const newId = () => crypto.randomUUID()
 
 const normalizeDomain = (value: string) => value.trim().toLowerCase()
 
-const emptyDomain = (): ManagedDomain => ({
+const emptyDomain = (): ApiManagedDomain => ({
   id: newId(),
   domain: '',
   node_id: null,
@@ -54,14 +33,14 @@ export default function DomainsSettings() {
   const { data: nodesResponse } = useGetNodesSimple()
   const nodes = ((nodesResponse as any)?.data?.nodes ?? (nodesResponse as any)?.nodes ?? []) as Array<{ id: number; name: string }>
 
-  const general = ((generalSettings as any)?.data ?? generalSettings ?? {}) as any
-  const storedDomains = (general.domains ?? []) as ManagedDomain[]
-  const storedPrimary = (general.primary_domain ?? null) as ManagedDomain | null
-  const storedAddresses = (general.server_addresses ?? []) as ManagedServerAddress[]
+  const general = ((generalSettings as any)?.data ?? generalSettings ?? {}) as { domains?: ApiManagedDomain[]; primary_domain?: ApiManagedDomain | null; server_addresses?: ApiManagedServerAddress[] }
+  const storedDomains = general.domains ?? []
+  const storedPrimary = general.primary_domain ?? null
+  const storedAddresses = general.server_addresses ?? []
 
-  const [primary, setPrimary] = useState<ManagedDomain | null>(storedPrimary)
-  const [domains, setDomains] = useState<ManagedDomain[]>(storedDomains)
-  const [addresses, setAddresses] = useState<ManagedServerAddress[]>(storedAddresses)
+  const [primary, setPrimary] = useState<ApiManagedDomain | null>(storedPrimary)
+  const [domains, setDomains] = useState<ApiManagedDomain[]>(storedDomains)
+  const [addresses, setAddresses] = useState<ApiManagedServerAddress[]>(storedAddresses)
 
   useEffect(() => {
     setPrimary(storedPrimary)
@@ -89,7 +68,7 @@ export default function DomainsSettings() {
   }
 
   const addDomain = () => setDomains(current => [...current, emptyDomain()])
-  const updateDomain = (id: string, patch: Partial<ManagedDomain>) => setDomains(current => current.map(item => item.id === id ? { ...item, ...patch } : item))
+  const updateDomain = (id: string, patch: Partial<ApiManagedDomain>) => setDomains(current => current.map(item => item.id === id ? { ...item, ...patch } : item))
   const removeDomain = (id: string) => setDomains(current => current.filter(item => item.id !== id))
   const addAddress = () => setAddresses(current => [...current, { id: newId(), node_id: null, address: '', enabled: true }])
 
@@ -145,7 +124,7 @@ export default function DomainsSettings() {
                 <Field label="Node"><NodeSelect value={domain.node_id} nodes={nodes} onChange={node_id => updateDomain(domain.id, { node_id })} /></Field>
                 <Field label="Certificate method"><CertSelect value={domain.certificate_method} onChange={certificate_method => updateDomain(domain.id, { certificate_method })} /></Field>
                 <Field label="How to use this address">
-                  <Select value={domain.address_mode} onValueChange={address_mode => updateDomain(domain.id, { address_mode: address_mode as ManagedDomain['address_mode'] })}>
+                  <Select value={domain.address_mode} onValueChange={address_mode => updateDomain(domain.id, { address_mode: address_mode as NonNullable<ApiManagedDomain['address_mode']> })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="additional">As additional address</SelectItem>
@@ -220,7 +199,7 @@ function NodeSelect({ value, nodes, onChange }: { value?: number | null; nodes: 
   )
 }
 
-function CertSelect({ value, onChange }: { value: ManagedDomain['certificate_method']; onChange: (value: ManagedDomain['certificate_method']) => void }) {
+function CertSelect({ value, onChange }: { value: NonNullable<ApiManagedDomain['certificate_method']>; onChange: (value: ManagedDomain['certificate_method']) => void }) {
   return (
     <Select value={value} onValueChange={value => onChange(value as ManagedDomain['certificate_method'])}>
       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -233,7 +212,7 @@ function CertSelect({ value, onChange }: { value: ManagedDomain['certificate_met
   )
 }
 
-function StatusBadge({ status }: { status: ManagedDomain['status'] }) {
+function StatusBadge({ status }: { status: NonNullable<ApiManagedDomain['status']> }) {
   const label = status === 'active' ? 'Active' : status === 'expiring' ? 'Expiring' : status === 'failed' ? 'Failed' : 'Pending'
   const cls = status === 'active' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' : status === 'failed' ? 'border-red-500/30 bg-red-500/10 text-red-400' : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
   return <span className={`rounded-full border px-2 py-1 ${cls}`}>{label}</span>
