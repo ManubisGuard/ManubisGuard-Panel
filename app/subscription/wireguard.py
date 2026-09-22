@@ -78,7 +78,7 @@ class WireGuardConfiguration(BaseSubscription):
                 config_data["Interface"]["DNS"] = ", ".join(dns_servers)
 
         # Optional Peer settings
-        if not inbound.amneziawg and (preshared_key := payload.get("presharedkey")):
+        if preshared_key := payload.get("presharedkey"):
             config_data["Peer"]["PresharedKey"] = preshared_key
         if keepalive := payload.get("keepalive"):
             config_data["Peer"]["PersistentKeepalive"] = str(keepalive)
