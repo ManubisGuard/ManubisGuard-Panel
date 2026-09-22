@@ -1,5 +1,5 @@
 import AdminStatisticsCard from '@/features/dashboard/components/admin-statistics-card'
-import DashboardStatistics from '@/features/dashboard/components/dashboard-statistics'
+import DashboardOverview from '@/features/dashboard/components/dashboard-overview'
 import WorkersHealthCard from '@/features/dashboard/components/workers-health-card'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import { useCommandPaletteStore } from '@/hooks/use-command-palette-store'
@@ -99,17 +99,16 @@ const Dashboard = () => {
   })
 
   return (
-    <div className="flex w-full flex-col items-start gap-2">
-      <div className="w-full">
+    <div className="flex w-full flex-col items-start">
+      <div className="w-full border-b border-border/50">
         <PageHeader title="dashboard" description="dashboardDescription" buttonIcon={Bookmark} buttonText="quickActions.title" onButtonClick={handleOpenQuickActions} />
-        <Separator />
       </div>
 
-      <div className="w-full px-3 pt-2 sm:px-4">
-        <div className="flex flex-col gap-4 sm:gap-6">
-          <DashboardStatistics resourceData={systemResourceStatsData} usersData={systemUsersStatsData} />
+      <div className="w-full px-3 py-4 sm:px-5 lg:px-6">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-5">
+          <DashboardOverview resourceData={systemResourceStatsData} usersData={systemUsersStatsData} />
           {canReadNodeStats && <WorkersHealthCard />}
-          <Separator className="my-4" />
+          <div className="h-px bg-border/50" />
           {canReadAllUsers ? (
             <>
               <AdminFilterCombobox
