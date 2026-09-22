@@ -988,7 +988,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [realityScanTarget, setRealityScanTarget] = useState('')
   const [isRealitySniDiscoveryRunning, setIsRealitySniDiscoveryRunning] = useState(false)
   const [isRealityAutoSelecting, setIsRealityAutoSelecting] = useState(false)
-  const { data: generalSettings } = useGetGeneralSettings()
+  const { data: generalSettingsResponse } = useGetGeneralSettings()
+  const generalSettings = generalSettingsResponse?.data
   const [echUsageOption, setEchUsageOption] = useState<'default' | 'required' | 'preferred'>('default')
   const [draftInbound, setDraftInbound] = useState<Inbound | null>(null)
   const [editOriginalInbound, setEditOriginalInbound] = useState<Inbound | null>(null)
@@ -2478,8 +2479,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
     setIsRealitySniDiscoveryRunning(true)
     try {
-      const result = await scanRealityTarget({ target, timeout: 10 }) as unknown as RealityScanResult
-      applyRealityScanResult(result, 'Target scan')
+      const response = await scanRealityTarget({ target, timeout: 10 })
+      applyRealityScanResult(response.data, 'Target scan')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to scan the Reality target.'
       toast.error('Reality SNI discovery failed', { description: message })
@@ -2501,7 +2502,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       const results = await Promise.all(
         pool.slice(0, 25).map(async target => {
           try {
-            return (await scanRealityTarget({ target, timeout: 10 })) as unknown as RealityScanResult
+            return (await scanRealityTarget({ target, timeout: 10 })).data
           } catch {
             return null
           }
