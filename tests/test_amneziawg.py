@@ -97,7 +97,7 @@ def test_amneziawg_subscription_uses_canonical_key_names():
     assert "JC =" not in output
 
 
-def test_amneziawg_subscription_renders_interface_defaults_and_omits_psk():
+def test_amneziawg_subscription_renders_interface_defaults_and_psk():
     from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
     from app.subscription.wireguard import WireGuardConfiguration
 
@@ -146,8 +146,8 @@ def test_amneziawg_subscription_renders_interface_defaults_and_omits_psk():
     )
 
     assert components is not None
-    assert "presharedkey" not in components["payload"]
-    assert "presharedkey" not in components["uri"]
+    assert components["payload"]["presharedkey"] == "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+    assert "presharedkey=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB%3D" in components["uri"]
 
     renderer.add(
         "AWG",
@@ -164,7 +164,7 @@ def test_amneziawg_subscription_renders_interface_defaults_and_omits_psk():
     assert output.index("DNS = 1.1.1.1, 1.0.0.1") < output.index("[Peer]")
     assert output.index("Jc = 4") < output.index("[Peer]")
     assert output.index("H4 = 1830566748") < output.index("[Peer]")
-    assert "PresharedKey =" not in output
+    assert "PresharedKey = BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==" in output
     assert "PersistentKeepalive = 25" in output
     assert "Address = 10.13.13.2/32" in output
 
