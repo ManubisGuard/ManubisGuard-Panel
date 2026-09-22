@@ -988,8 +988,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [realityScanTarget, setRealityScanTarget] = useState('')
   const [isRealitySniDiscoveryRunning, setIsRealitySniDiscoveryRunning] = useState(false)
   const [isRealityAutoSelecting, setIsRealityAutoSelecting] = useState(false)
-  const { data: generalSettingsResponse } = useGetGeneralSettings()
-  const generalSettings = generalSettingsResponse?.data
+  const { data: generalSettings } = useGetGeneralSettings()
   const [echUsageOption, setEchUsageOption] = useState<'default' | 'required' | 'preferred'>('default')
   const [draftInbound, setDraftInbound] = useState<Inbound | null>(null)
   const [editOriginalInbound, setEditOriginalInbound] = useState<Inbound | null>(null)
