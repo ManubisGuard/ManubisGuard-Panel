@@ -414,22 +414,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <>
-      <div className="sticky top-0 z-30 shrink-0 lg:hidden">
-        <div className="bg-sidebar h-[env(safe-area-inset-top)]" />
-        <div className="border-sidebar-border bg-sidebar/80 supports-[backdrop-filter]:bg-sidebar/65 flex items-center justify-between border-b px-4 py-3 backdrop-blur-md">
-          <Link to="/" className="flex items-center gap-2">
-            <img
-              src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
-              alt="ManubisGuard Logo"
-              className="h-8 w-8 object-contain"
-            />
-            <span dir={isRTL ? 'rtl' : 'ltr'} className="text-sm font-bold">
-              {'MANUBISGUARD'}
-            </span>
-          </Link>
-          <SidebarTriggerWithBadge showUpdateBadge={canReadSystem && hasUpdate} />
-        </div>
-      </div>
       <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border/70 bg-sidebar/95 p-0 shadow-[12px_0_40px_hsl(0_0%_0%_/_0.16)]" side={isRTL ? 'right' : 'left'}>
         <SidebarRail />
         <SidebarHeader>
@@ -454,7 +438,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <a href={REPO_URL} target="_blank">
                       <img
                         src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
-                        alt="PasarGuard Logo"
+                        alt="ManubisGuard Logo"
                         className="h-6 w-6 flex-shrink-0 object-contain"
                       />
                       {canReadSystem && hasUpdate && (
@@ -497,7 +481,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         className="h-8 w-8 flex-shrink-0 object-contain"
                       />
                       <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden">
-                        <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm leading-tight font-semibold')}>{t('pasarguard')}</span>
+                        <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm leading-tight font-semibold')}>'MANUBISGUARD'</span>
                         {canReadSystem && (
                           <div className="flex min-w-0 flex-wrap items-center gap-0.75 leading-none">
                             <span className="max-w-full truncate text-xs leading-none opacity-45">{displayVersion}</span>
