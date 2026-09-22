@@ -24,8 +24,8 @@ export const useCoresListColumns = ({ onEdit, onDuplicate, onDelete, canUpdate =
         width: '2.5fr',
         cell: core => (
           <div className="flex min-w-0 items-center gap-2">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
-            <span className="truncate font-medium">{core.name}</span>
+            <span className="h-2 w-2 shrink-0 rounded-full bg-primary shadow-[0_0_10px_hsl(var(--primary)/.45)]" />
+            <span className="truncate text-sm font-medium tracking-tight">{core.name}</span>
           </div>
         ),
       },
