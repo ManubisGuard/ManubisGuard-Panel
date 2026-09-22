@@ -166,6 +166,10 @@
   body {
     @apply bg-background font-body text-foreground;
     background-color: hsl(var(--background));
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb) / 0.4) transparent;
   }
 
   html.dark body {
@@ -180,13 +184,11 @@
 
   html.dark #root {
     min-height: 100vh;
-    background:
-      linear-gradient(180deg, hsl(var(--background) / 0.72), hsl(var(--background) / 0.94));
+    background: linear-gradient(180deg, hsl(var(--background) / 0.72), hsl(var(--background) / 0.94));
   }
 
   html.dark [data-sidebar="sidebar"] {
-    background:
-      linear-gradient(180deg, hsl(240 6% 9% / 0.96), hsl(240 5% 7% / 0.96));
+    background: linear-gradient(180deg, hsl(240 6% 9% / 0.96), hsl(240 5% 7% / 0.96));
     border-color: hsl(var(--cyber-green) / 0.10);
     box-shadow: 12px 0 40px hsl(0 0% 0% / 0.18);
   }
@@ -203,11 +205,6 @@
 
   html.dark .border-border {
     border-color: hsl(145 30% 60% / 0.10);
-  }
-    overflow-x: hidden; /* Prevent horizontal scroll from drag-and-drop elements */
-    scroll-behavior: smooth; /* Smooth scrolling for better UX */
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--scrollbar-thumb) / 0.4) transparent;
   }
 
   button:not(:disabled),
