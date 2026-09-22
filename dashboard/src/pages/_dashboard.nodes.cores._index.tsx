@@ -141,7 +141,7 @@ export default function CoresIndexPage() {
   const cores = useMemo(() => coresData?.cores ?? [], [coresData?.cores])
 
   return (
-    <div className="flex flex-col px-4">
+    <div className="flex flex-col gap-3 px-4 py-3 md:py-4">
       <Cores
         cores={cores}
         onDuplicateCore={canCreateCores ? handleDuplicateCore : undefined}
