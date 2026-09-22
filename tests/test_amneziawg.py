@@ -261,3 +261,33 @@ def test_amneziawg_generates_nova_style_defaults_when_missing():
     headers = [int(awg[f"h{i}"]) for i in range(1, 5)]
     assert len(set(headers)) == 4
     assert all(5 <= value <= 2_147_483_647 for value in headers)
+
+
+def test_amneziawg_manual_profile_values_are_preserved():
+    config = _base_config()
+    config.update({
+        "jc": 5, "jmin": 20, "jmax": 50,
+        "s1": 11, "s2": 22, "s3": 33, "s4": 7,
+        "h1": "1851500115", "h2": "163827579",
+        "h3": "775454101", "h4": "1260834266",
+    })
+
+    awg = AmneziaWGConfig(config)
+
+    for key, value in config.items():
+        if key in ("interface_name", "private_key", "listen_port", "address"):
+            continue
+        assert awg[key] == value
+
+
+def test_generate_awg_profile_uses_nova_baseline_and_unique_headers():
+    from app.core.amneziawg import generate_awg_profile
+
+    profile = generate_awg_profile()
+
+    assert {k: profile[k] for k in ("jc", "jmin", "jmax", "s1", "s2", "s3", "s4")} == {
+        "jc": 3, "jmin": 20, "jmax": 50, "s1": 15, "s2": 64, "s3": 25, "s4": 8,
+    }
+    headers = [int(profile[f"h{i}"]) for i in range(1, 5)]
+    assert len(set(headers)) == 4
+    assert all(5 <= value <= 2_147_483_647 for value in headers)
