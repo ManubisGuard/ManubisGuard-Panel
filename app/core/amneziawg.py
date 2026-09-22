@@ -27,6 +27,30 @@ AWG_OBFUSCATION_FIELDS = (
     "i5",
 )
 
+AWG_DEFAULT_PROFILE = {
+    "jc": 3,
+    "jmin": 20,
+    "jmax": 50,
+    "s1": 15,
+    "s2": 64,
+    "s3": 25,
+    "s4": 8,
+}
+
+
+def generate_awg_profile() -> dict:
+    """Generate the Nova-compatible AWG2.x baseline profile."""
+    profile = dict(AWG_DEFAULT_PROFILE)
+    used_headers: set[int] = set()
+    for field in ("h1", "h2", "h3", "h4"):
+        while True:
+            value = secrets.randbelow(2_147_483_642) + 5
+            if value not in used_headers:
+                used_headers.add(value)
+                profile[field] = str(value)
+                break
+    return profile
+
 
 class AmneziaWGConfig(WireGuardConfig):
     """AmneziaWG core configuration.
@@ -68,16 +92,8 @@ class AmneziaWGConfig(WireGuardConfig):
         # Match Nova's operational model: a newly-created AWG core must
         # have a complete, known-good obfuscation profile instead of silently
         # falling back to plain WireGuard. Explicit operator values always win.
-        defaults = {
-            "jc": 3,
-            "jmin": 20,
-            "jmax": 50,
-            "s1": 15,
-            "s2": 64,
-            "s3": 25,
-            "s4": 8,
-        }
-        for field, default in defaults.items():
+        generated = generate_awg_profile()
+        for field, default in generated.items():
             if field not in self:
                 self[field] = default
 
