@@ -1,4 +1,5 @@
 import re
+from ipaddress import ip_address
 from enum import Enum, StrEnum
 from typing import Any
 
@@ -424,9 +425,15 @@ class ManagedServerAddress(BaseModel):
     @classmethod
     def validate_address(cls, value: str) -> str:
         address = value.strip().lower()
-        if not address or "://" in address or "/" in address or ":" in address or any(ch.isspace() for ch in address):
+        if not address or "://" in address or "/" in address or any(ch.isspace() for ch in address):
             raise ValueError("Invalid server address")
-        return address
+        try:
+            ip_address(address)
+            return address
+        except ValueError:
+            if not re.fullmatch(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}", address):
+                raise ValueError("Invalid server address")
+            return address
 
 
 class General(BaseModel):
