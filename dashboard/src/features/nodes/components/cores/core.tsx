@@ -20,7 +20,7 @@ interface CoreProps {
 export default function Core({ core, onEdit, onDuplicate, onDelete, canUpdate = true, canCreate = true, canDelete = true, selectionControl, selected = false }: CoreProps) {
   return (
     <Card
-      className={cn('group relative h-full px-4 py-5 transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
+      className={cn('group relative h-full overflow-hidden rounded-xl border-border/60 bg-card/45 px-4 py-4 shadow-none transition-all duration-200', canUpdate && 'cursor-pointer hover:border-primary/25 hover:bg-card/70', selected && 'border-primary/45 bg-primary/5')}
       onClick={() => {
         if (canUpdate) onEdit(core)
       }}
@@ -31,8 +31,8 @@ export default function Core({ core, onEdit, onDuplicate, onDelete, canUpdate = 
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
-                <div className={cn('min-h-2 min-w-2 rounded-full', 'bg-green-500')} />
-                <div className="truncate font-medium">{core.name}</div>
+                <div className={cn('min-h-2 min-w-2 rounded-full bg-primary shadow-[0_0_10px_hsl(var(--primary)/.45)]')} />
+                <div className="truncate text-sm font-medium tracking-tight">{core.name}</div>
               </div>
             </div>
           </div>
