@@ -293,7 +293,7 @@ export default function NodeLogs() {
   }
 
   return (
-    <div className={cn('flex w-full min-w-0 flex-col gap-3 p-3 sm:gap-4 sm:p-4', dir === 'rtl' && 'rtl')}>
+    <div className={cn('flex w-full min-w-0 flex-col gap-3 rounded-xl border border-border/50 bg-card/20 p-3 sm:gap-4 sm:p-4', dir === 'rtl' && 'rtl')}>
       <div className="flex min-w-0 flex-col gap-2 sm:gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <div className="min-w-0 flex-1 sm:max-w-[250px]">
