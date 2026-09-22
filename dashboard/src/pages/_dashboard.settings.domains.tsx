@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { useGetGeneralSettings, useGetNodesSimple } from '@/service/api'
 import { Globe2, Plus, RefreshCcw, ShieldCheck, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { useSettingsContext } from './_dashboard.settings'
 
@@ -208,7 +208,7 @@ export default function DomainsSettings() {
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="space-y-1.5"><div className="text-sm font-medium">{label}</div>{children}</div>
 }
 
