@@ -365,6 +365,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       { protocol: 'links (base64)', format: 'links_base64', icon: Code },
       { protocol: 'xray', format: 'xray', icon: XrayIcon },
       { protocol: 'wireguard', format: 'wireguard', icon: WireguardIcon },
+      { protocol: 'amneziawg', format: 'wireguard', icon: WireguardIcon },
       { protocol: 'clash', format: 'clash', icon: Cat },
       { protocol: 'clash-meta', format: 'clash_meta', icon: MihomoIcon },
       { protocol: 'outline', format: 'outline', icon: GlobeLock },
