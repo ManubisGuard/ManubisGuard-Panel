@@ -40,7 +40,7 @@ export interface SubscribeLink {
   icon: React.ComponentType<{ className?: string }>
 }
 
-const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box', 'wireguard']
+const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box', 'wireguard', 'amneziawg']
 
 type ActionButtonsModalState = {
   subscribeUrl: string
@@ -622,7 +622,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        const ext = type === 'wireguard' ? 'zip' : 'yaml'
+        const ext = type === 'wireguard' || type === 'amneziawg' ? 'zip' : 'yaml'
         a.download = `${user.username}.${ext}`
         document.body.appendChild(a)
         a.click()
