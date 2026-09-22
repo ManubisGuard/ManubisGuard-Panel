@@ -10,7 +10,7 @@ import { queryClient } from '@/utils/query-client'
 
 export default function App() {
   return (
-    <ThemeProvider defaultTheme="system" storageKey="theme">
+    <ThemeProvider defaultTheme="dark" defaultColorTheme="green" defaultRadius="0.75rem" storageKey="theme">
       <QueryClientProvider client={queryClient}>
         <SidebarProvider className="contents">
           <main>
