@@ -81,7 +81,7 @@ export default function Settings() {
   const { mutateAsync: modifySettingsAsync, isPending: isSaving } = useModifySettings({
     mutation: {
       onSuccess: updatedSettings => {
-        toast.success(t(`settings.${activeTab}.saveSuccess`))
+        toast.success(t(`settings.${activeTab}.saveSuccess`, { defaultValue: 'Settings saved' }))
         queryClient.setQueryData(getGetSettingsQueryKey(), updatedSettings)
         if (updatedSettings?.general) {
           queryClient.setQueryData(getGetGeneralSettingsQueryKey(), updatedSettings.general)
@@ -135,7 +135,7 @@ export default function Settings() {
           errorMessage = error.message
         }
 
-        toast.error(t(`settings.${activeTab}.saveFailed`), {
+        toast.error(t(`settings.${activeTab}.saveFailed`, { defaultValue: 'Failed to save settings' }), {
           description: errorMessage,
         })
       },
