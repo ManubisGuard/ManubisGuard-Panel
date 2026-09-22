@@ -25,7 +25,7 @@ import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { invalidateUserMetricsQueries, removeUserFromUsersCache, upsertUserInUsersCache } from '@/utils/usersCache'
-import { buildSubscriptionFormatUrl, fetchSubscriptionBlobFromUrl, fetchUserSubscriptionContent, resolveSubscriptionPublicUrl, type SubscriptionContentFormat } from '@/utils/subscription-config'
+import { buildSubscriptionFormatUrl, fetchSubscriptionBlobFromUrl, fetchUserSubscriptionContent, getWireGuardDownloadPayload, resolveSubscriptionPublicUrl, type SubscriptionContentFormat } from '@/utils/subscription-config'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
 
 type ActionButtonsProps = {
@@ -40,7 +40,7 @@ export interface SubscribeLink {
   icon: React.ComponentType<{ className?: string }>
 }
 
-const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box', 'wireguard', 'amneziawg']
+const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box', 'wireguard']
 
 type ActionButtonsModalState = {
   subscribeUrl: string
@@ -622,7 +622,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        const ext = type === 'wireguard' || type === 'amneziawg' ? 'zip' : 'yaml'
+        const ext = type === 'wireguard' ? 'zip' : 'yaml'
         a.download = `${user.username}.${ext}`
         document.body.appendChild(a)
         a.click()
@@ -635,7 +635,41 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     }
   }
 
-  const handleCopyOrDownload = (format: SubscriptionContentFormat, type: string) => {
+  const handleCopyOrDownload = async (format: SubscriptionContentFormat, type: string) => {
+    if (type === 'amneziawg') {
+      try {
+        const content = await fetchAndCacheContent(format)
+        const wireGuardUri = content
+          .split(/\r?\n/)
+          .map(line => line.trim())
+          .find(line => line.startsWith('wireguard://'))
+
+        if (!wireGuardUri) {
+          throw new Error('AmneziaWG subscription does not contain a WireGuard URI')
+        }
+
+        const payload = getWireGuardDownloadPayload(wireGuardUri)
+        if (!payload) {
+          throw new Error('Failed to convert AmneziaWG subscription to config')
+        }
+
+        const blob = new Blob([payload.content], { type: payload.mimeType })
+        const url = window.URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = payload.fileName
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        window.URL.revokeObjectURL(url)
+        toast.success(t('usersTable.downloadStarted', { defaultValue: 'Download started' }))
+      } catch (error) {
+        console.error('Failed to download AmneziaWG config:', error)
+        toast.error(t('downloadFailed', { defaultValue: 'Failed to download config' }))
+      }
+      return
+    }
+
     if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
       handleConfigDownload(format, type)
     } else {
