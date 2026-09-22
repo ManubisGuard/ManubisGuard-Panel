@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
 import { ShadowsocksMethods, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, RefreshCcw } from 'lucide-react'
+import { Loader2, RefreshCcw, RotateCcw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -18,8 +19,27 @@ import { z } from 'zod'
 import { useSettingsContext } from './_dashboard.settings'
 
 // general settings validation schema
+const DEFAULT_REALITY_SNI_POOL = [
+  'www.microsoft.com',
+  'www.cloudflare.com',
+  'www.apple.com',
+  'www.google.com',
+  'www.mozilla.org',
+  'www.github.com',
+  'www.wikipedia.org',
+  'www.amazon.com',
+  'www.linkedin.com',
+  'www.dropbox.com',
+  'www.adobe.com',
+  'www.oracle.com',
+  'www.ibm.com',
+  'www.salesforce.com',
+  'www.reddit.com',
+]
+
 const generalSettingsSchema = z.object({
   default_method: z.string().default(''),
+  reality_sni_pool: z.string().default(''),
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
@@ -36,9 +56,11 @@ export default function General() {
       generalSettings
         ? {
             default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+            reality_sni_pool: (generalSettings.reality_sni_pool?.length ? generalSettings.reality_sni_pool : DEFAULT_REALITY_SNI_POOL).join('\n'),
           }
         : {
             default_method: '',
+            reality_sni_pool: DEFAULT_REALITY_SNI_POOL.join('\n'),
           },
     [generalSettings?.default_method],
   )
@@ -51,9 +73,16 @@ export default function General() {
   const onSubmit = async (data: GeneralSettingsFormInput) => {
     try {
       // Filter out empty values and prepare the payload
-      const filteredData: any = {
+      const realitySniPool = data.reality_sni_pool
+        .split(/[\n,]+/)
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean)
+        .filter((value, index, values) => values.indexOf(value) === index)
+
+      const filteredData = {
         general: {
           default_method: data.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+          reality_sni_pool: realitySniPool,
         },
       }
 
@@ -67,6 +96,7 @@ export default function General() {
     if (!generalSettings) return
     form.reset({
       default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+      reality_sni_pool: (generalSettings.reality_sni_pool?.length ? generalSettings.reality_sni_pool : DEFAULT_REALITY_SNI_POOL).join('\n'),
     })
     toast.success(t('settings.general.cancelSuccess'))
   }
@@ -188,6 +218,49 @@ export default function General() {
                 )}
               />
             </div>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h3 className="text-base font-semibold sm:text-lg">Reality SNI Pool</h3>
+                <p className="text-muted-foreground text-xs sm:text-sm">
+                  Candidate SNI domains used by Reality Auto Select. One domain per line. The inbound scanner filters unhealthy candidates before selection.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2 self-start"
+                onClick={() => form.setValue('reality_sni_pool', DEFAULT_REALITY_SNI_POOL.join('\n'), { shouldDirty: true })}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Restore defaults
+              </Button>
+            </div>
+
+            <FormField
+              control={form.control}
+              name="reality_sni_pool"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      dir="ltr"
+                      rows={8}
+                      className="font-mono text-xs"
+                      placeholder={DEFAULT_REALITY_SNI_POOL.slice(0, 5).join('\n')}
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    The selected inbound SNI is tested first, then its certificate SAN/server-name list can be applied to the Reality inbound. Maximum 100 entries.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
 
           <Separator className="my-3" />
