@@ -62,7 +62,7 @@ export default function General() {
             default_method: '',
             reality_sni_pool: DEFAULT_REALITY_SNI_POOL.join('\n'),
           },
-    [generalSettings?.default_method],
+    [generalSettings?.default_method, generalSettings?.reality_sni_pool],
   )
 
   const form = useForm<GeneralSettingsFormInput>({
