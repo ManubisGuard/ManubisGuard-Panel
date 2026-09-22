@@ -54,6 +54,7 @@ import {
   type VlessBuilderOptions,
 } from '@/lib/xray-generation'
 import { mldsa65PairMatches, validateMldsa65Seed, validateMldsa65Verify } from '@/utils/mldsa65'
+import { scanRealityTarget, useGetGeneralSettings, type RealityScanResult } from '@/service/api'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { arrayMove } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -985,6 +986,9 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [isGeneratingMldsa65, setIsGeneratingMldsa65] = useState(false)
   const [isRealityScanOpen, setIsRealityScanOpen] = useState(false)
   const [realityScanTarget, setRealityScanTarget] = useState('')
+  const [isRealitySniDiscoveryRunning, setIsRealitySniDiscoveryRunning] = useState(false)
+  const [isRealityAutoSelecting, setIsRealityAutoSelecting] = useState(false)
+  const { data: generalSettings } = useGetGeneralSettings()
   const [echUsageOption, setEchUsageOption] = useState<'default' | 'required' | 'preferred'>('default')
   const [draftInbound, setDraftInbound] = useState<Inbound | null>(null)
   const [editOriginalInbound, setEditOriginalInbound] = useState<Inbound | null>(null)
@@ -2430,6 +2434,94 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       else merged.verifyPeerCertByName = names
     }
     patchInbound({ security: merged } as Partial<Inbound>)
+  }
+
+  const normalizeRealityServerNames = (result: RealityScanResult): string[] => {
+    const discovered = Array.isArray(result.server_names) ? result.server_names : []
+    const fallback = result.sni ? [result.sni] : []
+    return [...new Set([...fallback, ...discovered].map(value => String(value).trim()).filter(Boolean))]
+  }
+
+  const applyRealityScanResult = (result: RealityScanResult, sourceLabel: string) => {
+    if (!result.feasible) {
+      toast.error(t('coreEditor.realityScan.notFeasible', { defaultValue: 'Not a suitable Reality target' }))
+      return false
+    }
+
+    const serverNames = normalizeRealityServerNames(result)
+    if (serverNames.length === 0) {
+      toast.error('No valid certificate SNI names were discovered for this target.')
+      return false
+    }
+
+    const targetValue = result.host + ':' + result.port
+    const serverNamesValue = serverNames.join('\n')
+    form.setValue(securityFieldName('target'), targetValue, { shouldDirty: true, shouldTouch: true, shouldValidate: true })
+    form.setValue(securityFieldName('serverNames'), serverNamesValue, { shouldDirty: true, shouldTouch: true, shouldValidate: true })
+    patchSecurity({ target: targetValue, serverNames })
+    revalidateRealityInboundForm()
+
+    toast.success('Reality SNI set applied', {
+      description: sourceLabel + ': ' + serverNames.length + ' SNI names discovered. Client subscriptions will randomly select one.',
+    })
+    return true
+  }
+
+  const discoverRealitySniSet = async () => {
+    if (isRealitySniDiscoveryRunning || isRealityAutoSelecting) return
+    const rawTarget = form.getValues(securityFieldName('target'))
+    const target = typeof rawTarget === 'string' ? rawTarget.trim() : ''
+    if (!target) {
+      toast.error('Set a Reality target first.')
+      return
+    }
+
+    setIsRealitySniDiscoveryRunning(true)
+    try {
+      const result = await scanRealityTarget({ target, timeout: 10 }) as unknown as RealityScanResult
+      applyRealityScanResult(result, 'Target scan')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to scan the Reality target.'
+      toast.error('Reality SNI discovery failed', { description: message })
+    } finally {
+      setIsRealitySniDiscoveryRunning(false)
+    }
+  }
+
+  const autoSelectRealitySni = async () => {
+    if (isRealitySniDiscoveryRunning || isRealityAutoSelecting) return
+    const pool = (generalSettings?.reality_sni_pool ?? []).map(value => String(value).trim()).filter(Boolean)
+    if (pool.length === 0) {
+      toast.error('Reality SNI Pool is empty. Add candidates in Admin Settings → General.')
+      return
+    }
+
+    setIsRealityAutoSelecting(true)
+    try {
+      const results = await Promise.all(
+        pool.slice(0, 25).map(async target => {
+          try {
+            return (await scanRealityTarget({ target, timeout: 10 })) as unknown as RealityScanResult
+          } catch {
+            return null
+          }
+        }),
+      )
+
+      const healthy = results
+        .filter((result): result is RealityScanResult => Boolean(result?.feasible))
+        .sort((a, b) => (a.latency_ms ?? Number.POSITIVE_INFINITY) - (b.latency_ms ?? Number.POSITIVE_INFINITY))
+
+      const best = healthy[0]
+      if (!best) {
+        toast.error('No healthy Reality SNI candidate was found in the configured pool.')
+        return
+      }
+
+      applyRealityScanResult(best, 'Auto Select · ' + (best.latency_ms ?? '—') + ' ms')
+    } finally {
+      setIsRealityAutoSelecting(false)
+    }
   }
 
   const setTlsCertificates = (next: TlsCertificateUiItem[]) => {
@@ -4484,7 +4576,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                 </div>
                               )}
                               {isReality && jsonKey === 'target' && (
-                                <div className={INBOUND_SECURITY_ACTION_GRID_ITEM_CLASS}>
+                                <div className="grid gap-2 sm:col-span-2 sm:grid-cols-3">
                                   <LoaderButton
                                     type="button"
                                     variant="outline"
@@ -4497,6 +4589,27 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                     isLoading={false}
                                   >
                                     <span className="flex items-center gap-2 truncate">{t('coreConfigModal.scanRealityTarget', { defaultValue: 'Scan target' })}</span>
+                                  </LoaderButton>
+                                  <LoaderButton
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => void discoverRealitySniSet()}
+                                    className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                                    isLoading={isRealitySniDiscoveryRunning}
+                                    loadingText="Discovering SNI set..."
+                                    disabled={isRealityAutoSelecting}
+                                  >
+                                    <span className="flex items-center gap-2 truncate">Discover SNI set</span>
+                                  </LoaderButton>
+                                  <LoaderButton
+                                    type="button"
+                                    onClick={() => void autoSelectRealitySni()}
+                                    className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
+                                    isLoading={isRealityAutoSelecting}
+                                    loadingText="Selecting best SNI..."
+                                    disabled={isRealitySniDiscoveryRunning}
+                                  >
+                                    <span className="flex items-center gap-2 truncate">Auto Select Best SNI</span>
                                   </LoaderButton>
                                 </div>
                               )}
