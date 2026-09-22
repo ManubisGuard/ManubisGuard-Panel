@@ -164,7 +164,7 @@ def test_amneziawg_subscription_renders_interface_defaults_and_psk():
     assert output.index("DNS = 1.1.1.1, 1.0.0.1") < output.index("[Peer]")
     assert output.index("Jc = 4") < output.index("[Peer]")
     assert output.index("H4 = 1830566748") < output.index("[Peer]")
-    assert "PresharedKey = BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==" in output
+    assert "PresharedKey = BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=" in output
     assert "PersistentKeepalive = 25" in output
     assert "Address = 10.13.13.2/32" in output
 
