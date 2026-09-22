@@ -1550,10 +1550,34 @@ export interface Forbidden {
   detail?: string;
 }
 
+export interface ManagedDomain {
+  id: string;
+  domain: string;
+  node_id?: number | null;
+  certificate_method?: string;
+  address_mode?: string;
+  protocols?: string[];
+  email?: string | null;
+  auto_renew?: boolean;
+  status?: string;
+  certificate_expires_at?: string | null;
+  last_checked_at?: string | null;
+}
+
+export interface ManagedServerAddress {
+  id: string;
+  node_id?: number | null;
+  address: string;
+  enabled?: boolean;
+}
+
 export interface General {
   default_method?: ShadowsocksMethods;
   custom_variables?: CustomVariable[] | null;
   reality_sni_pool?: string[];
+  primary_domain?: ManagedDomain | null;
+  domains?: ManagedDomain[];
+  server_addresses?: ManagedServerAddress[];
 }
 
 export type GeoFilseRegion = typeof GeoFilseRegion[keyof typeof GeoFilseRegion];
