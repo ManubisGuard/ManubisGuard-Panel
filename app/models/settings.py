@@ -392,10 +392,50 @@ def normalize_reality_sni_pool(value: list[str]) -> list[str]:
     return result
 
 
+class ManagedDomain(BaseModel):
+    id: str = Field(max_length=64)
+    domain: str = Field(min_length=1, max_length=253)
+    node_id: int | None = Field(default=None)
+    certificate_method: str = Field(default="letsencrypt")
+    address_mode: str = Field(default="additional")
+    protocols: list[str] = Field(default_factory=list, max_length=20)
+    email: str | None = Field(default=None, max_length=320)
+    auto_renew: bool = Field(default=True)
+    status: str = Field(default="pending")
+    certificate_expires_at: str | None = Field(default=None, max_length=64)
+    last_checked_at: str | None = Field(default=None, max_length=64)
+
+    @field_validator("domain")
+    @classmethod
+    def validate_domain(cls, value: str) -> str:
+        host = value.strip().lower()
+        if not host or "://" in host or "/" in host or ":" in host or any(ch.isspace() for ch in host):
+            raise ValueError("Invalid domain")
+        return host
+
+
+class ManagedServerAddress(BaseModel):
+    id: str = Field(max_length=64)
+    node_id: int | None = Field(default=None)
+    address: str = Field(min_length=1, max_length=253)
+    enabled: bool = Field(default=True)
+
+    @field_validator("address")
+    @classmethod
+    def validate_address(cls, value: str) -> str:
+        address = value.strip().lower()
+        if not address or "://" in address or "/" in address or ":" in address or any(ch.isspace() for ch in address):
+            raise ValueError("Invalid server address")
+        return address
+
+
 class General(BaseModel):
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
     custom_variables: list[CustomVariable] | None = Field(default=None)
     reality_sni_pool: list[str] = Field(default_factory=lambda: DEFAULT_REALITY_SNI_POOL.copy(), max_length=100)
+    primary_domain: ManagedDomain | None = Field(default=None)
+    domains: list[ManagedDomain] = Field(default_factory=list, max_length=100)
+    server_addresses: list[ManagedServerAddress] = Field(default_factory=list, max_length=200)
 
     @field_validator("reality_sni_pool")
     @classmethod
