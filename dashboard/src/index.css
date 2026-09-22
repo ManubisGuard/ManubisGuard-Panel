@@ -49,6 +49,10 @@
     --snow-color: 210 80% 62%;
     --neon-green: 81 96% 55%;
     --background-custom: 240 5% 96%;
+    --cyber-green: 145 86% 52%;
+    --cyber-cyan: 177 84% 54%;
+    --cyber-purple: 270 82% 64%;
+    --cyber-grid: 145 86% 52%;
     --chart-1: 221.2 83.2% 53.3%;
     --chart-2: 212 95% 68%;
     --chart-3: 216 92% 60%;
@@ -113,6 +117,10 @@
     --snow-color: 0 0% 98%;
     --neon-green: 81 96% 55%;
     --background-custom: 240 4% 8%;
+    --cyber-green: 145 86% 52%;
+    --cyber-cyan: 177 84% 54%;
+    --cyber-purple: 270 82% 64%;
+    --cyber-grid: 145 86% 52%;
     --card-shadow: none;
     /* Dark mode scrollbar variables */
     --scrollbar-track: 240 2% 11%;
@@ -157,6 +165,45 @@
 
   body {
     @apply bg-background font-body text-foreground;
+    background-color: hsl(var(--background));
+  }
+
+  html.dark body {
+    background-image:
+      radial-gradient(circle at 18% 0%, hsl(var(--cyber-green) / 0.055), transparent 28rem),
+      radial-gradient(circle at 88% 16%, hsl(var(--cyber-cyan) / 0.035), transparent 24rem),
+      linear-gradient(hsl(var(--cyber-grid) / 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--cyber-grid) / 0.025) 1px, transparent 1px);
+    background-size: auto, auto, 48px 48px, 48px 48px;
+    background-attachment: fixed;
+  }
+
+  html.dark #root {
+    min-height: 100vh;
+    background:
+      linear-gradient(180deg, hsl(var(--background) / 0.72), hsl(var(--background) / 0.94));
+  }
+
+  html.dark [data-sidebar="sidebar"] {
+    background:
+      linear-gradient(180deg, hsl(240 6% 9% / 0.96), hsl(240 5% 7% / 0.96));
+    border-color: hsl(var(--cyber-green) / 0.10);
+    box-shadow: 12px 0 40px hsl(0 0% 0% / 0.18);
+  }
+
+  html.dark [data-sidebar="menu-button"][data-active="true"] {
+    background: linear-gradient(90deg, hsl(var(--cyber-green) / 0.14), hsl(var(--cyber-green) / 0.035));
+    color: hsl(var(--cyber-green));
+    box-shadow: inset 2px 0 0 hsl(var(--cyber-green));
+  }
+
+  html.dark [data-sidebar="menu-button"]:hover {
+    background: hsl(var(--cyber-green) / 0.07);
+  }
+
+  html.dark .border-border {
+    border-color: hsl(145 30% 60% / 0.10);
+  }
     overflow-x: hidden; /* Prevent horizontal scroll from drag-and-drop elements */
     scroll-behavior: smooth; /* Smooth scrolling for better UX */
     scrollbar-width: thin;
