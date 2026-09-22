@@ -59,8 +59,8 @@ export const useNodeListColumns = ({
         width: '3fr',
         cell: node => (
           <div className="flex min-w-0 items-center gap-2">
-            <span className={cn('h-2 w-2 shrink-0 rounded-full', getNodeStatusDotColor(node.status))} />
-            <span className="truncate font-medium">{node.name}</span>
+            <span className={cn('h-2 w-2 shrink-0 rounded-full', getNodeStatusDotColor(node.status), node.status === 'connected' && 'shadow-[0_0_10px_hsl(var(--primary)/.45)]')} />
+            <span className="truncate text-sm font-medium tracking-tight">{node.name}</span>
           </div>
         ),
       },
