@@ -5,7 +5,6 @@ import { Switch } from '@/components/ui/switch'
 import { useGetGeneralSettings, useGetNodesSimple } from '@/service/api'
 import { Globe2, Plus, RefreshCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { toast } from 'sonner'
 import { useSettingsContext } from './_dashboard.settings'
 
 type ManagedDomain = {
@@ -83,7 +82,6 @@ export default function DomainsSettings() {
         primary_domain: cleanPrimary,
         server_addresses: addresses.filter(item => item.address.trim()).map(item => ({ ...item, address: item.address.trim() })),
       })
-      toast.success('Domains & SSL settings saved')
     } catch {
       // Parent settings context reports the API error.
     }
@@ -97,7 +95,7 @@ export default function DomainsSettings() {
   if (isLoading) return <div className="w-full p-6 text-sm text-muted-foreground">Loading Domains & SSL…</div>
 
   return (
-    <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8" dir="ltr">
+    <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
       <section className="rounded-2xl border border-border/60 bg-card/40 p-5 shadow-sm">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
