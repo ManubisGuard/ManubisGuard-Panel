@@ -1,7 +1,7 @@
 import re
 from ipaddress import ip_address
 from enum import Enum, StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -397,12 +397,12 @@ class ManagedDomain(BaseModel):
     id: str = Field(max_length=64)
     domain: str = Field(min_length=1, max_length=253)
     node_id: int | None = Field(default=None)
-    certificate_method: str = Field(default="letsencrypt")
-    address_mode: str = Field(default="additional")
+    certificate_method: Literal["letsencrypt", "cloudflare", "existing"] = Field(default="letsencrypt")
+    address_mode: Literal["additional", "alias", "both"] = Field(default="additional")
     protocols: list[str] = Field(default_factory=list, max_length=20)
     email: str | None = Field(default=None, max_length=320)
     auto_renew: bool = Field(default=True)
-    status: str = Field(default="pending")
+    status: Literal["pending", "active", "expiring", "failed"] = Field(default="pending")
     certificate_expires_at: str | None = Field(default=None, max_length=64)
     last_checked_at: str | None = Field(default=None, max_length=64)
 
@@ -411,6 +411,8 @@ class ManagedDomain(BaseModel):
     def validate_domain(cls, value: str) -> str:
         host = value.strip().lower()
         if not host or "://" in host or "/" in host or ":" in host or any(ch.isspace() for ch in host):
+            raise ValueError("Invalid domain")
+        if not re.fullmatch(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}", host):
             raise ValueError("Invalid domain")
         return host
 
