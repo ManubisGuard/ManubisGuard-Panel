@@ -2479,6 +2479,9 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     setIsRealitySniDiscoveryRunning(true)
     try {
       const response = await scanRealityTarget({ target, timeout: 10 })
+      if (response.status !== 200) {
+        throw new Error('Reality scan request was not successful.')
+      }
       applyRealityScanResult(response.data, 'Target scan')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to scan the Reality target.'
@@ -2501,7 +2504,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       const results = await Promise.all(
         pool.slice(0, 25).map(async target => {
           try {
-            return (await scanRealityTarget({ target, timeout: 10 })).data
+            const response = await scanRealityTarget({ target, timeout: 10 })
+            return response.status === 200 ? response.data : null
           } catch {
             return null
           }
