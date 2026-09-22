@@ -11,7 +11,7 @@ export default function ManubisTopbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/60 bg-background/85 px-3 backdrop-blur-xl sm:px-5">
-      <SidebarTriggerWithBadge showUpdateBadge={Boolean(admin)} />
+      <SidebarTriggerWithBadge />
 
       <button
         type="button"
