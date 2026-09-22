@@ -356,9 +356,51 @@ class HWIDSettings(BaseModel):
     max_limit: int | None = Field(default=None, ge=0)
 
 
+DEFAULT_REALITY_SNI_POOL = [
+    "www.microsoft.com",
+    "www.cloudflare.com",
+    "www.apple.com",
+    "www.google.com",
+    "www.mozilla.org",
+    "www.github.com",
+    "www.wikipedia.org",
+    "www.amazon.com",
+    "www.linkedin.com",
+    "www.dropbox.com",
+    "www.adobe.com",
+    "www.oracle.com",
+    "www.ibm.com",
+    "www.salesforce.com",
+    "www.reddit.com",
+]
+
+
+def normalize_reality_sni_pool(value: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in value:
+        host = item.strip().lower()
+        if not host:
+            continue
+        if len(host) > 253:
+            raise ValueError("Reality SNI must be at most 253 characters.")
+        if "://" in host or "/" in host or ":" in host or any(ch.isspace() for ch in host):
+            raise ValueError(f"Invalid Reality SNI: {item}")
+        if host not in seen:
+            seen.add(host)
+            result.append(host)
+    return result
+
+
 class General(BaseModel):
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
     custom_variables: list[CustomVariable] | None = Field(default=None)
+    reality_sni_pool: list[str] = Field(default_factory=lambda: DEFAULT_REALITY_SNI_POOL.copy(), max_length=100)
+
+    @field_validator("reality_sni_pool")
+    @classmethod
+    def validate_reality_sni_pool(cls, value: list[str]) -> list[str]:
+        return normalize_reality_sni_pool(value)
 
     @field_validator("custom_variables")
     @classmethod
