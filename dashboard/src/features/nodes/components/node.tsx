@@ -113,12 +113,12 @@ export default function Node({
   return (
     <TooltipProvider>
       <Card
-        className={cn('group relative h-full overflow-hidden border transition-colors', canUpdate && 'hover:bg-accent cursor-pointer', selected && 'border-primary/50 bg-accent/30')}
+        className={cn('group relative h-full overflow-hidden rounded-xl border-border/60 bg-card/45 shadow-none transition-all duration-200', canUpdate && 'cursor-pointer hover:border-primary/25 hover:bg-card/70', selected && 'border-primary/45 bg-primary/5')}
         onClick={() => {
           if (canUpdate) onEdit(node)
         }}
       >
-        <div className="flex items-start gap-3 p-3">
+        <div className="flex items-start gap-3 p-4">
           {selectionControl ? <div className="pt-1">{selectionControl}</div> : null}
           <div className="min-w-0 flex-1">
             {/* Header */}
@@ -161,7 +161,7 @@ export default function Node({
             </div>
 
             {/* Connection Info */}
-            <div className="mb-2 space-y-1.5">
+            <div className="mb-3 space-y-1.5">
               <div className={cn('text-muted-foreground flex items-center gap-1.5 text-[10px] sm:text-xs', dir === 'rtl' ? 'flex-row-reverse justify-end' : 'flex-row')}>
                 <Link2 className="h-3 w-3 shrink-0 opacity-70 sm:h-3.5 sm:w-3.5" />
                 <span dir="ltr" className="truncate font-mono">
@@ -258,7 +258,7 @@ export default function Node({
 
             {hasUsageDisplay && (
               <>
-                <Separator className="my-1.5 opacity-50" />
+                <Separator className="my-2 opacity-40" />
                 <NodeUsageDisplay node={node} />
               </>
             )}
