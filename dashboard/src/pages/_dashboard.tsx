@@ -11,6 +11,7 @@ import { getCurrentAdmin } from '@/service/api'
 import { isAuthenticationError } from '@/utils/error-utils'
 import { Outlet } from 'react-router'
 import { CommandPalette } from '@/components/layout/command-palette'
+import ManubisTopbar from '@/components/layout/manubis-topbar'
 
 export const clientLoader = async (): Promise<any> => {
   try {
@@ -34,7 +35,8 @@ export default function DashboardLayout() {
         <CommandPalette />
         <div className="flex w-full flex-col lg:flex-row">
           <AppSidebar />
-          <SidebarInset className="dashboard-scroll scroll-smooth">
+          <SidebarInset className="dashboard-scroll min-w-0 scroll-smooth">
+            <ManubisTopbar />
             <TopbarAd />
             <VersionUpdateBanner />
             <div className="flex min-h-0 w-full flex-1 flex-col justify-between gap-y-4">
