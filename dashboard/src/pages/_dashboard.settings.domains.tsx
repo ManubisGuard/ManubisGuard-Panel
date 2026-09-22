@@ -51,12 +51,13 @@ const emptyDomain = (): ManagedDomain => ({
 export default function DomainsSettings() {
   const { updateSettings, isSaving } = useSettingsContext()
   const { data: generalSettings, isLoading } = useGetGeneralSettings()
-  const { data: nodesResponse } = useGetNodesSimple({ all: true })
-  const nodes = nodesResponse?.data?.nodes ?? []
+  const { data: nodesResponse } = useGetNodesSimple()
+  const nodes = ((nodesResponse as any)?.data?.nodes ?? (nodesResponse as any)?.nodes ?? []) as Array<{ id: number; name: string }>
 
-  const storedDomains = ((generalSettings as any)?.domains ?? []) as ManagedDomain[]
-  const storedPrimary = ((generalSettings as any)?.primary_domain ?? null) as ManagedDomain | null
-  const storedAddresses = ((generalSettings as any)?.server_addresses ?? []) as ManagedServerAddress[]
+  const general = ((generalSettings as any)?.data ?? generalSettings ?? {}) as any
+  const storedDomains = (general.domains ?? []) as ManagedDomain[]
+  const storedPrimary = (general.primary_domain ?? null) as ManagedDomain | null
+  const storedAddresses = (general.server_addresses ?? []) as ManagedServerAddress[]
 
   const [primary, setPrimary] = useState<ManagedDomain | null>(storedPrimary)
   const [domains, setDomains] = useState<ManagedDomain[]>(storedDomains)
@@ -66,7 +67,7 @@ export default function DomainsSettings() {
     setPrimary(storedPrimary)
     setDomains(storedDomains)
     setAddresses(storedAddresses)
-  }, [generalSettings?.domains, generalSettings?.primary_domain, generalSettings?.server_addresses])
+  }, [(generalSettings as any)?.data?.domains, (generalSettings as any)?.data?.primary_domain, (generalSettings as any)?.data?.server_addresses, (generalSettings as any)?.domains, (generalSettings as any)?.primary_domain, (generalSettings as any)?.server_addresses])
 
   const nodeName = useMemo(() => new Map(nodes.map(node => [node.id, node.name])), [nodes])
 
