@@ -119,7 +119,7 @@ def test_awg_subscription_matches_persisted_core_config(access_token):
             assert query[field] == str(persisted[field])
             assert interface[field.capitalize()] == str(persisted[field])
         assert peer["AllowedIPs"] == "0.0.0.0/0, ::/0"
-        assert "PresharedKey" not in peer
+        assert peer["PresharedKey"] == user["proxy_settings"]["wireguard"]["pre_shared_key"]
         assert interface["Address"] == user["proxy_settings"]["wireguard"]["peer_ips"][0]
     finally:
         _cleanup_awg(access_token, core, host_id, group, users)
@@ -188,7 +188,7 @@ def test_awg_uri_roundtrip_preserves_parameters(access_token):
         query = _query_from_links(client.get(f"{user['subscription_url']}/links"))
         persisted = asyncio.run(_persisted_core_config(core["id"]))
         assert {field: query[field] for field in AWG_FIELDS} == {field: str(persisted[field]) for field in AWG_FIELDS}
-        assert "presharedkey" not in query
+        assert query["presharedkey"] == user["proxy_settings"]["wireguard"]["pre_shared_key"]
     finally:
         _cleanup_awg(access_token, core, host_id, group, users)
 
@@ -252,7 +252,7 @@ def test_awg_subscription_mixed_wireguard(access_token):
         _, wg_peer = _parse_conf(client.get(f"{users[0]['subscription_url']}/wireguard").content)
         _, awg_peer = _parse_conf(client.get(f"{users[1]['subscription_url']}/wireguard").content)
         assert "PresharedKey" in wg_peer
-        assert "PresharedKey" not in awg_peer
+        assert awg_peer["PresharedKey"] == users[1]["proxy_settings"]["wireguard"]["pre_shared_key"]
     finally:
         for user in users:
             delete_user(access_token, user["username"])
