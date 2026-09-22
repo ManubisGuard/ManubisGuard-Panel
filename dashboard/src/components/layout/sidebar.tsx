@@ -1,5 +1,4 @@
 import { Language } from '@/components/common/language'
-import Snowfall from '@/components/common/snowfall'
 import { useTheme } from '@/app/providers/theme-provider'
 import { ThemeToggle } from '@/components/common/theme-toggle'
 import { GithubStar } from '@/components/layout/github-star'
@@ -421,18 +420,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <Link to="/" className="flex items-center gap-2">
             <img
               src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
-              alt="PasarGuard Logo"
+              alt="ManubisGuard Logo"
               className="h-8 w-8 object-contain"
             />
             <span dir={isRTL ? 'rtl' : 'ltr'} className="text-sm font-bold">
-              {t('pasarguard')}
+              {'MANUBISGUARD'}
             </span>
           </Link>
           <SidebarTriggerWithBadge showUpdateBadge={canReadSystem && hasUpdate} />
         </div>
       </div>
-      <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
-        <Snowfall className="snowfall--sidebar" />
+      <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border/70 bg-sidebar/95 p-0 shadow-[12px_0_40px_hsl(0_0%_0%_/_0.16)]" side={isRTL ? 'right' : 'left'}>
         <SidebarRail />
         <SidebarHeader>
           <SidebarMenu>
