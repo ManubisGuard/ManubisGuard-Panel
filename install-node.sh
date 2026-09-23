@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-NODE_REPO="${PASARGUARD_NODE_REPO:-https://github.com/PasarGuard/node.git}"
-NODE_BRANCH="${PASARGUARD_NODE_BRANCH:-main}"
-APP_NAME="${PASARGUARD_NODE_NAME:-pg-node}"
+NODE_REPO="${PASARGUARD_NODE_REPO:-https://github.com/arsamnikzaad/ManubisGuard-Node.git}"
+NODE_BRANCH="${PASARGUARD_NODE_BRANCH:-feature/amnezia-wg}"
+APP_NAME="${PASARGUARD_NODE_NAME:-manubisguard-node}"
 APP_DIR="${PASARGUARD_NODE_DIR:-/opt/$APP_NAME}"
 DATA_DIR="${PASARGUARD_NODE_DATA:-/var/lib/$APP_NAME}"
 ENV_FILE="$APP_DIR/.env"
@@ -19,7 +19,7 @@ OVERRIDE=false
 
 [[ $EUID -eq 0 ]] || { echo "ERROR: run as root."; exit 1; }
 
-log(){ echo "[PasarGuard Node] $*"; }
+log(){ echo "[ManubisGuard Node] $*"; }
 die(){ echo "ERROR: $*" >&2; exit 1; }
 
 ask_yes_no(){
@@ -208,7 +208,9 @@ EOF
   cat > "$APP_DIR/docker-compose.yml" <<EOF
 services:
   node:
-    image: pasarguard/node:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     network_mode: host
     cap_add:
@@ -222,7 +224,7 @@ EOF
 
 start_node(){
   cd "$APP_DIR"
-  docker compose pull
+  docker compose build --pull node
   docker compose up -d
   sleep 3
   if ! docker compose ps --status running --services 2>/dev/null | grep -Fxq "node"; then
@@ -239,7 +241,7 @@ start_node(){
   echo "Certificate: $SSL_CERT_FILE"
   echo "Key: $SSL_KEY_FILE"
   echo
-  echo "Add this node in PasarGuard Panel using the service port and API key."
+  echo "Add this node in ManubisGuard Panel using the service port and API key."
 }
 
 main(){
