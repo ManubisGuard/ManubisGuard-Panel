@@ -79,6 +79,7 @@ def prepare_postgresql_sql(
         text += "\n"
     return text, passwords_removed, destination_role_statements
 
+
 def prepare_postgresql_sql_stream(
     source,
     destination,
