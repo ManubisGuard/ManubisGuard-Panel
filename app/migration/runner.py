@@ -144,14 +144,13 @@ def _source_timescale_metadata(
         if candidate.is_file():
             files.append(candidate)
 
-    # PasarGuard backup archives can carry the exact version in a sidecar,
-    # manifest.tsv, or an archived compose snapshot. Inspect only the extracted
-    # archive root (never arbitrary host paths).
+    # PasarGuard backups can carry the exact version in a sidecar or
+    # manifest.tsv. Deployment files such as docker-compose.yml are deliberately
+    # excluded: they are not database migration artifacts and must never influence
+    # the ManubisGuard deployment or migration target.
     for pattern in (
         "db_backup.timescaledb-version",
         "manifest.tsv",
-        "docker-compose.yml",
-        "compose.yml",
     ):
         try:
             files.extend(sorted(root.rglob(pattern)))
