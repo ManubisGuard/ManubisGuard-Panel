@@ -140,13 +140,23 @@ async def test_cloudflare_dns01_provider_creates_and_cleans_txt_record():
 
     assert session.created_record["type"] == "TXT"
     assert session.created_record["name"] == "_acme-challenge.edge.example.com"
+
+    await provider.cleanup("edge.example.com", "d" * 43)
+
+    session.created_record.clear()
+    await provider.present(
+        "*.example.com",
+        "e" * 43,
+        "e" * 43 + ".thumbprint",
+    )
+    assert session.created_record["name"] == "_acme-challenge.example.com"
     assert session.created_record["content"] == AcmeCertificateClient._b64(
         hashlib.sha256(("d" * 43 + ".thumbprint").encode()).digest()
     )
     assert session.headers["Authorization"] == "Bearer test-token"
 
-    await provider.cleanup("edge.example.com", "d" * 43)
     assert session.deleted_path == "/zones/zone-parent/dns_records/record-1"
+    await provider.cleanup("*.example.com", "e" * 43)
     await provider.close()
 
 
