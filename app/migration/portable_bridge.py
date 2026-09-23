@@ -80,7 +80,17 @@ SELECT hypertable_schema, hypertable_name, proc_name,
        schedule_interval::text, config
 FROM timescaledb_information.jobs
 WHERE proc_name LIKE 'policy_%'
+  AND hypertable_schema IS NOT NULL
+  AND hypertable_schema NOT LIKE '_timescaledb%'
 ORDER BY hypertable_schema, hypertable_name, proc_name
+"""
+
+CAGG_POLICIES_QUERY = """
+SELECT relation_schema, relation_name, proc_name,
+       schedule_interval::text, config
+FROM timescaledb_experimental.policies
+WHERE proc_name LIKE 'policy_%'
+ORDER BY relation_schema, relation_name, proc_name
 """
 
 _SUPPORTED_POLICIES = {
@@ -314,6 +324,8 @@ def build_policy_sql(policy: TimescalePolicyMetadata) -> str:
     relation = _qualified(policy.relation_schema, policy.relation_name)
     config = dict(policy.config)
     schedule = policy.schedule_interval
+    if schedule and schedule.strip().startswith("@ "):
+        schedule = schedule.strip()[2:].strip()
 
     if policy.proc_name == "policy_retention":
         key = "drop_after" if "drop_after" in config else "drop_created_before"
@@ -435,11 +447,23 @@ async def _read_source_metadata(database_url: str) -> tuple[
             records = await connection.fetch(query)
             return [dict(record) for record in records]
 
+        regular_policies = await rows(POLICIES_QUERY)
+        cagg_policies = await rows(CAGG_POLICIES_QUERY)
+        normalized_cagg_policies = [
+            {
+                "hypertable_schema": row["relation_schema"],
+                "hypertable_name": row["relation_name"],
+                "proc_name": row["proc_name"],
+                "schedule_interval": row["schedule_interval"],
+                "config": row["config"],
+            }
+            for row in cagg_policies
+        ]
         return (
             await rows(HYPERTABLES_QUERY),
             await rows(DIMENSIONS_QUERY),
             await rows(CONTINUOUS_AGGREGATES_QUERY),
-            await rows(POLICIES_QUERY),
+            [*regular_policies, *normalized_cagg_policies],
         )
     finally:
         await connection.close()
