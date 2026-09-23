@@ -87,3 +87,21 @@ class DomainCertificateResult(BaseModel):
     san: list[str] = Field(default_factory=list)
     error: str | None = None
     status: Literal["valid", "expiring", "expired", "invalid", "unreachable"] = "unreachable"
+
+
+class ExistingCertificateValidation(BaseModel):
+    domain: str
+    checked_at: datetime
+    certificate_present: bool = False
+    private_key_present: bool = False
+    key_matches: bool | None = None
+    domain_matches: bool | None = None
+    currently_valid: bool | None = None
+    expires_at: datetime | None = None
+    days_remaining: int | None = None
+    subject: str | None = None
+    issuer: str | None = None
+    serial_number: str | None = None
+    san: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    valid: bool = False
