@@ -524,14 +524,26 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Build a portable TimescaleDB bridge plan.")
-    parser.add_argument("--database-url", required=True)
+    database_group = parser.add_mutually_exclusive_group(required=True)
+    database_group.add_argument("--database-url")
+    database_group.add_argument("--database-url-env")
     parser.add_argument("--source-version", required=True)
     parser.add_argument("--target-version", required=True)
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args()
 
+    import os
+
+    database_url = (
+        args.database_url
+        if args.database_url is not None
+        else os.environ.get(args.database_url_env, "")
+    )
+    if not database_url:
+        parser.error("database URL environment variable is empty")
+
     plan = build_portable_bridge_artifacts(
-        args.database_url,
+        database_url,
         source_version=args.source_version,
         target_version=args.target_version,
         output_dir=args.output_dir,
