@@ -12,12 +12,9 @@ OVERRIDE=false
 SSL_MODE="none"
 SSL_IDENTIFIER=""
 SSL_EMAIL=""
+SSL_CA_TYPE="public"
 SSL_CERTFILE=""
 SSL_KEYFILE=""
-CERT_DIR="$DATA_DIR/certs"
-CERTBOT_CONFIG_DIR="$CERT_DIR/letsencrypt"
-CERTBOT_WORK_DIR="$CERT_DIR/work"
-CERTBOT_LOGS_DIR="$CERT_DIR/logs"
 
 [[ "$EUID" -eq 0 ]] || { echo "ERROR: run this installer as root."; exit 1; }
 
@@ -57,7 +54,8 @@ usage() {
   echo "SSL is selected interactively during installation:"
   echo "  1) Domain SSL"
   echo "  2) IP SSL (short-lived)"
-  echo "  3) No SSL"
+  echo "  3) Custom certificate + key"
+echo "  4) No SSL"
 }
 
 parse_args() {
@@ -309,45 +307,54 @@ ensure_acme() {
   command -v socat >/dev/null 2>&1 || apt-get install -y socat
   command -v openssl >/dev/null 2>&1 || apt-get install -y openssl
   command -v crontab >/dev/null 2>&1 || apt-get install -y cron
-  if [[ -x "$HOME/.acme.sh/acme.sh" ]]; then return 0; fi
-  curl -fsSL https://get.acme.sh | sh -s email="$SSL_EMAIL"
-  [[ -x "$HOME/.acme.sh/acme.sh" ]] || [[ -x "/root/.acme.sh/acme.sh" ]] || die "acme.sh installation failed."
+  export HOME="/root"
+  if [[ -x "/root/.acme.sh/acme.sh" ]]; then return 0; fi
+  if [[ -n "$SSL_EMAIL" ]]; then
+    curl -fsSL https://get.acme.sh | sh -s email="$SSL_EMAIL"
+  else
+    curl -fsSL https://get.acme.sh | sh
+  fi
+  [[ -x "/root/.acme.sh/acme.sh" ]] || die "acme.sh installation failed."
 }
 
 setup_domain_ssl() {
   local domain="$1"
-  local acme="$HOME/.acme.sh/acme.sh"
-  [[ -x "$acme" ]] || acme="/root/.acme.sh/acme.sh"
+  local acme="/root/.acme.sh/acme.sh"
   ensure_acme
-  acme="$HOME/.acme.sh/acme.sh"
-  [[ -x "$acme" ]] || acme="/root/.acme.sh/acme.sh"
   is_port_in_use 80 && die "Port 80 is already in use. Free it before Let's Encrypt validation."
   mkdir -p "$DATA_DIR/certs/$domain"
-  "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
-  "$acme" --issue --force --standalone -d "$domain" --fullchain-file "$DATA_DIR/certs/$domain/fullchain.pem" --key-file "$DATA_DIR/certs/$domain/privkey.pem" || die "Failed to issue SSL certificate for $domain."
-  "$acme" --upgrade --auto-upgrade >/dev/null 2>&1 || true
-  "$acme" --install-cronjob >/dev/null 2>&1 || true
   SSL_CERTFILE="$DATA_DIR/certs/$domain/fullchain.pem"
   SSL_KEYFILE="$DATA_DIR/certs/$domain/privkey.pem"
+  "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
+  if [[ ! -s "$SSL_CERTFILE" || ! -s "$SSL_KEYFILE" ]]; then
+    "$acme" --issue --standalone -d "$domain" --server letsencrypt || die "Failed to issue SSL certificate for $domain."
+    "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install SSL certificate for $domain."
+  else
+    log "Existing certificate found for $domain; reusing it."
+  fi
+  "$acme" --upgrade --auto-upgrade >/dev/null 2>&1 || true
+  "$acme" --install-cronjob >/dev/null 2>&1 || true
   chmod 644 "$SSL_CERTFILE"
   chmod 600 "$SSL_KEYFILE"
 }
 
 setup_ip_ssl() {
   local ipv4="$1"
-  local acme="$HOME/.acme.sh/acme.sh"
-  [[ -x "$acme" ]] || acme="/root/.acme.sh/acme.sh"
+  local acme="/root/.acme.sh/acme.sh"
   ensure_acme
-  acme="$HOME/.acme.sh/acme.sh"
-  [[ -x "$acme" ]] || acme="/root/.acme.sh/acme.sh"
   is_port_in_use 80 && die "Port 80 is already in use. Free it before Let's Encrypt validation."
   mkdir -p "$DATA_DIR/certs/ip"
-  "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
-  "$acme" --issue --force -d "$ipv4" --standalone --server letsencrypt --certificate-profile shortlived --days 6 --fullchain-file "$DATA_DIR/certs/ip/fullchain.pem" --key-file "$DATA_DIR/certs/ip/privkey.pem" || die "Failed to issue IP SSL certificate."
-  "$acme" --upgrade --auto-upgrade >/dev/null 2>&1 || true
-  "$acme" --install-cronjob >/dev/null 2>&1 || true
   SSL_CERTFILE="$DATA_DIR/certs/ip/fullchain.pem"
   SSL_KEYFILE="$DATA_DIR/certs/ip/privkey.pem"
+  "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
+  if [[ ! -s "$SSL_CERTFILE" || ! -s "$SSL_KEYFILE" ]]; then
+    "$acme" --issue --standalone -d "$ipv4" --server letsencrypt --certificate-profile shortlived --days 6 || die "Failed to issue IP SSL certificate."
+    "$acme" --install-cert -d "$ipv4" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install IP SSL certificate."
+  else
+    log "Existing IP certificate found for $ipv4; reusing it."
+  fi
+  "$acme" --upgrade --auto-upgrade >/dev/null 2>&1 || true
+  "$acme" --install-cronjob >/dev/null 2>&1 || true
   chmod 644 "$SSL_CERTFILE"
   chmod 600 "$SSL_KEYFILE"
 }
@@ -428,12 +435,12 @@ write_env() {
   fi
 
   UVICORN_PORT=8000
+  local uvicorn_host="0.0.0.0"
+  [[ "$SSL_MODE" == "none" ]] && uvicorn_host="127.0.0.1"
+
   cat > "$ENV_FILE" <<EOF
-UVICORN_HOST=0.0.0.0
+UVICORN_HOST=$uvicorn_host
 UVICORN_PORT=$UVICORN_PORT
-UVICORN_SSL_CERTFILE=$SSL_CERTFILE
-UVICORN_SSL_KEYFILE=$SSL_KEYFILE
-UVICORN_SSL_CA_TYPE=public
 PASARGUARD_SSL_ENABLED=$([[ "$SSL_MODE" == "none" ]] && echo False || echo True)
 PASARGUARD_SSL_MODE=$SSL_MODE
 PASARGUARD_SSL_IDENTIFIER=$SSL_IDENTIFIER
@@ -451,6 +458,15 @@ SUDO_PASSWORD=$ADMIN_PASSWORD
 DISABLE_RECORDING_NODE_USAGE=$([[ "$DATABASE" == "timescaledb" ]] && echo False || echo True)
 ENABLE_RECORDING_NODES_STATS=$([[ "$DATABASE" == "timescaledb" ]] && echo True || echo False)
 EOF
+
+  if [[ "$SSL_MODE" != "none" ]]; then
+    cat >> "$ENV_FILE" <<EOF
+UVICORN_SSL_CERTFILE=$SSL_CERTFILE
+UVICORN_SSL_KEYFILE=$SSL_KEYFILE
+UVICORN_SSL_CA_TYPE=$SSL_CA_TYPE
+EOF
+  fi
+
   chmod 600 "$ENV_FILE"
 }
 
@@ -487,6 +503,7 @@ install_panel() {
 
   log "Waiting for PasarGuard..."
   local health_url="http://127.0.0.1:8000/health"
+  [[ "$SSL_MODE" != "none" ]] && health_url="https://127.0.0.1:8000/health"
   for i in {1..90}; do
     curl -kfsS --max-time 3 "$health_url" >/dev/null 2>&1 && return 0
     sleep 2
