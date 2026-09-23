@@ -588,6 +588,7 @@ main() {
   prepare_passwords
   write_env
   install_panel
+  install_migration_helper
 
   echo
   echo "=============================================="
