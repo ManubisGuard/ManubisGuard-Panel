@@ -10,7 +10,7 @@ async def get_settings(db: AsyncSession) -> Settings:
     Retrieves the Settings.
 
     Args:
-        db (AsyncSession): Database session.
+        db (AsyncSession): Settings information.
 
     Returns:
         Settings: Settings information.
@@ -19,7 +19,10 @@ async def get_settings(db: AsyncSession) -> Settings:
 
 
 async def modify_settings(db: AsyncSession, db_setting: Settings, modify: SettingsSchema) -> Settings:
-    settings_data = modify.model_dump(exclude_none=True)
+    # Settings sections are modeled with defaults, so a normal model_dump() would
+    # turn a partial update into a full replacement with default values. Preserve
+    # only fields explicitly supplied by the caller.
+    settings_data = modify.model_dump(exclude_unset=True, exclude_none=True)
 
     for key, value in settings_data.items():
         setattr(db_setting, key, value)
