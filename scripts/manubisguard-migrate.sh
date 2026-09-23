@@ -359,7 +359,10 @@ upgrade_temp_timescale_to_target() {
   [ -n "$PROD_TS_VERSION" ] || die "Production TimescaleDB version is unavailable."
 
   local source_version
-  source_version="$(json_get "$(cat "$WORKDIR/analysis.json")" ".staging_timescale_version")"
+  source_version="$(docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" \
+    psql -X -U "$DB_USER" -d "$STAGING_DB" -Atc \
+    "SELECT COALESCE((SELECT extversion FROM pg_extension WHERE extname='timescaledb'), '');" \
+    2>/dev/null || true)"
   source_version="${source_version:-$PROD_TS_VERSION}"
   [ "$source_version" = "$PROD_TS_VERSION" ] && return 0
 
@@ -425,11 +428,10 @@ timescale_prepare_cutover() {
   [ "$PROD_HAS_TIMESCALE" = true ] || return 0
   psql_prod -d "$CUTOVER_DB" -c "CREATE EXTENSION IF NOT EXISTS timescaledb;" >/dev/null
   psql_prod -d "$CUTOVER_DB" -c "SELECT timescaledb_pre_restore();" >/dev/null
-  psql_prod -d "$CUTOVER_DB" -c "$(python3 - <<'PY'
-from app.migration.timescale import TIMESCALEDB_CATALOG_SEED_CLEAR_SQL
-print(TIMESCALEDB_CATALOG_SEED_CLEAR_SQL)
-PY
-)" >/dev/null
+  docker exec "$PANEL_CONTAINER" python -c \
+    'from app.migration.timescale import TIMESCALEDB_CATALOG_SEED_CLEAR_SQL; print(TIMESCALEDB_CATALOG_SEED_CLEAR_SQL)' |
+    docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER" \
+    psql -X -v ON_ERROR_STOP=1 -U "$ADMIN_USER" -d "$CUTOVER_DB" >/dev/null
 }
 
 restore_dump_to_cutover() {
