@@ -45,10 +45,11 @@ class DomainCertificateInspector:
                     with socket.create_connection((domain, 443), timeout=self.timeout) as retry_socket:
                         context = ssl._create_unverified_context()
                         with context.wrap_socket(retry_socket, server_hostname=domain) as tls_socket:
-                            certificate = tls_socket.getpeercert()
-                            if not certificate:
+                            certificate_der = tls_socket.getpeercert(binary_form=True)
+                            if not certificate_der:
                                 raise
-                            result = self._result_from_certificate(
+                            certificate = x509.load_der_x509_certificate(certificate_der)
+                            result = self._result_from_x509_certificate(
                                 domain, checked_at, certificate, tls_socket.version()
                             )
                             result.valid = False
@@ -63,6 +64,44 @@ class DomainCertificateInspector:
                 error=type(exc).__name__,
                 status="unreachable",
             )
+
+    def _result_from_x509_certificate(
+        self,
+        domain: str,
+        checked_at: datetime,
+        certificate: x509.Certificate,
+        tls_version: str | None,
+    ) -> DomainCertificateResult:
+        expires_at = certificate.not_valid_after_utc
+        now = datetime.now(UTC)
+        san = self._x509_dns_names(certificate)
+        return DomainCertificateResult(
+            domain=domain,
+            checked_at=checked_at,
+            reachable=True,
+            valid=False,
+            expires_at=expires_at,
+            days_remaining=(expires_at - now).days,
+            subject=self._x509_name_value(certificate.subject),
+            issuer=self._x509_name_value(certificate.issuer),
+            serial_number=format(certificate.serial_number, "x"),
+            tls_version=tls_version,
+            san=san,
+            status="invalid",
+        )
+
+    @staticmethod
+    def _x509_name_value(name: x509.Name) -> str | None:
+        attributes = name.get_attributes_for_oid(x509.NameOID.COMMON_NAME)
+        return attributes[0].value if attributes else None
+
+    @staticmethod
+    def _x509_dns_names(certificate: x509.Certificate) -> list[str]:
+        try:
+            extension = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+        except x509.ExtensionNotFound:
+            return []
+        return sorted(set(extension.value.get_values_for_type(x509.DNSName)))
 
     def _result_from_certificate(
         self,
