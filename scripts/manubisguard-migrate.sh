@@ -40,6 +40,7 @@ ADMIN_PASS=""
 PG_MAJOR=""
 PROD_TS_VERSION=""
 PROD_HAS_TIMESCALE=false
+SOURCE_PG_MAJOR=""
 
 TEMP_CONTAINER=""
 TEMP_VOLUME=""
@@ -427,6 +428,10 @@ analyze_backup() {
   ts_error="$(json_get "$output" ".staging_timescale_error")"
   [ -z "$ts_error" ] || die "$ts_error"
 
+  SOURCE_PG_MAJOR="$(json_get "$output" ".detection.source_postgres_major")"
+  if [ -n "$SOURCE_PG_MAJOR" ] && ! [[ "$SOURCE_PG_MAJOR" =~ ^[0-9]+$ ]]; then
+    die "Backup reported an unsafe source PostgreSQL major: $SOURCE_PG_MAJOR"
+  fi
   log "Accepted source=$(json_get "$output" ".detection.source_product") format=$(json_get "$output" ".detection.format")"
   if [ "$(json_get "$output" ".uses_timescaledb")" = "True" ] || [ "$(json_get "$output" ".uses_timescaledb")" = "true" ]; then
     log "Backup contains TimescaleDB objects."
@@ -456,26 +461,20 @@ start_temp_timescale() {
   fi
 
   TEMP_CONTAINER="manubisguard-migration-ts-$ID"
-  local image
-  local source_series
-  source_series="${version%.*}"
-
-  if [ -n "$PROD_TS_VERSION" ] && [ "$version" != "$PROD_TS_VERSION" ]; then
-    # The compatibility image must contain the SOURCE extension version, not
-    # merely the destination series. A 2.28.2 backup must first run with
-    # 2.28 extension files and only then be upgraded to the destination.
-    image="timescale/timescaledb-ha:pg${PG_MAJOR}-ts${source_series}-all"
-    log "Starting isolated source-compatible TimescaleDB image: $image"
-    if ! docker pull "$image" >/dev/null 2>&1; then
-      image="timescale/timescaledb-ha:pg${PG_MAJOR}-all"
-      log "Source-series image unavailable; trying multi-version image: $image"
-      docker pull "$image" >/dev/null || die "Could not pull a TimescaleDB image containing source version $version."
-    fi
-  else
-    image="timescale/timescaledb:$version-pg$PG_MAJOR"
-    log "Starting isolated TimescaleDB image: $image"
-    docker pull "$image" >/dev/null
-  fi
+  [ -n "$SOURCE_PG_MAJOR" ] || die "Backup source PostgreSQL major is unknown; exact compatibility runtime cannot be selected safely."
+  [[ "$SOURCE_PG_MAJOR" =~ ^(10|11|12|13|14|15|16|17|18)$ ]] || die "Unsupported source PostgreSQL major: $SOURCE_PG_MAJOR"
+  local image="timescale/timescaledb:${version}-pg${SOURCE_PG_MAJOR}"
+  log "Starting isolated source-compatible runtime: $image"
+  docker pull "$image" >/dev/null
+  docker run -d --name "$TEMP_CONTAINER" --restart=no \
+    --label "manubisguard.migration=$ID" \
+    -e POSTGRES_USER="$DB_USER" \
+    -e POSTGRES_PASSWORD="$DB_PASS" \
+    -e POSTGRES_DB=postgres \
+    -e POSTGRES_HOST_AUTH_METHOD=trust \
+    -p 127.0.0.1::5432 \
+    -v "$TEMP_VOLUME:/var/lib/postgresql/data" \
+    "$image" >/dev/null
   docker run -d --name "$TEMP_CONTAINER" --restart=no     --label "manubisguard.migration=$ID"     -e POSTGRES_USER="$DB_USER"     -e POSTGRES_PASSWORD="$DB_PASS"     -e POSTGRES_DB=postgres     -e POSTGRES_HOST_AUTH_METHOD=trust     -p 127.0.0.1::5432     -v "$TEMP_VOLUME:/var/lib/postgresql/data"     "$image" >/dev/null
 
   TEMP_PORT="$(docker port "$TEMP_CONTAINER" 5432/tcp | sed -nE 's/.*:([0-9]+)$/\1/p' | head -n1)"
@@ -597,14 +596,18 @@ validate_after_timescale_upgrade() {
 }
 
 dump_staging() {
-  PANEL_DUMP="$WORKDIR/manubisguard-staging.dump"
-  log "Creating custom-format dump from validated staging database..."
-  docker exec -e PGPASSWORD="$DB_PASS" "$PANEL_CONTAINER"     pg_dump -h 127.0.0.1 -p "$TEMP_PORT" -U "$DB_USER" -d "$STAGING_DB"     -Fc --no-owner --no-privileges -f "$PANEL_DUMP"
-  [ -s "$PANEL_DUMP" ] || die "Staging dump is empty."
-  docker exec "$PANEL_CONTAINER" pg_restore --list "$PANEL_DUMP" >/dev/null
+  PANEL_DUMP="$WORKDIR/manubisguard-staging.sql"
+  log "Creating cross-major logical SQL dump with staging pg_dump..."
+  if ! docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" pg_dump -U "$DB_USER" -d "$STAGING_DB" --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces >"$PANEL_DUMP"; then
+    rm -f "$PANEL_DUMP"
+    die "Source-compatible pg_dump failed. Production database is unchanged."
+  fi
+  [ -s "$PANEL_DUMP" ] || die "Staging SQL dump is empty."
+  grep -q -- "-- PostgreSQL database dump complete" "$PANEL_DUMP" || die "Staging SQL dump is incomplete."
   chmod 600 "$PANEL_DUMP"
-  log "Validated staging dump: $PANEL_DUMP"
+  log "Validated logical staging dump: $PANEL_DUMP"
 }
+
 
 create_cutover_database() {
   CUTOVER_DB="manubisguard_migration_$ID"
@@ -634,24 +637,27 @@ timescale_prepare_cutover() {
 }
 
 restore_dump_to_cutover() {
-  log "Restoring validated dump into isolated cutover database on the production PostgreSQL server."
-  local listfile="$WORKDIR/cutover.list"
-  docker exec "$PANEL_CONTAINER" pg_restore --list "$PANEL_DUMP" |
-    grep -viE 'EXTENSION.*timescaledb(_toolkit)?' >"$listfile"
-
-  docker exec -i "$DB_CONTAINER" sh -c "cat > /tmp/manubisguard-$ID.list" <"$listfile"
-
+  log "Restoring validated logical dump into isolated cutover database on the production PostgreSQL server."
   local rc=0
   if [ "$PROD_HAS_TIMESCALE" = true ]; then
-    cat "$PANEL_DUMP" | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER"       pg_restore --exit-on-error --no-owner --no-privileges       --use-list="/tmp/manubisguard-$ID.list" -d "$CUTOVER_DB" - || rc=$?
+    cat "$PANEL_DUMP" | docker exec -i "$PANEL_CONTAINER" python -c '
+import sys
+from app.migration.timescale import filter_postgresql_compatibility_line, filter_timescaledb_ddl_line
+for raw in sys.stdin:
+    line = raw.rstrip("\r\n")
+    if filter_postgresql_compatibility_line(line, target_pg_major=int("'$PG_MAJOR'")):
+        continue
+    if filter_timescaledb_ddl_line(line):
+        continue
+    sys.stdout.write(line + "\n")
+' | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$ADMIN_USER" -d "$CUTOVER_DB" || rc=$?
   else
-    cat "$PANEL_DUMP" | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER"       pg_restore --exit-on-error --no-owner --no-privileges       -d "$CUTOVER_DB" - || rc=$?
+    cat "$PANEL_DUMP" | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$ADMIN_USER" -d "$CUTOVER_DB" || rc=$?
   fi
-
   psql_prod -d "$CUTOVER_DB" -c "SELECT timescaledb_post_restore();" >/dev/null 2>&1 || true
-  docker exec "$DB_CONTAINER" rm -f "/tmp/manubisguard-$ID.list" >/dev/null 2>&1 || true
   [ "$rc" -eq 0 ] || die "Cutover restore failed. Production database is unchanged."
 }
+
 
 validate_cutover() {
   log "Validating cutover database before stopping the live panel..."
