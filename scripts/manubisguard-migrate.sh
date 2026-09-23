@@ -281,6 +281,7 @@ apply_runtime_env() {
   cp -- "$CURRENT_ENV" "$ENV_PREVIOUS"
   chmod 600 "$ENV_PREVIOUS"
   if ! install -m 600 "$ENV_CANDIDATE" "$CURRENT_ENV"; then
+    rollback_runtime_assets
     die "Could not apply prepared ManubisGuard .env."
   fi
   log "Legacy runtime settings applied to ManubisGuard .env."
@@ -317,6 +318,12 @@ apply_runtime_assets() {
     case "$target" in
       "$DATA_DIR"/*) ;;
       *) die "Runtime asset escaped data directory: $rel" ;;
+    esac
+    local target_parent
+    target_parent="$(realpath -m "$(dirname "$target")")"
+    case "$target_parent" in
+      "$DATA_DIR"/*) ;;
+      *) die "Runtime asset parent escaped data directory: $rel" ;;
     esac
     if [ -L "$target" ]; then
       die "Refusing to overwrite symlinked runtime asset: $target"
