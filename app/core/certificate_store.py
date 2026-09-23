@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 from pathlib import Path
+from uuid import uuid4
 
 from app.core.certificate_intelligence import ExistingCertificateValidator
 from app.models.domain_intelligence import ExistingCertificateValidation
@@ -38,12 +40,38 @@ class CertificateArtifactStore:
             return result
 
         normalized = self._normalize(domain)
-        target_dir = self._domain_dir(normalized)
-        target_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        os.chmod(target_dir, 0o700)
+        self.base_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(self.base_dir, 0o700)
 
-        self._atomic_write(target_dir / "cert.pem", certificate_pem, 0o644)
-        self._atomic_write(target_dir / "key.pem", private_key_pem, 0o600)
+        target_dir = self._domain_dir(normalized)
+        staging_dir = self.base_dir / f".{normalized}.staging-{uuid4().hex}"
+        backup_dir = self.base_dir / f".{normalized}.backup-{uuid4().hex}"
+
+        staging_dir.mkdir(mode=0o700)
+        os.chmod(staging_dir, 0o700)
+        try:
+            self._atomic_write(staging_dir / "cert.pem", certificate_pem, 0o644)
+            self._atomic_write(staging_dir / "key.pem", private_key_pem, 0o600)
+
+            had_previous = target_dir.exists()
+            if had_previous:
+                os.replace(target_dir, backup_dir)
+
+            try:
+                os.replace(staging_dir, target_dir)
+            except Exception:
+                if had_previous and not target_dir.exists() and backup_dir.exists():
+                    os.replace(backup_dir, target_dir)
+                raise
+
+            if had_previous and backup_dir.exists():
+                shutil.rmtree(backup_dir)
+        finally:
+            if staging_dir.exists():
+                shutil.rmtree(staging_dir)
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir)
+
         return result
 
     def load(self, domain: str) -> tuple[str, str]:
@@ -59,15 +87,9 @@ class CertificateArtifactStore:
 
     def delete(self, domain: str) -> None:
         target_dir = self._domain_dir(self._normalize(domain))
-        for filename in ("cert.pem", "key.pem"):
-            try:
-                (target_dir / filename).unlink()
-            except FileNotFoundError:
-                pass
-        try:
-            target_dir.rmdir()
-        except OSError:
-            pass
+        if not target_dir.exists():
+            return
+        shutil.rmtree(target_dir)
 
     @staticmethod
     def _normalize(domain: str) -> str:
