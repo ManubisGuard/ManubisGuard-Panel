@@ -325,7 +325,7 @@ run_staging() {
 retry_legacy_timescale_if_needed() {
   local text
   text="$(cat "$WORKDIR/staging.error" 2>/dev/null || true)"
-  grep -Eiq 'schema_name|table_name|timescaledb.*catalog|catalog.*mismatch' <<<"$text" || return 1
+  grep -Eiq 'schema_name.*does not exist|does not exist.*schema_name|chunk.*schema_name' <<<"$text" || return 1
 
   local selected
   selected="$(json_get "$(cat "$WORKDIR/analysis.json")" ".staging_timescale_version")"
@@ -519,8 +519,10 @@ rename_database() {
   exists="$(psql_prod -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='$PREVIOUS_DB';")"
   [ "$exists" != "1" ] || die "Pre-migration database already exists: $PREVIOUS_DB"
 
+  psql_prod -d postgres -c "ALTER DATABASE \"$DB_NAME\" WITH ALLOW_CONNECTIONS false;" >/dev/null
   terminate_database_connections "$DB_NAME"
   psql_prod -d postgres -c "ALTER DATABASE \"$DB_NAME\" RENAME TO \"$PREVIOUS_DB\";" >/dev/null
+  psql_prod -d postgres -c "ALTER DATABASE \"$CUTOVER_DB\" WITH ALLOW_CONNECTIONS true;" >/dev/null
   if ! psql_prod -d postgres -c "ALTER DATABASE \"$CUTOVER_DB\" RENAME TO \"$DB_NAME\";" >/dev/null; then
     warn "Cutover rename failed; restoring the production database name."
     psql_prod -d postgres -c "ALTER DATABASE \"$PREVIOUS_DB\" RENAME TO \"$DB_NAME\";" >/dev/null ||       die "CRITICAL: automatic rollback of database rename failed."
@@ -553,8 +555,11 @@ rollback_after_failed_health() {
 }
 
 final_cutover() {
-  production_safety_backup
   stop_panel
+  if ! production_safety_backup; then
+    start_panel || true
+    die "Production safety backup failed; panel was restarted and cutover was aborted."
+  fi
   rename_database
   start_panel
   health_check || rollback_after_failed_health
