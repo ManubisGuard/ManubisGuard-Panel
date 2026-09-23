@@ -88,3 +88,47 @@ def test_domains_partial_update_preserves_other_general_settings(access_token):
             json={"general": original},
         )
         assert restore_response.status_code == status.HTTP_200_OK
+
+
+def test_domain_intelligence_api_returns_inspection(monkeypatch, access_token):
+    from app.core.domain_intelligence import DomainIntelligence
+    from app.models.domain_intelligence import DomainDNSResult, DomainHTTPProbe, DomainIntelligenceResult
+
+    async def fake_inspect(self, domain):
+        assert domain == "edge.example.com"
+        return DomainIntelligenceResult.now(
+            domain,
+            DomainDNSResult(a=["203.0.113.10"]),
+            DomainHTTPProbe(url="http://edge.example.com", error="ClientConnectorError"),
+            DomainHTTPProbe(
+                url="https://edge.example.com",
+                reachable=True,
+                status_code=200,
+                final_url="https://edge.example.com/",
+            ),
+        )
+
+    monkeypatch.setattr(DomainIntelligence, "inspect", fake_inspect)
+
+    response = client.post(
+        "/api/settings/domains/intelligence",
+        headers=auth_headers(access_token),
+        json={"domain": "  Edge.Example.COM  "},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert payload["domain"] == "edge.example.com"
+    assert payload["status"] == "healthy"
+    assert payload["dns"]["a"] == ["203.0.113.10"]
+    assert payload["https"]["status_code"] == 200
+
+
+def test_domain_intelligence_api_rejects_invalid_domain(access_token):
+    response = client.post(
+        "/api/settings/domains/intelligence",
+        headers=auth_headers(access_token),
+        json={"domain": "https://edge.example.com"},
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
