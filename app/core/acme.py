@@ -19,6 +19,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa, utils
 from app.core.certificate_store import CertificateArtifactStore
 from app.models.domain_intelligence import ExistingCertificateValidation
 from app.models.settings import ManagedDomain
+from config import certificate_settings
 
 
 LETSENCRYPT_PRODUCTION_DIRECTORY = "https://acme-v02.api.letsencrypt.org/directory"
@@ -36,6 +37,9 @@ class AcmeChallengeProvider(Protocol):
         ...
 
     async def cleanup(self, identifier: str, token: str) -> None:
+        ...
+
+    async def close(self) -> None:
         ...
 
 
@@ -84,10 +88,119 @@ class AcmeHttp01ChallengeStore:
         except FileNotFoundError:
             return None
 
+    async def close(self) -> None:
+        return None
+
     @staticmethod
     def _validate_token(token: str) -> None:
         if not _ACME_TOKEN_RE.fullmatch(token):
             raise ValueError("Invalid ACME HTTP-01 challenge token.")
+
+
+
+class CloudflareDns01ChallengeProvider:
+    """Manage DNS-01 TXT challenges through the Cloudflare REST API."""
+
+    challenge_type = "dns-01"
+    api_base = "https://api.cloudflare.com/client/v4"
+
+    def __init__(
+        self,
+        api_token: str,
+        *,
+        timeout: float = 15.0,
+        session_factory=None,
+    ):
+        token = api_token.strip()
+        if not token:
+            raise ValueError("Cloudflare API token is required.")
+        self.api_token = token
+        self.timeout = timeout
+        self._session_factory = session_factory
+        self._session = None
+        self._records: dict[tuple[str, str], tuple[str, str]] = {}
+
+    async def _get_session(self):
+        if self._session is not None:
+            return self._session
+        timeout = aiohttp.ClientTimeout(total=self.timeout)
+        if self._session_factory:
+            self._session = await self._session_factory(timeout=timeout)
+        else:
+            self._session = aiohttp.ClientSession(timeout=timeout)
+        return self._session
+
+    async def present(self, identifier: str, token: str, key_authorization: str) -> None:
+        _AcmeTokenValidator.validate(token)
+        content = AcmeCertificateClient._b64(hashlib.sha256(key_authorization.encode()).digest())
+        zone_id = await self._find_zone(identifier)
+        name = f"_acme-challenge.{identifier.rstrip('.')}"
+        payload = {"type": "TXT", "name": name, "content": content, "ttl": 120}
+        data = await self._request("POST", f"/zones/{zone_id}/dns_records", payload)
+        result = data.get("result")
+        record_id = result.get("id") if isinstance(result, dict) else None
+        if not record_id:
+            raise AcmeError("Cloudflare did not return the created DNS record id.")
+        self._records[(identifier, token)] = (zone_id, record_id)
+
+    async def cleanup(self, identifier: str, token: str) -> None:
+        _AcmeTokenValidator.validate(token)
+        record = self._records.pop((identifier, token), None)
+        if record is None:
+            return
+        zone_id, record_id = record
+        await self._request("DELETE", f"/zones/{zone_id}/dns_records/{record_id}")
+
+    async def _find_zone(self, identifier: str) -> str:
+        labels = identifier.rstrip(".").split(".")
+        for index in range(len(labels) - 1):
+            candidate = ".".join(labels[index:])
+            data = await self._request(
+                "GET",
+                "/zones",
+                params={"name": candidate, "status": "active", "per_page": 50},
+            )
+            for zone in data.get("result", []):
+                if zone.get("name", "").rstrip(".").lower() == candidate.lower():
+                    return str(zone["id"])
+        raise AcmeError(f"No active Cloudflare zone found for {identifier}.")
+
+    async def _request(self, method: str, path: str, payload=None, *, params=None) -> dict:
+        session = await self._get_session()
+        headers = {
+            "Authorization": f"Bearer {self.api_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        url = f"{self.api_base}{path}"
+        try:
+            async with session.request(method, url, json=payload, params=params, headers=headers) as response:
+                body = await response.text()
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            raise AcmeError(f"Cloudflare API request failed: {type(exc).__name__}") from exc
+
+        try:
+            data = json.loads(body)
+        except ValueError as exc:
+            raise AcmeError("Cloudflare API returned invalid JSON.") from exc
+
+        if response.status >= 400 or not data.get("success", False):
+            errors = data.get("errors") or []
+            detail = errors[0].get("message") if errors and isinstance(errors[0], dict) else None
+            raise AcmeError(f"Cloudflare API error: {detail or f'HTTP {response.status}'}")
+        return data
+
+    async def close(self) -> None:
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+
+
+class _AcmeTokenValidator:
+    @staticmethod
+    def validate(token: str) -> None:
+        if not _ACME_TOKEN_RE.fullmatch(token):
+            raise ValueError("Invalid ACME challenge token.")
 
 
 class _AcmeAccountStore:
@@ -234,6 +347,7 @@ class AcmeCertificateClient:
                     await self.challenge_provider.cleanup(identifier, token)
         finally:
             await session.close()
+            await self.challenge_provider.close()
 
     async def _complete_authorizations(
         self,
@@ -460,10 +574,20 @@ class ManagedCertificateEngine:
             client = AcmeCertificateClient(
                 certificate_store=self.store,
                 challenge_provider=AcmeHttp01ChallengeStore(self.store.base_dir),
+                directory_url=certificate_settings.acme_directory_url,
             )
             return await client.issue(managed_domain)
         if method == "cloudflare":
-            raise AcmeError("Cloudflare DNS-01 is not implemented in this phase.")
+            try:
+                provider = CloudflareDns01ChallengeProvider(certificate_settings.cloudflare_api_token)
+            except ValueError as exc:
+                raise AcmeError(str(exc)) from exc
+            client = AcmeCertificateClient(
+                certificate_store=self.store,
+                challenge_provider=provider,
+                directory_url=certificate_settings.acme_directory_url,
+            )
+            return await client.issue(managed_domain)
         raise AcmeError("Existing certificates must be installed with certificate artifacts.")
 
     def install_existing(
