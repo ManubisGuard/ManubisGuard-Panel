@@ -29,8 +29,10 @@ class DomainCertificateInspector:
         context = ssl.create_default_context()
 
         try:
-            with socket.create_connection((domain, 443), timeout=self.timeout) as raw_socket:
-                with context.wrap_socket(raw_socket, server_hostname=domain) as tls_socket:
+            with (
+                socket.create_connection((domain, 443), timeout=self.timeout) as raw_socket,
+                context.wrap_socket(raw_socket, server_hostname=domain) as tls_socket,
+            ):
                     certificate = tls_socket.getpeercert()
                     if not certificate:
                         return DomainCertificateResult(
