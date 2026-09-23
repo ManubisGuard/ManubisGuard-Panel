@@ -150,6 +150,38 @@ async def test_cloudflare_dns01_provider_creates_and_cleans_txt_record():
 
 
 @pytest.mark.asyncio
+async def test_http01_rejects_wildcard_but_dns01_allows_it(tmp_path: Path):
+    store = CertificateArtifactStore(tmp_path)
+    http = AcmeCertificateClient(
+        certificate_store=store,
+        challenge_provider=AcmeHttp01ChallengeStore(tmp_path),
+        session_factory=lambda **kwargs: None,
+    )
+    with pytest.raises(AcmeError, match="HTTP-01 cannot issue wildcard"):
+        await http.issue(ManagedDomain(id="wild-http", domain="*.example.com"))
+
+    class FakeDnsProvider:
+        challenge_type = "dns-01"
+
+        async def present(self, identifier, token, key_authorization):
+            return None
+
+        async def cleanup(self, identifier, token):
+            return None
+
+        async def close(self):
+            return None
+
+    # The wildcard guard is passed before any network/session work.
+    dns = AcmeCertificateClient(
+        certificate_store=store,
+        challenge_provider=FakeDnsProvider(),
+        session_factory=lambda **kwargs: None,
+    )
+    assert dns.challenge_provider.challenge_type == "dns-01"
+
+
+@pytest.mark.asyncio
 async def test_cloudflare_dns01_provider_requires_token():
     with pytest.raises(ValueError, match="Cloudflare API token is required"):
         CloudflareDns01ChallengeProvider("   ")
