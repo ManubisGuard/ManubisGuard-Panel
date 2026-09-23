@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+import asyncpg
+
+from app.migration.async_utils import run_async
 
 
 @dataclass(frozen=True)
@@ -397,16 +402,89 @@ def build_portable_plan(
     )
 
 
-def render_recreate_sql(plan: PortableTimescalePlan) -> str:
+def render_hypertable_sql(plan: PortableTimescalePlan) -> str:
     statements: list[str] = []
     for hypertable in plan.hypertables:
         statements.extend(build_hypertable_sql(hypertable))
+    return "\n".join(statements) + ("\n" if statements else "")
+
+
+def render_post_data_sql(plan: PortableTimescalePlan) -> str:
+    statements: list[str] = []
     for cagg in plan.continuous_aggregates:
         statements.extend(build_continuous_aggregate_sql(cagg))
     for policy in plan.policies:
         statements.append(build_policy_sql(policy))
     statements.append("ANALYZE;")
     return "\n".join(statements) + "\n"
+
+
+def render_recreate_sql(plan: PortableTimescalePlan) -> str:
+    return render_hypertable_sql(plan) + render_post_data_sql(plan)
+
+
+async def _read_source_metadata(database_url: str) -> tuple[
+    list[Mapping[str, Any]],
+    list[Mapping[str, Any]],
+    list[Mapping[str, Any]],
+    list[Mapping[str, Any]],
+]:
+    connection = await asyncpg.connect(database_url)
+    try:
+        async def rows(query: str) -> list[Mapping[str, Any]]:
+            records = await connection.fetch(query)
+            return [dict(record) for record in records]
+
+        return (
+            await rows(HYPERTABLES_QUERY),
+            await rows(DIMENSIONS_QUERY),
+            await rows(CONTINUOUS_AGGREGATES_QUERY),
+            await rows(POLICIES_QUERY),
+        )
+    finally:
+        await connection.close()
+
+
+def build_portable_bridge_artifacts(
+    database_url: str,
+    *,
+    source_version: str,
+    target_version: str,
+    output_dir: str | Path,
+) -> PortableTimescalePlan:
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    (
+        hypertable_rows,
+        dimension_rows,
+        cagg_rows,
+        policy_rows,
+    ) = run_async(_read_source_metadata(database_url))
+    plan = build_portable_plan(
+        source_version=source_version,
+        target_version=target_version,
+        hypertable_rows=hypertable_rows,
+        dimension_rows=dimension_rows,
+        continuous_aggregate_rows=cagg_rows,
+        policy_rows=policy_rows,
+    )
+    (output / "portable-plan.json").write_text(
+        json.dumps(asdict(plan), ensure_ascii=False, indent=2, default=str),
+        encoding="utf-8",
+    )
+    (output / "portable-hypertables.sql").write_text(
+        render_hypertable_sql(plan),
+        encoding="utf-8",
+    )
+    (output / "portable-post-data.sql").write_text(
+        render_post_data_sql(plan),
+        encoding="utf-8",
+    )
+    (output / "portable-exclude-tables.txt").write_text(
+        "".join(f"{table}\n" for table in plan.excluded_tables),
+        encoding="utf-8",
+    )
+    return plan
 
 
 def build_pg_dump_args(
