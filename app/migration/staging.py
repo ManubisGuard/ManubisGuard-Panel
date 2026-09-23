@@ -309,6 +309,15 @@ def _assert_sql_dump_complete(source: Path) -> None:
         )
 
 
+def _postgres_major(url: str) -> int | None:
+    try:
+        value = _psql_query(url, "SHOW server_version_num", timeout=30)
+        number = int(value.strip())
+        return number // 10000
+    except (MigrationSafetyError, ValueError):
+        return None
+
+
 def _psql_query(url: str, sql: str, timeout: int = 60) -> str:
     binary = shutil.which("psql")
     if not binary:
@@ -504,7 +513,9 @@ def restore_backup_into_staging(
                             prepared = Path(work) / "filtered.sql"
                             from app.migration.timescale import prepare_timescale_sql_file
 
-                            prepare_timescale_sql_file(source, prepared)
+                            prepare_timescale_sql_file(
+                                source, prepared, target_pg_major=_postgres_major(staging.staging_url)
+                            )
                             _run_psql_restore(
                                 prepared, staging.staging_url, compressed=False, timeout=timeout
                             )
@@ -516,7 +527,9 @@ def restore_backup_into_staging(
                             prepared = Path(work) / "filtered.sql"
                             from app.migration.timescale import prepare_timescale_sql_gzip
 
-                            prepare_timescale_sql_gzip(source, prepared)
+                            prepare_timescale_sql_gzip(
+                                source, prepared, target_pg_major=_postgres_major(staging.staging_url)
+                            )
                             _run_psql_restore(
                                 prepared, staging.staging_url, compressed=False, timeout=timeout
                             )
