@@ -18,7 +18,11 @@ from alembic.config import Config
 from sqlalchemy.engine import URL, make_url
 
 from app.migration.async_utils import run_async
-from app.migration.detector import BackupDetection, detect_backup
+from app.migration.detector import (
+    BackupDetection,
+    detect_backup,
+    inspect_pg_dump_custom,
+)
 from app.migration.timescale import (
     TIMESCALEDB_CATALOG_SEED_CLEAR_SQL,
 )
@@ -388,49 +392,12 @@ def _run_psql_restore(source: Path, url: str, *, compressed: bool, timeout: int)
         raise MigrationSafetyError(f"psql restore failed in staging: {detail[-5000:]}")
 
 def _inspect_pg_dump_custom(source: Path, timeout: int) -> BackupDetection:
-    binary = shutil.which("pg_restore")
-    if not binary:
-        raise MigrationSafetyError("pg_restore is missing from the ManubisGuard runtime image.")
-    result = subprocess.run(
-        [binary, "--list", str(source)],
-        env=_cli_env("postgresql://localhost/postgres"),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
-    if result.returncode:
-        detail = (result.stderr or result.stdout or "pg_restore inspection failed")[-4000:]
-        raise MigrationSafetyError(f"pg_restore inspection failed: {detail}")
-
-    sample = (result.stdout or "").lower()
-    evidence = ["pg_restore TOC inspection completed"]
-    marker_hits = [marker for marker in ("pasarguard", "pasar guard") if marker in sample]
-    has_timescale = "timescaledb" in sample or "_timescaledb_catalog" in sample
-    if marker_hits:
-        product = "pasarguard"
-        confidence = "high"
-        evidence.extend(f"legacy marker in dump TOC: {marker}" for marker in marker_hits)
-    elif all(table in sample for table in ("core_configs", "nodes", "alembic_version")):
-        product = "pasarguard"
-        confidence = "medium"
-        evidence.append("schema markers found in pg_restore TOC")
-    else:
-        product = "unknown"
-        confidence = "low"
-    if has_timescale:
-        evidence.append("TimescaleDB objects found in pg_restore TOC")
-    revision_match = re.search(r"alembic_version.*?([0-9a-z]{8,32})", sample, flags=re.DOTALL)
-    return BackupDetection(
-        path=str(source),
-        format="pg_dump_custom",
-        source_product=product,
-        confidence=confidence,
-        evidence=tuple(dict.fromkeys(evidence)),
-        schema_revision=revision_match.group(1) if revision_match else None,
-        warnings=("Custom PostgreSQL dump was identified from its read-only TOC.",),
-    )
-
+    """Backward-compatible local wrapper around the centralized read-only inspector."""
+    result = inspect_pg_dump_custom(source, timeout=timeout)
+    if result.confidence == "low" and not result.is_pasarguard:
+        detail = "; ".join(result.warnings) or "custom dump was not identified"
+        raise MigrationSafetyError(detail)
+    return result
 
 def _filtered_pg_restore_list(source: Path, dest: Path, timeout: int) -> Path:
     binary = shutil.which("pg_restore")
