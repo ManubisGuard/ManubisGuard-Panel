@@ -70,7 +70,10 @@ class DomainIntelligenceRequest(BaseModel):
     @field_validator("domain")
     @classmethod
     def normalize_domain(cls, value: str) -> str:
-        return ManagedDomain(id="domain-intelligence-request", domain=value).domain
+        normalized = ManagedDomain(id="domain-intelligence-request", domain=value).domain
+        if normalized.startswith("*."):
+            raise ValueError("Wildcard domains cannot be inspected directly.")
+        return normalized
 
 
 class DomainCertificateResult(BaseModel):
