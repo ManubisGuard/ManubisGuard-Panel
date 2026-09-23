@@ -20,6 +20,7 @@ WORKDIR="$MIGRATION_ROOT/$ID"
 INPUTDIR="$WORKDIR/input"
 
 APPLY=false
+CHECK_ONLY=false
 KEEP_WORKDIR=true
 BACKUP_SOURCE=""
 MANUBISGUARD_SOURCE_TIMESCALE="${MANUBISGUARD_MIGRATION_SOURCE_TIMESCALE:-}"
@@ -612,6 +613,7 @@ parse_args() {
       --keep) KEEP_WORKDIR=true; shift ;;
       --clean) KEEP_WORKDIR=false; shift ;;
       --check)
+        CHECK_ONLY=true
         shift
         [ "$#" -eq 1 ] || die "--check requires exactly one backup path."
         BACKUP_SOURCE="$1"
@@ -642,6 +644,11 @@ main() {
 
   analyze_backup
   verify_compose_integrity
+
+  if [ "$CHECK_ONLY" = true ]; then
+    log "CHECK-ONLY COMPLETE. No staging database or production database was modified."
+    return 0
+  fi
 
   local uses_ts stage_version
   uses_ts="$(json_get "$(cat "$WORKDIR/analysis.json")" ".uses_timescaledb")"
