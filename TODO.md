@@ -81,12 +81,15 @@
   9. [x] ANALYZE در artifactهای bridge.
 - [ ] قبل از هر implementation جدید، مستندات رسمی PostgreSQL و TimescaleDB و source مربوط به نسخه هدف بررسی شود؛ implementation بدون منبع معتبر اضافه نشود.
 - [x] تست‌های unit مربوط به Bridge اضافه شد، مخصوصاً version direction، hypertable/dimension، CAGG، policy، dump exclusions و artifact generation.
-- [ ] integration واقعی PostgreSQL 17 → 16 و اختلاف نسخه Timescale هنوز باید در محیط Docker/Railway مناسب اجرا شود.
+- [x] workflow مستقل GitHub Actions برای integration PostgreSQL 17/TimescaleDB 2.30.0 → PostgreSQL 16/TimescaleDB 2.29.2 اضافه شد.
+- [x] اسکریپت `scripts/verify-migration-counts.py` برای مقایسه تعداد ردیف جدول‌ها و hypertableها اضافه شد.
+- [ ] integration workflow هنوز فقط queued است و pass نشده؛ نتیجه‌ی اجرای واقعی باید ثبت شود.
 - [x] orchestration `scripts/manubisguard-migrate.sh` برای مسیر newer→older به Portable Bridge متصل شد.
 - [ ] یک اجرای end-to-end واقعی روی backup واقعی هنوز باقی است.
 - [ ] تمام failure/rollback pathها یک دور دوم review شوند.
-- [ ] GitHub Actions برای head فعلی از connector موجود نتیجه‌ی run قابل‌استناد برنگرداند؛ بنابراین CI را سبز اعلام نمی‌کنیم.
-- [ ] Railway تست شد، اما ابزار deployment با وجود branch درخواستی deployment را روی `main` ثبت کرد؛ نتیجه‌ی آن برای branch فعلی معتبر نیست.
+- [ ] اجرای PR #1 در حال حاضر queued است؛ بنابراین هیچ jobی pass/fail تأیید نشده و لاگی برای تحلیل وجود ندارد.
+- [ ] Integration workflow جدید نیز queued است؛ تا completion نباید نتیجه‌ای به‌عنوان تأییدشده ثبت شود.
+- [x] Railway از این مرحله کنار گذاشته شد؛ هیچ deployment جدیدی برای تست این پروژه انجام نمی‌شود.
 - [ ] پس از پایان هر مرحله، همین فایل `TODO.md` با وضعیت واقعی همان commit به‌روزرسانی شود.
 
 ## مشکلات و نکات
@@ -99,7 +102,7 @@
 - [ ] **Runtime assets:** certificate/key فقط بعد از validation و safety backup باید وارد cutover شوند و در failure باید rollback شوند.
 - [ ] **Production safety:** هیچ restore یا migration واقعی روی Production نباید قبل از عبور از staging و validation کامل انجام شود.
 - [ ] **CI status:** وضعیت سبز فقط وقتی ثبت می‌شود که GitHub Actions اجرای completed/successful گزارش کرده باشد؛ queued یا نبودن run، green محسوب نمی‌شود.
-- [ ] **End-to-end validation:** مسیر Bridge هنوز روی backup واقعی در PostgreSQL/Timescale runtime اجرا نشده؛ تا آن زمان migration را production-ready قطعی تلقی نمی‌کنیم.
+- [ ] **End-to-end validation:** مسیر Bridge روی دیتای نمونه در GitHub Actions تعریف شده اما هنوز completed/successful نشده؛ اجرای روی backup واقعی و سرور production همچنان لازم است.
 - [ ] **AmneziaWG:** داده‌ی legacy مربوط به AmneziaWG نباید در migration به‌صورت fabricated ساخته شود؛ هر mapping باید بر اساس schema/source واقعی انجام شود.
 - [ ] **Backup safety:** backup واقعی production نباید compose، image، Dockerfile یا deployment identity مقصد را overwrite کند.
 - [ ] **مرجع‌پذیری:** هر کد جدید در migration باید قبل از commit بر اساس مستندات رسمی یا source معتبر پروژه‌های مرجع پیاده‌سازی و سپس با test پوشش داده شود.
@@ -109,3 +112,10 @@
 - Portable Bridge commits: `335e431d1d5279f44bfcfa04414ef17523cdd6eb` تا `e132e12054610e700ef4c33dd073d13256adca85`
 - CI syntax check برای `scripts/manubisguard-migrate.sh` اضافه شد.
 - PR آزمایشی #1 برای فعال‌کردن CI ساخته شد و merge نشده است.
+
+### وضعیت GitHub Actions در آخرین بررسی
+
+- PR #1: Draft/Open و merge نشده؛ head=`feature/amnezia-wg`.
+- Run `ManubisGuard CI` برای head فعلی: queued.
+- Run `Timescale Portable Bridge Integration`: queued؛ job=`postgres-timescale-bridge` و هنوز runner نگرفته است.
+- نتیجه‌ی pass/fail فعلاً ثبت نشده و عمداً هیچ موردی سبز اعلام نشده است.
