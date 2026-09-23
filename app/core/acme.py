@@ -32,10 +32,10 @@ class AcmeError(RuntimeError):
 class AcmeChallengeProvider(Protocol):
     challenge_type: str
 
-    async def present(self, token: str, key_authorization: str) -> None:
+    async def present(self, identifier: str, token: str, key_authorization: str) -> None:
         ...
 
-    async def cleanup(self, token: str) -> None:
+    async def cleanup(self, identifier: str, token: str) -> None:
         ...
 
 
@@ -47,7 +47,7 @@ class AcmeHttp01ChallengeStore:
         self.base_dir = Path(configured) if configured else Path("/var/lib/PasarGuard/certs")
         self.challenge_dir = self.base_dir / "_acme" / "http-01"
 
-    async def present(self, token: str, key_authorization: str) -> None:
+    async def present(self, identifier: str, token: str, key_authorization: str) -> None:
         self._validate_token(token)
         if not key_authorization or len(key_authorization) > 1024:
             raise ValueError("Invalid ACME HTTP-01 key authorization.")
@@ -70,7 +70,7 @@ class AcmeHttp01ChallengeStore:
             if temporary_path.exists():
                 temporary_path.unlink()
 
-    async def cleanup(self, token: str) -> None:
+    async def cleanup(self, identifier: str, token: str) -> None:
         self._validate_token(token)
         try:
             (self.challenge_dir / token).unlink()
@@ -170,8 +170,7 @@ class AcmeCertificateClient:
         domain = managed_domain.domain
         if domain.startswith("*."):
             raise AcmeError("HTTP-01 cannot issue wildcard certificates.")
-        if self.challenge_provider.challenge_type != "http-01":
-            raise AcmeError("Unsupported ACME challenge provider.")
+        challenge_type = self.challenge_provider.challenge_type
 
         account_store = _AcmeAccountStore(self.certificate_store.base_dir, self.directory_url)
         self._account_key = account_store.load_or_create()
@@ -191,9 +190,9 @@ class AcmeCertificateClient:
                 {"identifiers": [{"type": "dns", "value": domain}]},
             )
 
-            tokens: list[str] = []
+            challenges: list[tuple[str, str]] = []
             try:
-                await self._complete_authorizations(session, order, tokens)
+                await self._complete_authorizations(session, order, challenges)
                 csr_key, csr = self._build_csr(domain)
                 finalized = await self._post_jws_json(
                     session,
@@ -231,12 +230,17 @@ class AcmeCertificateClient:
                     certificate=validation,
                 )
             finally:
-                for token in tokens:
-                    await self.challenge_provider.cleanup(token)
+                for identifier, token in challenges:
+                    await self.challenge_provider.cleanup(identifier, token)
         finally:
             await session.close()
 
-    async def _complete_authorizations(self, session, order: dict, tokens: list[str]) -> None:
+    async def _complete_authorizations(
+        self,
+        session,
+        order: dict,
+        challenges: list[tuple[str, str]],
+    ) -> None:
         for authorization_url in order.get("authorizations", []):
             authorization = await self._post_jws_json(session, authorization_url, "")
             status = authorization.get("status")
@@ -246,25 +250,27 @@ class AcmeCertificateClient:
                 raise AcmeError(self._problem_detail(authorization, "ACME authorization is not pending."))
 
             challenge = next(
-                (item for item in authorization.get("challenges", []) if item.get("type") == "http-01"),
+                (item for item in authorization.get("challenges", []) if item.get("type") == challenge_type),
                 None,
             )
             if not challenge:
-                raise AcmeError("ACME server did not provide an HTTP-01 challenge.")
+                raise AcmeError(f"ACME server did not provide a {challenge_type} challenge.")
 
             token = str(challenge.get("token", ""))
             key_authorization = f"{token}.{self._account_thumbprint()}"
-            await self.challenge_provider.present(token, key_authorization)
-            tokens.append(token)
+            identifier = str(authorization.get("identifier", {}).get("value", ""))
+            if not identifier:
+                raise AcmeError("ACME authorization did not include an identifier.")
+            await self.challenge_provider.present(identifier, token, key_authorization)
+            challenges.append((identifier, token))
 
             await self._post_jws_json(session, challenge["url"], "")
-            await self._poll(
+            final_authorization = await self._poll(
                 session,
                 authorization_url,
                 lambda payload: payload.get("status") in {"valid", "invalid", "expired", "revoked"},
                 initial=await self._post_jws_json(session, authorization_url, ""),
             )
-            final_authorization = await self._post_jws_json(session, authorization_url, "")
             if final_authorization.get("status") != "valid":
                 raise AcmeError(self._problem_detail(final_authorization, "ACME HTTP-01 validation failed."))
 
