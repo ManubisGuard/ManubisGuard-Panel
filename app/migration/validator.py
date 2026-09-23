@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -10,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
 from app.db.base import Base
+from app.migration.async_utils import run_async
 from app.migration.inspector import ForeignKeyInfo, SchemaSnapshot, _async_url, _quote
 from app.migration.schema import is_supported_core_type, normalize_core_type
 
@@ -48,10 +48,10 @@ def _orphan_sql(fk: ForeignKeyInfo) -> str:
         for source, target in zip(fk.constrained_columns, fk.referred_columns, strict=True)
     )
     nonnull = " AND ".join(f"s.{_quote(column)} IS NOT NULL" for column in fk.constrained_columns)
-    target_null = f"t.{_quote(fk.referred_columns[0])} IS NULL"
+    target_null = f't.{_quote(fk.referred_columns[0])} IS NULL'
     return (
-        f"SELECT COUNT(*) FROM public.{_quote(fk.table)} AS s "
-        f"LEFT JOIN public.{_quote(fk.referred_table)} AS t ON {join} "
+        f'SELECT COUNT(*) FROM public.{_quote(fk.table)} AS s '
+        f'LEFT JOIN public.{_quote(fk.referred_table)} AS t ON {join} '
         f"WHERE {nonnull} AND {target_null}"
     )
 
@@ -64,6 +64,7 @@ async def _orphan_checks(database_url: str, snapshot: SchemaSnapshot) -> tuple[O
     engine = create_async_engine(url, poolclass=NullPool, connect_args=connect_args)
     try:
         async with engine.connect() as connection:
+
             def run(sync_connection) -> tuple[OrphanCheck, ...]:
                 existing = set(snapshot.tables)
                 found: list[OrphanCheck] = []
@@ -106,7 +107,8 @@ def validate_migrated_database(
 
     if snapshot.alembic_versions != (head,):
         errors.append(
-            f"Alembic revision mismatch: expected [{head}], found [{', '.join(snapshot.alembic_versions) or 'none'}]."
+            f"Alembic revision mismatch: expected [{head}], found "
+            f"[{', '.join(snapshot.alembic_versions) or 'none'}]."
         )
 
     invalid_types = [
@@ -120,9 +122,10 @@ def validate_migrated_database(
     if snapshot.settings_invalid_rows:
         errors.append(f"settings has {snapshot.settings_invalid_rows} invalid JSON object row(s).")
 
-    orphan_checks = asyncio.run(_orphan_checks(database_url, snapshot))
+    orphan_checks = run_async(_orphan_checks(database_url, snapshot))
     errors.extend(
-        f"Foreign-key integrity failure: {check.table} -> {check.referred_table} has {check.rows} orphan row(s)."
+        f"Foreign-key integrity failure: {check.table} -> {check.referred_table} "
+        f"has {check.rows} orphan row(s)."
         for check in orphan_checks
     )
 
@@ -135,7 +138,9 @@ def validate_migrated_database(
         "node_stats",
     }
     if not (telemetry & set(snapshot.tables)):
-        warnings.append("No telemetry tables were found; historical usage/statistics may be absent from the source.")
+        warnings.append(
+            "No telemetry tables were found; historical usage/statistics may be absent from the source."
+        )
 
     return ValidationResult(
         valid=not errors,
