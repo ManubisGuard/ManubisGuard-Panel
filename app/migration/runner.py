@@ -1,8 +1,127 @@
+from __future__ import annotations
+
+import gzip
+import json
+import re
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+from app.migration.adapters.pasarguard import PasarGuardAdapter
+from app.migration.compatibility import TimescaleCompatibility, analyze_timescale_sql, version_tuple
+from app.migration.detector import BackupDetection
+from app.migration.preflight import PreflightResult, preflight_backup
+from app.migration.staging import (
+    MigrationSafetyError,
+    StagingDatabase,
+    inspect_backup_source,
+    restore_backup_into_staging,
+    upgrade_staging_database,
+)
+from app.migration.timescale import choose_timescale_version
+from app.migration.validator import ValidationResult, validate_migrated_database
 
 
-_SOURCE_VERSION_RE = __import__("re").compile(
+DURABLE_COUNT_TABLES = (
+    "admins",
+    "users",
+    "nodes",
+    "hosts",
+    "core_configs",
+    "inbounds",
+    "groups",
+    "user_templates",
+)
+
+_SOURCE_VERSION_RE = re.compile(
     r"^\s*(\d+\.\d+\.\d+(?:[-.][A-Za-z0-9]+)?)\s*$"
 )
+_COMPOSE_TS_RE = re.compile(
+    r"timescale/timescaledb(?:-ha)?:(?:pg\d+-ts)?"
+    r"(\d+\.\d+\.\d+)(?:-pg\d+)?",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class BackupAnalysis:
+    detection: BackupDetection
+    preflight: PreflightResult
+    timescale: TimescaleCompatibility
+    uses_timescaledb: bool
+
+
+@dataclass(frozen=True)
+class MigrationRunResult:
+    analysis: BackupAnalysis
+    pre_upgrade_counts: dict[str, int]
+    post_upgrade_counts: dict[str, int]
+    count_losses: dict[str, tuple[int, int]]
+    transformations: tuple[str, ...]
+    validation: ValidationResult
+
+    @property
+    def valid(self) -> bool:
+        return self.validation.valid and not self.count_losses
+
+    def as_jsonable(self) -> dict[str, Any]:
+        return {
+            "analysis": {
+                "detection": asdict(self.analysis.detection),
+                "preflight": {
+                    "ok": self.analysis.preflight.ok,
+                    "blocking_errors": list(self.analysis.preflight.blocking_errors),
+                    "warnings": list(self.analysis.preflight.warnings),
+                },
+                "timescale": asdict(self.analysis.timescale),
+                "uses_timescaledb": self.analysis.uses_timescaledb,
+            },
+            "pre_upgrade_counts": self.pre_upgrade_counts,
+            "post_upgrade_counts": self.post_upgrade_counts,
+            "count_losses": {
+                key: list(value) for key, value in self.count_losses.items()
+            },
+            "transformations": list(self.transformations),
+            "validation": {
+                "valid": self.validation.valid,
+                "blocking_errors": list(self.validation.blocking_errors),
+                "warnings": list(self.validation.warnings),
+                "missing_target_tables": list(self.validation.missing_target_tables),
+                "orphan_checks": [asdict(x) for x in self.validation.orphan_checks],
+                "snapshot": (
+                    {
+                        "tables": list(self.validation.snapshot.tables),
+                        "row_counts": self.validation.snapshot.row_counts,
+                        "alembic_versions": list(self.validation.snapshot.alembic_versions),
+                        "core_type_counts": self.validation.snapshot.core_type_counts,
+                    }
+                    if self.validation.snapshot
+                    else None
+                ),
+            },
+            "valid": self.valid,
+        }
+
+
+def _read_timescale_sample(path: Path) -> str:
+    if path.name.lower().endswith(".gz"):
+        with gzip.open(path, "rt", encoding="utf-8", errors="replace") as fh:
+            head = fh.read(1_200_000)
+            try:
+                fh.seek(max(0, fh.tell() - 1_200_000))
+                tail = fh.read(1_200_000)
+            except (OSError, ValueError):
+                tail = ""
+        return head + "\n" + tail
+
+    with path.open("rt", encoding="utf-8", errors="replace") as fh:
+        head = fh.read(1_200_000)
+        try:
+            fh.seek(max(0, path.stat().st_size - 1_200_000))
+            tail = fh.read(1_200_000)
+        except OSError:
+            tail = ""
+    return head + "\n" + tail
 
 
 def _read_small_text(path: Path, limit: int = 16_384) -> str:
@@ -10,8 +129,12 @@ def _read_small_text(path: Path, limit: int = 16_384) -> str:
         return fh.read(limit)
 
 
-def _source_timescale_metadata(root: Path, source: Path) -> tuple[str | None, tuple[str, ...]]:
+def _source_timescale_metadata(
+    root: Path,
+    source: Path,
+) -> tuple[str | None, tuple[str, ...]]:
     files: list[Path] = []
+
     direct_candidates = (
         source.with_name("db_backup.timescaledb-version"),
         source.with_name(source.name + ".timescaledb-version"),
@@ -21,10 +144,15 @@ def _source_timescale_metadata(root: Path, source: Path) -> tuple[str | None, tu
         if candidate.is_file():
             files.append(candidate)
 
-    # Official PasarGuard archives use db_backup.timescaledb-version and/or
-    # manifest.tsv. We also inspect archived compose files as a compatibility
-    # fallback, but only inside the already extracted archive root.
-    for pattern in ("db_backup.timescaledb-version", "manifest.tsv", "docker-compose.yml", "compose.yml"):
+    # PasarGuard backup archives can carry the exact version in a sidecar,
+    # manifest.tsv, or an archived compose snapshot. Inspect only the extracted
+    # archive root (never arbitrary host paths).
+    for pattern in (
+        "db_backup.timescaledb-version",
+        "manifest.tsv",
+        "docker-compose.yml",
+        "compose.yml",
+    ):
         try:
             files.extend(sorted(root.rglob(pattern)))
         except OSError:
@@ -32,6 +160,7 @@ def _source_timescale_metadata(root: Path, source: Path) -> tuple[str | None, tu
 
     versions: list[str] = []
     warnings: list[str] = []
+
     for path in dict.fromkeys(files):
         try:
             text = _read_small_text(path)
@@ -39,32 +168,35 @@ def _source_timescale_metadata(root: Path, source: Path) -> tuple[str | None, tu
             continue
 
         name = path.name.lower()
+
         if name == "manifest.tsv":
             for line in text.splitlines():
                 fields = line.split("\t")
-                if len(fields) >= 5 and fields[2].strip() == "1" and fields[4].strip():
+                if len(fields) >= 5 and fields[2].strip() == "1":
                     value = fields[4].strip()
+                    if not value:
+                        continue
                     if _SOURCE_VERSION_RE.fullmatch(value):
                         versions.append(value)
+                    else:
+                        warnings.append(
+                            f"Unsafe TimescaleDB manifest version ignored: {value!r}"
+                        )
             continue
 
         if name.endswith(".timescaledb-version") or name == "timescaledb.version":
-            first = text.splitlines()[0].strip() if text.splitlines() else ""
-            if first:
-                match = _SOURCE_VERSION_RE.fullmatch(first)
-                if match:
-                    versions.append(first)
-                else:
-                    warnings.append(f"Unsafe TimescaleDB version metadata ignored: {path.name}")
+            first = next((line.strip() for line in text.splitlines() if line.strip()), "")
+            if not first:
+                continue
+            if _SOURCE_VERSION_RE.fullmatch(first):
+                versions.append(first)
+            else:
+                warnings.append(
+                    f"Unsafe TimescaleDB sidecar version ignored: {path.name}"
+                )
             continue
 
-        # Do not scrape arbitrary SQL/YAML values. Only accept the Timescale
-        # Docker image syntax used by PasarGuard's compose snapshots.
-        for match in __import__("re").finditer(
-            r"timescale/timescaledb(?:-ha)?:(?:pg\d+-ts)?(\d+\.\d+\.\d+)(?:-pg\d+)?",
-            text,
-            flags=__import__("re").I,
-        ):
+        for match in _COMPOSE_TS_RE.finditer(text):
             versions.append(match.group(1))
 
     unique = tuple(dict.fromkeys(versions))
@@ -84,17 +216,19 @@ def _merge_timescale_source_version(
     versions = compatibility.versions
     if source_version and source_version not in versions:
         versions = (source_version, *versions)
-    sql_versions = tuple(v for v in versions if version_tuple(v))
+
+    parsed_versions = tuple(v for v in versions if version_tuple(v))
     exact = source_version
-    if exact is None and len(sql_versions) == 1:
-        exact = sql_versions[0]
-    if source_version and sql_versions and any(v != source_version for v in sql_versions):
-        # A SQL comment and a sidecar disagree: never choose one silently.
-        conflicting = tuple(dict.fromkeys(v for v in sql_versions if v != source_version))
+    if exact is None and len(parsed_versions) == 1:
+        exact = parsed_versions[0]
+
+    if source_version and any(v != source_version for v in parsed_versions):
+        conflicting = tuple(dict.fromkeys(v for v in parsed_versions if v != source_version))
         raise MigrationSafetyError(
             "TimescaleDB source version metadata conflicts with the SQL dump: "
             f"metadata={source_version}, sql={', '.join(conflicting)}"
         )
+
     return TimescaleCompatibility(
         versions=versions,
         source_version=exact,
@@ -103,6 +237,14 @@ def _merge_timescale_source_version(
         recommended_version=compatibility.recommended_version,
         warnings=tuple(dict.fromkeys((*compatibility.warnings, *warnings))),
     )
+
+
+def _custom_uses_timescale(detection: BackupDetection) -> bool:
+    return any(
+        "timescaledb" in item.lower() or "_timescaledb_catalog" in item.lower()
+        for item in detection.evidence
+    )
+
 
 def analyze_backup(
     path: str | Path,
@@ -124,6 +266,7 @@ def analyze_backup(
         try:
             root = Path(tmp.name) if tmp is not None else source.parent
             metadata_version, metadata_warnings = _source_timescale_metadata(root, source)
+
             explicit_version = source_timescale_version.strip() if source_timescale_version else None
             if explicit_version and _SOURCE_VERSION_RE.fullmatch(explicit_version) is None:
                 raise MigrationSafetyError(
@@ -152,17 +295,17 @@ def analyze_backup(
                     or compatibility.catalog_era is not None
                 )
             else:
-                compatibility = TimescaleCompatibility()
                 uses_timescaledb = _custom_uses_timescale(detection)
-                if uses_timescaledb and selected_version:
-                    compatibility = TimescaleCompatibility(
-                        versions=(selected_version,),
-                        source_version=selected_version,
-                        warnings=metadata_warnings,
-                    )
+                compatibility = TimescaleCompatibility(
+                    versions=(selected_version,) if selected_version else (),
+                    source_version=selected_version,
+                    warnings=metadata_warnings,
+                )
         finally:
             if tmp is not None:
                 tmp.cleanup()
+    except MigrationSafetyError:
+        raise
     except Exception as exc:
         raise MigrationSafetyError(f"Backup analysis failed: {exc}") from exc
 
@@ -199,8 +342,12 @@ def migrate_pasarguard_staging(
     production_url: str,
     timeout: int = 900,
     allow_external_staging: bool = False,
+    source_timescale_version: str | None = None,
 ) -> MigrationRunResult:
-    analysis = analyze_backup(backup_path)
+    analysis = analyze_backup(
+        backup_path,
+        source_timescale_version=source_timescale_version,
+    )
     if not analysis.preflight.ok:
         raise MigrationSafetyError(
             "Migration preflight blocked the backup: "
@@ -227,7 +374,6 @@ def migrate_pasarguard_staging(
     transformations = PasarGuardAdapter().apply(staging.staging_url)
     validation = validate_migrated_database(staging.staging_url)
     post_upgrade = validation.snapshot
-
     if post_upgrade is None:
         raise MigrationSafetyError("Validation produced no schema snapshot.")
 
@@ -245,7 +391,7 @@ def migrate_pasarguard_staging(
             blocking_errors=(
                 *validation.blocking_errors,
                 "Durable row-count loss after Alembic/normalization: "
-                + ", ".join(f"{t} {a}→{b}" for t, (a, b) in losses.items()),
+                + ", ".join(f"{table} {before}→{after}" for table, (before, after) in losses.items()),
             ),
             warnings=validation.warnings,
             snapshot=validation.snapshot,
@@ -254,12 +400,7 @@ def migrate_pasarguard_staging(
         )
 
     return MigrationRunResult(
-        analysis=BackupAnalysis(
-            detection=detection,
-            preflight=analysis.preflight,
-            timescale=analysis.timescale,
-            uses_timescaledb=analysis.uses_timescaledb,
-        ),
+        analysis=analysis,
         pre_upgrade_counts=pre_counts,
         post_upgrade_counts=post_counts,
         count_losses=losses,
@@ -275,11 +416,11 @@ def validation_jsonable(result: ValidationResult) -> dict[str, Any]:
         "blocking_errors": list(result.blocking_errors),
         "warnings": list(result.warnings),
         "missing_target_tables": list(result.missing_target_tables),
-        "orphan_checks": [asdict(x) for x in result.orphan_checks],
+        "orphan_checks": [asdict(item) for item in result.orphan_checks],
         "snapshot": (
             {
                 "tables": list(snapshot.tables),
-                "columns": {k: list(v) for k, v in snapshot.columns.items()},
+                "columns": {key: list(value) for key, value in snapshot.columns.items()},
                 "row_counts": snapshot.row_counts,
                 "alembic_versions": list(snapshot.alembic_versions),
                 "core_type_counts": snapshot.core_type_counts,
