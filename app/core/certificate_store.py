@@ -13,14 +13,10 @@ DEFAULT_CERTIFICATE_DIR = Path("/var/lib/PasarGuard/certs")
 
 
 class CertificateArtifactStore:
-    """Store managed TLS certificate artifacts outside the database.
-
-    Each domain gets a private directory containing cert.pem and key.pem.
-    Writes are atomic and the private key is created with mode 0600.
-    """
+    """Store managed TLS certificate artifacts outside the database."""
 
     def __init__(self, base_dir: str | Path | None = None):
-        configured = base_dir or os.getenv("PASARGUARD_CERTIFICATE_DIR")
+        configured = base_dir if base_dir is not None else os.getenv("PASARGUARD_CERTIFICATE_DIR")
         self.base_dir = Path(configured) if configured else DEFAULT_CERTIFICATE_DIR
 
     def validate_pair(
@@ -41,34 +37,31 @@ class CertificateArtifactStore:
         if not result.valid:
             return result
 
-        normalized = ManagedDomain(id="certificate-artifact", domain=domain).domain
+        normalized = self._normalize(domain)
         target_dir = self._domain_dir(normalized)
         target_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(target_dir, 0o700)
 
         self._atomic_write(target_dir / "cert.pem", certificate_pem, 0o644)
         self._atomic_write(target_dir / "key.pem", private_key_pem, 0o600)
         return result
 
     def load(self, domain: str) -> tuple[str, str]:
-        normalized = ManagedDomain(id="certificate-artifact", domain=domain).domain
-        target_dir = self._domain_dir(normalized)
+        target_dir = self._domain_dir(self._normalize(domain))
         return (
-            (target_dir / "cert.pem").read_text(),
-            (target_dir / "key.pem").read_text(),
+            (target_dir / "cert.pem").read_text(encoding="utf-8"),
+            (target_dir / "key.pem").read_text(encoding="utf-8"),
         )
 
     def exists(self, domain: str) -> bool:
-        normalized = ManagedDomain(id="certificate-artifact", domain=domain).domain
-        target_dir = self._domain_dir(normalized)
+        target_dir = self._domain_dir(self._normalize(domain))
         return (target_dir / "cert.pem").is_file() and (target_dir / "key.pem").is_file()
 
     def delete(self, domain: str) -> None:
-        normalized = ManagedDomain(id="certificate-artifact", domain=domain).domain
-        target_dir = self._domain_dir(normalized)
+        target_dir = self._domain_dir(self._normalize(domain))
         for filename in ("cert.pem", "key.pem"):
-            path = target_dir / filename
             try:
-                path.unlink()
+                (target_dir / filename).unlink()
             except FileNotFoundError:
                 pass
         try:
@@ -76,11 +69,12 @@ class CertificateArtifactStore:
         except OSError:
             pass
 
+    @staticmethod
+    def _normalize(domain: str) -> str:
+        return ManagedDomain(id="certificate-artifact", domain=domain).domain
+
     def _domain_dir(self, domain: str) -> Path:
-        normalized = ManagedDomain(id="certificate-artifact", domain=domain).domain
-        # The domain validator guarantees a DNS hostname, so the directory
-        # name cannot escape base_dir through path separators or traversal.
-        return self.base_dir / normalized
+        return self.base_dir / domain
 
     @staticmethod
     def _atomic_write(path: Path, content: str, mode: int) -> None:
