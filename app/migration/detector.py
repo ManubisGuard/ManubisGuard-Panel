@@ -152,7 +152,7 @@ def detect_backup(path: str | Path) -> BackupDetection:
     if ".tar" in suffixes or ".tgz" in suffixes or (name.endswith(".tar.gz") and ".gz" in suffixes):
         with tarfile.open(p, "r:*") as archive:
             names = "\n".join(member.name for member in archive.getmembers()).lower()
-        return _detect_text(p, names)
+        return _with_format(_detect_text(p, names), "tar")
 
     if name.endswith(".json.gz"):
         with gzip.open(p, "rt", encoding="utf-8", errors="replace") as fh:
