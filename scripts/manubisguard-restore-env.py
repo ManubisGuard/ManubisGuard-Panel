@@ -8,8 +8,6 @@ preserved because the migrated database name/user/password belong to ManubisGuar
 from __future__ import annotations
 
 import argparse
-import configparser
-import io
 import os
 import posixpath
 import re
