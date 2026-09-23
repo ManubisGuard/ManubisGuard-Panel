@@ -4,6 +4,11 @@ Legacy PasarGuard backups are handled as an external compatibility format.
 Production databases are never used as staging targets.
 """
 
+from app.migration.compatibility import (
+    TimescaleCompatibility,
+    analyze_timescale_sql,
+    classify_restore_error,
+)
 from app.migration.detector import BackupDetection, detect_backup
 from app.migration.inspector import SchemaSnapshot, inspect_database
 from app.migration.staging import (
@@ -19,6 +24,9 @@ from app.migration.validator import ValidationResult, validate_migrated_database
 
 __all__ = [
     "BackupDetection",
+    "TimescaleCompatibility",
+    "analyze_timescale_sql",
+    "classify_restore_error",
     "MigrationSafetyError",
     "SchemaSnapshot",
     "StagingDatabase",
