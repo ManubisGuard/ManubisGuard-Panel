@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
+
 from app.models.domain_intelligence import DomainCertificateResult, ExistingCertificateValidation
 from app.models.settings import ManagedDomain
 
@@ -205,6 +206,10 @@ class ExistingCertificateValidator:
             candidate = name.lower().rstrip(".")
             if candidate == domain:
                 return True
-            if candidate.startswith("*.") and domain.endswith(candidate[1:]) and domain.count(".") == candidate.count("."):
+            if (
+                candidate.startswith("*.")
+                and domain.endswith(candidate[1:])
+                and domain.count(".") == candidate.count(".")
+            ):
                 return True
         return False
