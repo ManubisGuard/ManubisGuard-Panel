@@ -26,11 +26,11 @@ async def test_http01_challenge_store_persists_and_cleans_up(tmp_path: Path):
     store = AcmeHttp01ChallengeStore(tmp_path)
     token = "a" * 43
 
-    await store.present(token, "token-thumbprint")
+    await store.present("edge.example.com", token, "token-thumbprint")
     assert store.get(token) == "token-thumbprint"
     assert (tmp_path / "_acme" / "http-01" / token).stat().st_mode & 0o777 == 0o600
 
-    await store.cleanup(token)
+    await store.cleanup("edge.example.com", token)
     assert store.get(token) is None
 
 
@@ -55,7 +55,7 @@ async def test_http01_challenge_store_rejects_unsafe_token(tmp_path: Path):
     store = AcmeHttp01ChallengeStore(tmp_path)
 
     with pytest.raises(ValueError):
-        await store.present("../escape", "value")
+        await store.present("edge.example.com", "../escape", "value")
 
     with pytest.raises(ValueError):
         store.get("../escape")
