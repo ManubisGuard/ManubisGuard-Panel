@@ -66,3 +66,17 @@ def test_runner_ignores_archived_compose_for_timescale_version(tmp_path: Path):
     result = analyze_backup(backup)
     assert result.preflight.ok
     assert result.timescale.source_version == "2.28.2"
+
+
+def test_resolved_timescale_version_must_match_live_version():
+    from app.migration.runner import resolve_staging_timescale_version
+
+    analysis = type("A", (), {
+        "uses_timescaledb": True,
+        "timescale": TimescaleCompatibility(
+            versions=("2.28.2",),
+            source_version="2.28.2",
+            catalog_era="schema_name",
+        ),
+    })()
+    assert resolve_staging_timescale_version(analysis, live_version="2.28.2") == "2.28.2"
