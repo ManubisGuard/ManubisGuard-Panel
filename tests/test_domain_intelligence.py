@@ -74,3 +74,68 @@ async def test_domain_intelligence_rejects_invalid_domains():
 def test_is_https_url():
     assert DomainIntelligence.is_https_url("https://example.com") is True
     assert DomainIntelligence.is_https_url("http://example.com") is False
+
+
+def test_certificate_inspector_classifies_valid_certificate(monkeypatch):
+    from app.core.certificate_intelligence import DomainCertificateInspector
+
+    inspector = DomainCertificateInspector(expiring_days=30)
+
+    class FakeTLS:
+        def getpeercert(self):
+            return {
+                "notAfter": "Dec 31 23:59:59 2099 GMT",
+                "subjectAltName": (("DNS", "edge.example.com"),),
+                "subject": ((("commonName", "edge.example.com"),),),
+                "issuer": ((("commonName", "Test CA"),),),
+                "serialNumber": "01",
+            }
+
+        def version(self):
+            return "TLSv1.3"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class FakeContext:
+        def wrap_socket(self, raw_socket, server_hostname):
+            assert server_hostname == "edge.example.com"
+            return FakeTLS()
+
+    class FakeSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr("ssl.create_default_context", lambda: FakeContext())
+    monkeypatch.setattr("socket.create_connection", lambda address, timeout: FakeSocket())
+
+    result = __import__("asyncio").run(inspector.inspect("Edge.Example.COM"))
+
+    assert result.domain == "edge.example.com"
+    assert result.reachable is True
+    assert result.valid is True
+    assert result.status == "valid"
+    assert result.tls_version == "TLSv1.3"
+    assert result.san == ["edge.example.com"]
+
+
+@pytest.mark.asyncio
+async def test_certificate_inspector_handles_unreachable_domain(monkeypatch):
+    from app.core.certificate_intelligence import DomainCertificateInspector
+
+    def fail(*args, **kwargs):
+        raise TimeoutError()
+
+    monkeypatch.setattr("socket.create_connection", fail)
+
+    result = await DomainCertificateInspector(timeout=1).inspect("edge.example.com")
+
+    assert result.reachable is False
+    assert result.status == "unreachable"
+    assert result.error == "TimeoutError"
