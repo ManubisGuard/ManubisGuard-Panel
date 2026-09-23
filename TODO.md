@@ -1,96 +1,106 @@
-# وضعیت پروژه
+# وضعیت پروژه — ManubisGuard
 
-## انجام‌شده
+## وضعیت کلی
+- Branch فعال: feature/amnezia-wg
+- main دست‌نخورده می‌ماند.
+- PR #1: Draft / Open / Merge نشده.
+- Railway کنار گذاشته شده؛ اعتبارسنجی پروژه با GitHub Actions و سپس سرور واقعی انجام می‌شود.
+- --apply روی دیتابیس واقعی هنوز مجاز/تأییدشده نیست.
+- queued یا وجود workflow هرگز به‌عنوان passed ثبت نمی‌شود.
 
-- [x] ایجاد معماری مهاجرت امن PasarGuard → ManubisGuard با مسیر Detection → Preflight → Staging → Transformation → Alembic HEAD → Validation → Cutover.
-- [x] پیاده‌سازی تشخیص و Preflight بکاپ و جلوگیری از Restore مستقیم روی Production.
-- [x] اضافه‌کردن اعتبارسنجی سخت‌گیرانه‌ی Archive برای ZIP/TAR:
-  - CRC validation برای ZIP
-  - جلوگیری از path traversal
-  - جلوگیری از duplicate normalized paths
-  - رد symlink / hardlink / device / FIFO / special files
-  - محدودیت تعداد entryها
-- [x] سخت‌سازی Restore credentialها در `app/migration/restore_safety.py`:
-  - پشتیبانی از CREATE/ALTER ROLE و USER
-  - حذف password clauseهای بکاپ
-  - حذف کامل statement مربوط به role مقصد
-  - پشتیبانی از statementهای چندخطی
-  - پردازش streaming برای dumpهای بزرگ
-- [x] سخت‌سازی Restore محیط در `scripts/manubisguard-restore-env.py`:
-  - جلوگیری از import هویت PostgreSQL/DB
-  - جلوگیری از import تنظیمات Docker/Compose/Image/Container
-  - جلوگیری از archive symlink و special file
-  - Stage کردن certificate/key به‌جای overwrite مستقیم
-- [x] سخت‌سازی Cutover در `scripts/manubisguard-migrate.sh`:
-  - Production safety backup قبل از تغییر
-  - compose integrity guard
-  - stage/apply/rollback برای runtime assets
-  - rollback برای env/assets در خطا
-  - rollback در rename/start/health/integrity failure
-- [x] پیاده‌سازی تشخیص PostgreSQL major از dump و استفاده از source-compatible PostgreSQL/Timescale runtime.
-- [x] اصلاح image tagهای Timescale به الگوی واقعی `timescale/timescaledb:<version>-pg<major>-oss`.
-- [x] استفاده از source runtime برای restore و `pg_dump` مجدد، به‌جای تکیه بر dump client محیط مقصد.
-- [x] اضافه‌کردن فیلتر بسیار محدود PostgreSQL compatibility برای `SET transaction_timeout` فقط هنگام Restore به PostgreSQL قدیمی‌تر.
-- [x] جلوگیری از replay مستقیم TimescaleDB catalog و حذف DDL مربوط به extension مقصد در مسیر cutover.
-- [x] اضافه‌کردن منطق تشخیص نسخه دقیق TimescaleDB از SQL/manifest/sidecar و بررسی conflict.
-- [x] اضافه‌کردن مستندات Restore Hardening در `docs/migration/PASARGUARD_RESTORE_HARDENING.md`.
-- [x] اضافه‌کردن تست‌های migration برای detector، preflight، restore safety، environment restore، runner، Timescale و compatibility.
-- [x] API compatibility audit اولیه در سطح route/method با PasarGuard انجام شده؛ routeهای اختصاصی Domain Intelligence/Certificate نیز شناسایی شده‌اند.
-- [x] تصمیم معماری ثبت شد که source Timescale قدیمی‌تر می‌تواند در runtime خودش restore و سپس در staging ارتقا داده شود؛ downgrade کورکورانه‌ی Timescale مجاز نیست.
+## AmneziaWG
+- [x] انجام‌شده و تست‌شده.
+- [x] AmneziaWG دیگر جزو کارهای باقی‌مانده این branch نیست؛ فقط در صورت regression یا تغییر schema تست مجدد لازم است.
 
-## وضعیت فعلی
+## هدف جدید: Restore / Migration
+هدف این branch ساخت سیستم امن و version-aware برای:
+1. Restore بکاپ‌های رسمی PasarGuard روی ManubisGuard.
+2. Restore بکاپ‌های ManubisGuard روی ManubisGuard.
+3. سازگاری با نسخه‌های جدیدتر PasarGuard از طریق compatibility/bridge.
+4. جلوگیری از overwrite شدن DB/deployment identity مقصد.
+5. staging، validation و rollback قبل از cutover.
 
-- Branch فعال: `feature/amnezia-wg`
-- تمرکز فعلی روی Migration/Restore Safety و Bridge بین نسخه‌های PostgreSQL/TimescaleDB است.
-- فایل‌های اصلی درگیر:
-  - `app/migration/detector.py`
-  - `app/migration/preflight.py`
-  - `app/migration/runner.py`
-  - `app/migration/staging.py`
-  - `app/migration/timescale.py`
-  - `app/migration/restore_safety.py`
-  - `scripts/manubisguard-migrate.sh`
-  - `scripts/manubisguard-restore-env.py`
-  - `docs/migration/PASARGUARD_RESTORE_HARDENING.md`
-  - `tests/migration/*`
-- وضعیت migration engine در حال حاضر برای source Timescale قدیمی‌تر → destination جدیدتر، مسیر source-compatible staging و upgrade ایزوله را در نظر گرفته است.
-- تست `tests/migration/test_runner.py` این رفتار version-aware را پوشش می‌دهد، اما مسیر کامل orchestration هنوز نیازمند تست end-to-end واقعی است.
-- CI باید از GitHub Actions به‌صورت واقعی بررسی شود؛ صرف وجود workflow یا queued run به‌عنوان green تلقی نمی‌شود.
-- نسخه Alembic فعلی پروژه: `awg2026091901`.
-- آخرین migration state شناخته‌شده‌ی پروژه بر پایه‌ی staging/backup واقعی: PostgreSQL 17.10 و TimescaleDB 2.28.2 در source backup، در حالی که deployment مقصد PostgreSQL 16 است.
+## Restore / Migration — انجام‌شده
+- [x] Detection → Preflight → Source-Compatible Staging → Transformation/Bridge → Alembic HEAD → Validation → Cutover.
+- [x] Archive integrity برای ZIP/TAR، CRC، path traversal، duplicate normalized paths و special files.
+- [x] Restore safety برای role/password و جلوگیری از overwrite credential مقصد.
+- [x] Restore امن environment و جلوگیری از انتقال DB/deployment identity.
+- [x] Runtime asset staging و rollback.
+- [x] Compose integrity guard.
+- [x] تشخیص PostgreSQL major و source-compatible runtime.
+- [x] Timescale version-aware staging.
+- [x] جلوگیری از replay مستقیم Timescale internal catalog.
+- [x] Portable Timescale Bridge برای newer → older به‌صورت implementation اولیه.
+- [x] verifier برای مقایسه row count جدول‌ها و hypertableها.
+- [x] workflow مستقل GitHub Actions برای integration.
 
-## مرحله‌ی بعد
+## Restore / Migration — تست‌شده در GitHub Actions
+- [x] unit testهای migration/restore safety/compatibility در CI موجود هستند.
+- [x] syntax check برای scripts/manubisguard-migrate.sh در CI اضافه شده است.
+- [x] integration workflow مستقل تعریف شده: PostgreSQL 17 + TimescaleDB 2.30.0 → PostgreSQL 16 + TimescaleDB 2.29.2.
+- [ ] Integration workflow هنوز completed/successful تأیید نشده؛ Portable Bridge end-to-end در Actions هنوز passed نیست.
+- [ ] PR #1 در آخرین وضعیت قابل مشاهده اجرای completed/successful قابل استناد ندارد؛ runهای مشاهده‌شده queued بوده‌اند و failure log قابل تحلیل وجود نداشته است.
 
-- [x] پیاده‌سازی هسته و orchestration اولیه‌ی **Portable Timescale Bridge** برای حالت source Timescale جدیدتر از destination:
-  - planner و metadata extraction از informational views
-  - جداسازی pre-data / data / post-data
-  - بازسازی hypertable/dimension با API عمومی
-  - بازسازی CAGG با refresh کامل
-  - بازسازی policyهای پشتیبانی‌شده
-  - جلوگیری از replay کاتالوگ داخلی
-  - fail-closed برای metadata/policyهای ناشناخته
-  - اتصال مسیر newer→older در `scripts/manubisguard-migrate.sh`
-  1. [x] Restore فقط در source-compatible runtime.
-  2. [x] استخراج metadata قابل‌حمل hypertableها، dimensionها، continuous aggregateها و policyها.
-  3. [x] عدم اتکا به replay مستقیم `_timescaledb_*` catalog.
-  4. [x] ساخت schema/data قابل‌حمل برای Timescale مقصد.
-  5. [x] بازسازی hypertable/dimension با API رسمی Timescale.
-  6. [x] انتقال داده به‌صورت کنترل‌شده و قابل‌اعتبارسنجی در cutover isolated DB.
-  7. [x] بازسازی post-data indexes/constraints و objectهای relational.
-  8. [x] بازسازی continuous aggregate/policyهای public و پشتیبانی‌شده؛ موارد ناشناخته fail-closed هستند.
-  9. [x] ANALYZE در artifactهای bridge.
-- [ ] قبل از هر implementation جدید، مستندات رسمی PostgreSQL و TimescaleDB و source مربوط به نسخه هدف بررسی شود؛ implementation بدون منبع معتبر اضافه نشود.
-- [x] تست‌های unit مربوط به Bridge اضافه شد، مخصوصاً version direction، hypertable/dimension، CAGG، policy، dump exclusions و artifact generation.
-- [x] workflow مستقل GitHub Actions برای integration PostgreSQL 17/TimescaleDB 2.30.0 → PostgreSQL 16/TimescaleDB 2.29.2 اضافه شد.
-- [x] اسکریپت `scripts/verify-migration-counts.py` برای مقایسه تعداد ردیف جدول‌ها و hypertableها اضافه شد.
-- [ ] integration workflow هنوز فقط queued است و pass نشده؛ نتیجه‌ی اجرای واقعی باید ثبت شود.
-- [x] orchestration `scripts/manubisguard-migrate.sh` برای مسیر newer→older به Portable Bridge متصل شد.
-- [ ] یک اجرای end-to-end واقعی روی backup واقعی هنوز باقی است.
-- [ ] تمام failure/rollback pathها یک دور دوم review شوند.
-- [ ] اجرای PR #1 در حال حاضر queued است؛ بنابراین هیچ jobی pass/fail تأیید نشده و لاگی برای تحلیل وجود ندارد.
-- [ ] Integration workflow جدید نیز queued است؛ تا completion نباید نتیجه‌ای به‌عنوان تأییدشده ثبت شود.
-- [x] Railway از این مرحله کنار گذاشته شد؛ هیچ deployment جدیدی برای تست این پروژه انجام نمی‌شود.
-- [ ] پس از پایان هر مرحله، همین فایل `TODO.md` با وضعیت واقعی همان commit به‌روزرسانی شود.
+## Restore / Migration — تست‌شده روی سرور واقعی
+- [ ] --check روی backup واقعی PasarGuard.
+- [ ] restore روی staging/isolated database.
+- [ ] validation schema/table/hypertable/CAGG و count comparison روی backup واقعی.
+- [ ] rollback واقعی.
+- [ ] runtime asset restore و rollback.
+- [ ] compatibility با deployment واقعی PostgreSQL 16 / TimescaleDB مقصد.
+- [ ] --apply روی production انجام نشده و نباید تا پایان validation انجام شود.
+
+## Restore / Migration — باقی‌مانده
+- [ ] سبز شدن واقعی integration workflow در GitHub Actions.
+- [ ] رفع failureهای واقعی Actions و re-test تا completion.
+- [ ] E2E با backup واقعی PasarGuard.
+- [ ] restore یک backup واقعی ManubisGuard.
+- [ ] rollback در سناریوهای failure واقعی.
+- [ ] تکمیل compatibility matrix با نسخه‌های واقعی PasarGuard.
+- [ ] regression test دوره‌ای برای نسخه‌های جدید PasarGuard.
+- [ ] تعریف معیار نهایی production cutover پس از validation.
+
+## ماتریس سازگاری
+> فقط اجرای واقعی موفق می‌تواند یک ترکیب version را supported/passed کند.
+
+| Source / Backup | PG Source | Timescale Source | Target ManubisGuard | PG Target | Timescale Target | وضعیت |
+|---|---:|---:|---|---:|---:|---|
+| PasarGuard backup واقعی موجود | 17.10 | 2.28.2 | 5.4.1 / Alembic awg2026091901 | 16 | نسخه مقصد deployment؛ باید روی سرور تأیید شود | implementation موجود؛ E2E تست نشده |
+| Integration synthetic | 17 | 2.30.0 | feature/amnezia-wg | 16 | 2.29.2 | workflow تعریف شده؛ pass هنوز تأیید نشده |
+| ManubisGuard backup واقعی | باید ثبت شود | باید ثبت شود | نسخه مقصد | باید ثبت شود | باید ثبت شود | تست نشده |
+| PasarGuard نسخه‌های جدیدتر | باید از backup واقعی ثبت شود | باید از backup واقعی ثبت شود | نسخه branch/release مربوطه | باید ثبت شود | باید ثبت شود | نیازمند regression test |
+
+### قواعد ماتریس
+- [ ] هیچ ترکیب جدیدی بدون اجرای واقعی supported علامت زده نشود.
+- [ ] برای هر ردیف: source app version + PostgreSQL + Timescale + target ManubisGuard/Alembic ثبت شود.
+- [ ] PostgreSQL cross-major فقط با source-compatible client/runtime یا bridge مناسب.
+- [ ] Timescale newer → older با Portable Bridge؛ downgrade مستقیم ممنوع.
+- [ ] Timescale older → newer با source-compatible restore و سپس upgrade در staging.
+- [ ] backup نباید role password، DB identity، compose، image/container یا deployment identity مقصد را overwrite کند.
+
+## GitHub Actions — آخرین وضعیت
+- PR #1: #1 / Draft / Open / Not merged.
+- Base: main.
+- Head: feature/amnezia-wg.
+- آخرین head ثبت‌شده PR در بررسی: 4a7d0e302461d612b436c6ce13b58d7492856243.
+- برای این head، connector فعلی run completed قابل استناد برنگرداند؛ بنابراین green اعلام نمی‌شود.
+- آخرین runهای مشاهده‌شده قبلی queued بودند؛ Portable Bridge Integration نیز runner نگرفته بود.
+- Integration workflow فعلی در .github/workflows/timescale-portable-bridge.yml شامل source=Timescale 2.30.0/PG17، destination=Timescale 2.29.2/PG16، seed، bridge، dump، restore و count verification است.
+- Railway: کنار گذاشته شده.
+
+## پیشنهاد تقسیم PR
+**پیشنهاد می‌شود branch به دو PR تقسیم شود، اما فعلاً هیچ split یا merge انجام نشده است:**
+
+1. **PR AmneziaWG** — فقط تغییرات AmneziaWG، مستقل و کوچک برای review و merge امن‌تر.
+2. **PR Restore/Migration** — فقط Detection/Preflight/Restore Safety/Timescale Bridge/Compatibility و CI migration tooling؛ مستقل تا E2E کامل review شود.
+
+## قانون ادامه کار
+بعد از هر اجرای واقعی:
+1. نتیجه دقیق ثبت شود.
+2. فقط مرحله واقعاً passed با [x] علامت بخورد.
+3. failure و علت و commit ثبت شود.
+4. fix → test → re-test انجام شود.
+5. تا green شدن integration و E2E واقعی، Restore/Migration «تکمیل و تست‌شده» اعلام نشود.
 
 ## مشکلات و نکات
 
