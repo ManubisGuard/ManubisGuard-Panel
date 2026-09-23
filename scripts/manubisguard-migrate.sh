@@ -386,7 +386,7 @@ upgrade_temp_timescale_to_target() {
 
 validate_after_timescale_upgrade() {
   local output
-  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" pasarguard-cli migrate-validate --json 2>&1)"; then
+  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" pasarguard-cli migrate-validate --external-staging --json 2>&1)"; then
     printf '%s\n' "$output" >"$WORKDIR/staging-post-upgrade.error"
     printf '%s\n' "$output" >&2
     die "Validation failed after TimescaleDB version alignment."
@@ -534,7 +534,8 @@ health_check() {
   log "Checking ManubisGuard HTTP health..."
   local i
   for i in $(seq 1 45); do
-    if curl -kfsS --max-time 5 "https://127.0.0.1:8000/" >/dev/null 2>&1; then
+    if curl -kfsS --max-time 5 "https://127.0.0.1:8000/health" >/dev/null 2>&1 ||
+       curl -kfsS --max-time 5 "https://127.0.0.1:8000/" >/dev/null 2>&1; then
       return 0
     fi
     sleep 2
