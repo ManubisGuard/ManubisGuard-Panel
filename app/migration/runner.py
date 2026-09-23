@@ -371,7 +371,10 @@ def migrate_pasarguard_staging(
         allow_external_staging=allow_external_staging,
     )
 
-    transformations = PasarGuardAdapter().apply(staging.staging_url)
+    adapter = PasarGuardAdapter()
+    pre_transformations = adapter.prepare(staging.staging_url)
+    post_transformations = adapter.apply(staging.staging_url)
+    transformations = (*pre_transformations, *post_transformations)
     validation = validate_migrated_database(staging.staging_url)
     post_upgrade = validation.snapshot
     if post_upgrade is None:
