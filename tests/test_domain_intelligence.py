@@ -228,3 +228,84 @@ def test_certificate_inspector_classifies_expired_certificate(monkeypatch):
     assert result.status == "expired"
     assert result.valid is False
     assert result.days_remaining < 0
+
+
+
+def test_existing_certificate_validator_accepts_matching_pair():
+    from app.core.certificate_intelligence import ExistingCertificateValidator
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+    from datetime import datetime, timedelta, timezone
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "edge.example.com")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.now(timezone.utc) - timedelta(minutes=1))
+        .not_valid_after(datetime.now(timezone.utc) + timedelta(days=90))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName("edge.example.com")]),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+    cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+    key_pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode()
+
+    result = ExistingCertificateValidator().validate("Edge.Example.COM", cert_pem, key_pem)
+
+    assert result.valid is True
+    assert result.key_matches is True
+    assert result.domain_matches is True
+    assert result.errors == []
+
+
+def test_existing_certificate_validator_rejects_mismatched_key_and_domain():
+    from app.core.certificate_intelligence import ExistingCertificateValidator
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+    from datetime import datetime, timedelta, timezone
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "other.example.com")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(other_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.now(timezone.utc) - timedelta(minutes=1))
+        .not_valid_after(datetime.now(timezone.utc) + timedelta(days=90))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName("other.example.com")]),
+            critical=False,
+        )
+        .sign(other_key, hashes.SHA256())
+    )
+    cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+    key_pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode()
+
+    result = ExistingCertificateValidator().validate("edge.example.com", cert_pem, key_pem)
+
+    assert result.valid is False
+    assert result.key_matches is False
+    assert result.domain_matches is False
+    assert "private_key_mismatch" in result.errors
+    assert "domain_mismatch" in result.errors
