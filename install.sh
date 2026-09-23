@@ -24,6 +24,14 @@ install_base() {
 
 install_base
 mkdir -p "$DATA_DIR/timescaledb"
+if [[ -s "$DATA_DIR/.postgres_password" ]]; then
+  POSTGRES_PASSWORD="$(cat "$DATA_DIR/.postgres_password")"
+else
+  POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+  printf "%s" "$POSTGRES_PASSWORD" > "$DATA_DIR/.postgres_password"
+  chmod 600 "$DATA_DIR/.postgres_password"
+fi
+export POSTGRES_PASSWORD
 rm -rf "$INSTALL_DIR"
 git clone --depth 1 --branch "$BRANCH" "$REPO" "$INSTALL_DIR"
 cd "$INSTALL_DIR"
@@ -32,8 +40,6 @@ if [[ ! -f .env ]]; then
   cp .env.example .env
 fi
 
-POSTGRES_PASSWORD="$(openssl rand -hex 32)"
-export POSTGRES_PASSWORD
 ADMIN_PASSWORD="$(openssl rand -hex 18)"
 python3 - "$ADMIN_PASSWORD" <<'PY'
 from pathlib import Path
@@ -46,9 +52,11 @@ s=s.replace('SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///db.sqlite3"',
 s=s.replace('# SUDO_USERNAME = "admin"', 'SUDO_USERNAME = "admin"')
 s=s.replace('# SUDO_PASSWORD = "admin"', f'SUDO_PASSWORD = "{password}"')
 s=s.replace('# SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://postgres:DB_PASSWORD@localhost:5432/pasarguard"', f'SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://pasarguard:{__import__("os").environ.get("POSTGRES_PASSWORD")}@127.0.0.1:5432/pasarguard"')
+s=s.replace('SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:////var/lib/pasarguard/pasarguard.db"', f'SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://pasarguard:{__import__("os").environ.get("POSTGRES_PASSWORD")}@127.0.0.1:5432/pasarguard"')
 p.write_text(s)
 PY
 
+printf '%s\n' "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env
 docker compose build --pull=false
 docker compose up -d
 
