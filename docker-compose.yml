@@ -23,8 +23,5 @@ services:
     restart: always
     env_file: .env
     network_mode: host
-    depends_on:
-      timescaledb:
-        condition: service_healthy
     volumes:
       - /var/lib/pasarguard:/var/lib/pasarguard
