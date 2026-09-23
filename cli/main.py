@@ -148,6 +148,7 @@ def cmd_migrate_staging(
 def cmd_migrate_validate(
     database_url: str | None = typer.Option(None, "--database-url"),
     production_url: str | None = typer.Option(None, "--production-url"),
+    external_staging: bool = typer.Option(False, "--external-staging"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Validate an already-restored isolated ManubisGuard database."""
@@ -158,7 +159,11 @@ def cmd_migrate_validate(
     if production_url:
         from app.migration.staging import assert_staging_target
 
-        assert_staging_target(production_url, database_url)
+        assert_staging_target(
+            production_url,
+            database_url,
+            allow_external_port=external_staging,
+        )
     result = validate_migrated_database(database_url)
     payload = validation_jsonable(result)
     print_json(payload) if json_output else print_json(payload)
