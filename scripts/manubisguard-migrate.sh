@@ -323,27 +323,6 @@ run_staging() {
   return 1
 }
 
-retry_legacy_timescale_if_needed() {
-  local text
-  text="$(cat "$WORKDIR/staging.error" 2>/dev/null || true)"
-  grep -Eiq 'schema_name.*does not exist|does not exist.*schema_name|chunk.*schema_name' <<<"$text" || return 1
-
-  local selected
-  selected="$(json_get "$(cat "$WORKDIR/analysis.json")" ".staging_timescale_version")"
-  [ "$selected" = "2.28.3" ] || true
-
-  warn "Timescale catalog mismatch detected; retrying with 2.28.3 compatibility staging."
-  if [ -n "$STAGING_DB" ]; then
-    psql_temp -d postgres -c "DROP DATABASE IF EXISTS \"$STAGING_DB\";" >/dev/null 2>&1 || true
-  fi
-  STAGING_DB=""
-  STAGING_URL=""
-  TEMP_PORT=""
-  start_temp_timescale "2.28.3"
-  create_staging_database
-  run_staging
-}
-
 validate_staging_result() {
   [ -s "$WORKDIR/staging.json" ] || die "Staging result JSON is missing."
   local ok
@@ -624,7 +603,7 @@ main() {
   fi
 
   if ! run_staging; then
-    retry_legacy_timescale_if_needed || die "Staging restore failed. Production was not modified."
+    die "Staging restore failed. Production was not modified."
   fi
   validate_staging_result
 
