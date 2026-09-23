@@ -21,7 +21,6 @@ from app.migration.async_utils import run_async
 from app.migration.detector import BackupDetection, detect_backup
 from app.migration.timescale import (
     TIMESCALEDB_CATALOG_SEED_CLEAR_SQL,
-    filter_timescaledb_ddl_line,
 )
 
 
@@ -225,7 +224,11 @@ def _find_candidate(root: Path) -> tuple[Path, BackupDetection]:
     for path in sorted(p for p in root.rglob("*") if p.is_file()):
         try:
             detection = detect_backup(path)
-        except (OSError, ValueError, zipfile.BadZipFile, tarfile.TarError):
+            if detection.format == "pg_dump_custom":
+                # Binary custom dumps start as intentionally unknown. Resolve their
+                # origin only with a read-only pg_restore --list inspection.
+                detection = _inspect_pg_dump_custom(path, timeout=120)
+        except (OSError, ValueError, zipfile.BadZipFile, tarfile.TarError, MigrationSafetyError):
             continue
         if (
             detection.confidence in {"high", "medium"}
@@ -318,18 +321,6 @@ def _psql_query(url: str, sql: str, timeout: int = 60) -> str:
     if result.returncode:
         raise MigrationSafetyError(output[-4000:] or "psql query failed.")
     return result.stdout.strip()
-
-
-def _timescale_extension_version(url: str) -> str | None:
-    try:
-        value = _psql_query(
-            url,
-            "SELECT installed_version FROM pg_available_extensions WHERE name = 'timescaledb'",
-            timeout=30,
-        )
-    except MigrationSafetyError:
-        return None
-    return value or None
 
 
 def _backup_uses_timescaledb(source: Path, detection: BackupDetection) -> bool:
