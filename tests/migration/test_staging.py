@@ -84,3 +84,14 @@ def test_sql_gzip_detection_keeps_compressed_format(tmp_path: Path):
 
     assert result.format == "sql.gz"
     assert result.is_pasarguard
+
+
+def test_old_timescale_dump_fingerprint_is_detected(tmp_path: Path):
+    from app.migration.compatibility import analyze_timescale_sql
+    dump = tmp_path / "old.sql"
+    dump.write_text(
+        "COPY _timescaledb_catalog.chunk (id, schema_name, table_name) FROM stdin;\n"
+    )
+    result = analyze_timescale_sql(dump.read_text())
+    assert result.catalog_era == "schema_name"
+    assert result.recommended_version == "2.28.3"
