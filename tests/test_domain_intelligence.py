@@ -139,3 +139,92 @@ async def test_certificate_inspector_handles_unreachable_domain(monkeypatch):
     assert result.reachable is False
     assert result.status == "unreachable"
     assert result.error == "TimeoutError"
+
+
+def test_certificate_inspector_classifies_expiring_certificate(monkeypatch):
+    from app.core.certificate_intelligence import DomainCertificateInspector
+
+    inspector = DomainCertificateInspector(expiring_days=30)
+
+    class FakeTLS:
+        def getpeercert(self):
+            return {
+                "notAfter": "Oct 01 00:00:00 2026 GMT",
+                "subjectAltName": (("DNS", "edge.example.com"),),
+                "subject": ((("commonName", "edge.example.com"),),),
+                "issuer": ((("commonName", "Test CA"),),),
+                "serialNumber": "02",
+            }
+
+        def version(self):
+            return "TLSv1.3"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class FakeContext:
+        def wrap_socket(self, raw_socket, server_hostname):
+            return FakeTLS()
+
+    class FakeSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr("ssl.create_default_context", lambda: FakeContext())
+    monkeypatch.setattr("socket.create_connection", lambda address, timeout: FakeSocket())
+
+    result = __import__("asyncio").run(inspector.inspect("edge.example.com"))
+
+    assert result.reachable is True
+    assert result.status == "expiring"
+    assert result.valid is True
+    assert result.days_remaining <= 30
+
+
+def test_certificate_inspector_classifies_expired_certificate(monkeypatch):
+    from app.core.certificate_intelligence import DomainCertificateInspector
+
+    inspector = DomainCertificateInspector(expiring_days=30)
+
+    class FakeTLS:
+        def getpeercert(self):
+            return {
+                "notAfter": "Jan 01 00:00:00 2020 GMT",
+                "subjectAltName": (("DNS", "edge.example.com"),),
+            }
+
+        def version(self):
+            return "TLSv1.2"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class FakeContext:
+        def wrap_socket(self, raw_socket, server_hostname):
+            return FakeTLS()
+
+    class FakeSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr("ssl.create_default_context", lambda: FakeContext())
+    monkeypatch.setattr("socket.create_connection", lambda address, timeout: FakeSocket())
+
+    result = __import__("asyncio").run(inspector.inspect("edge.example.com"))
+
+    assert result.reachable is True
+    assert result.status == "expired"
+    assert result.valid is False
+    assert result.days_remaining < 0
