@@ -366,10 +366,26 @@ def migrate_pasarguard_staging(
             live_version=live_timescale,
         )
         if version_tuple(required_timescale) != version_tuple(live_timescale):
-            raise MigrationSafetyError(
-                "TimescaleDB source version does not match the destination staging extension "
-                f"({required_timescale} vs {live_timescale}). A source-compatible staging "
-                "runtime is required; refusing a best-effort restore."
+            # A version mismatch is handled by the host migration orchestrator:
+            # it starts an isolated source-compatible TimescaleDB runtime, restores
+            # there, upgrades the extension in isolation, and only then exports the
+            # validated staging database for cross-major PostgreSQL cutover.
+            # Never attempt to replay a Timescale catalog directly into the live
+            # destination extension.
+            analysis = BackupAnalysis(
+                detection=analysis.detection,
+                preflight=analysis.preflight,
+                timescale=TimescaleCompatibility(
+                    versions=analysis.timescale.versions,
+                    source_version=analysis.timescale.source_version,
+                    minimum_version=analysis.timescale.minimum_version,
+                    catalog_era=analysis.timescale.catalog_era,
+                    recommended_version=required_timescale,
+                    warnings=(*analysis.timescale.warnings,
+                              f"Adaptive restore selected source-compatible TimescaleDB {required_timescale} "
+                              f"for destination {live_timescale}."),
+                ),
+                uses_timescaledb=analysis.uses_timescaledb,
             )
 
     detection = restore_backup_into_staging(
