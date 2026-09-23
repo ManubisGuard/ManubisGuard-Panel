@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { useGetGeneralSettings, useGetNodesSimple, useInspectDomainIntelligence, type ManagedDomain as ApiManagedDomain, type ManagedServerAddress as ApiManagedServerAddress } from '@/service/api'
+import { useGetGeneralSettings, useGetNodesSimple, useInspectDomainIntelligence, useInspectDomainCertificate, type ManagedDomain as ApiManagedDomain, type ManagedServerAddress as ApiManagedServerAddress } from '@/service/api'
 import { Globe2, Plus, RefreshCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSettingsContext } from './_dashboard.settings'
@@ -32,7 +32,9 @@ export default function DomainsSettings() {
   const { data: generalSettings, isLoading } = useGetGeneralSettings()
   const { data: nodesResponse } = useGetNodesSimple()
   const inspectMutation = useInspectDomainIntelligence()
+  const certificateMutation = useInspectDomainCertificate()
   const [intelligence, setIntelligence] = useState<Record<string, any>>({})
+  const [certificates, setCertificates] = useState<Record<string, any>>({})
   const nodes = ((nodesResponse as any)?.data?.nodes ?? (nodesResponse as any)?.nodes ?? []) as Array<{ id: number; name: string }>
 
   const general = ((generalSettings as any)?.data ?? generalSettings ?? {}) as { default_method?: unknown; custom_variables?: unknown; reality_sni_pool?: string[]; domains?: ApiManagedDomain[]; primary_domain?: ApiManagedDomain | null; server_addresses?: ApiManagedServerAddress[] }
@@ -163,7 +165,7 @@ export default function DomainsSettings() {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={!domain.domain.trim() || inspectMutation.isPending}
+                  disabled={!domain.domain.trim() || inspectMutation.isPending || certificateMutation.isPending}
                   onClick={async () => {
                     try {
                       const response = await inspectMutation.mutateAsync({ data: { domain: domain.domain.trim() } })
@@ -180,6 +182,33 @@ export default function DomainsSettings() {
                 {intelligence[domain.id] && (
                   <span className="text-xs text-muted-foreground">
                     {intelligence[domain.id].status} · DNS {intelligence[domain.id].dns?.a?.length ?? 0} A / {intelligence[domain.id].dns?.aaaa?.length ?? 0} AAAA · HTTPS {intelligence[domain.id].https?.status_code ?? '—'}
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!domain.domain.trim() || inspectMutation.isPending || certificateMutation.isPending}
+                  onClick={async () => {
+                    try {
+                      const response = await certificateMutation.mutateAsync({ data: { domain: domain.domain.trim() } })
+                      const certificate = (response as any)?.data ?? response
+                      setCertificates(current => ({ ...current, [domain.id]: certificate }))
+                      updateDomain(domain.id, {
+                        last_checked_at: certificate.checked_at ?? new Date().toISOString(),
+                        certificate_expires_at: certificate.expires_at ?? null,
+                        status: certificate.status === 'valid' ? 'active' : certificate.status === 'expiring' ? 'expiring' : certificate.status === 'unreachable' ? 'pending' : 'failed',
+                      })
+                    } catch {
+                      setCertificates(current => ({ ...current, [domain.id]: null }))
+                    }
+                  }}
+                >
+                  <ShieldCheck className="mr-2 size-4" />
+                  {certificateMutation.isPending ? 'Checking TLS…' : 'Inspect certificate'}
+                </Button>
+                {certificates[domain.id] && (
+                  <span className="text-xs text-muted-foreground">
+                    TLS {certificates[domain.id].tls_version ?? '—'} · {certificates[domain.id].status} · {certificates[domain.id].days_remaining ?? '—'}d left
                   </span>
                 )}
               </div>
