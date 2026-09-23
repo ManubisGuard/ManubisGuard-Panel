@@ -62,6 +62,29 @@ def sanitize_role_password_statement(
     return transformed, bool(count)
 
 
+def _statement_complete(text: str) -> bool:
+    """Return True when a semicolon occurs outside SQL quoted literals/identifiers."""
+    single = False
+    double = False
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if char == "'" and not double:
+            if single and i + 1 < len(text) and text[i + 1] == "'":
+                i += 2
+                continue
+            single = not single
+        elif char == '"' and not single:
+            if double and i + 1 < len(text) and text[i + 1] == '"':
+                i += 2
+                continue
+            double = not double
+        elif char == ";" and not single and not double:
+            return True
+        i += 1
+    return False
+
+
 def prepare_postgresql_sql(
     source_text: str,
     *,
@@ -92,7 +115,7 @@ def prepare_postgresql_sql(
             pending_role = True
         if pending_role:
             pending.append(raw_line)
-            if ";" in raw_line:
+            if _statement_complete("\n".join(pending)):
                 emit("\n".join(pending))
                 pending.clear()
                 pending_role = False
@@ -148,7 +171,7 @@ def prepare_postgresql_sql_stream(
             pending_role = True
         if pending_role:
             pending.append(line)
-            if ";" in line:
+            if _statement_complete("\n".join(pending)):
                 emit("\n".join(pending))
                 pending.clear()
                 pending_role = False
