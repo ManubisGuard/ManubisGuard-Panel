@@ -595,6 +595,7 @@ rename_database() {
     if ! psql_prod -d postgres -c "ALTER DATABASE \"$PREVIOUS_DB\" RENAME TO \"$DB_NAME\";" >/dev/null; then
       die "CRITICAL: automatic rollback of database rename failed."
     fi
+    rollback_runtime_env
     start_panel || true
     die "Cutover rename failed; production database name restored."
   fi
@@ -644,11 +645,7 @@ final_cutover() {
   fi
   apply_runtime_env
   verify_compose_integrity
-  if ! rename_database; then
-    rollback_runtime_env
-    start_panel || true
-    die "Database rename failed; runtime .env was restored."
-  fi
+  rename_database
   start_panel
   health_check || rollback_after_failed_health
   log "Production cutover completed."
