@@ -78,3 +78,34 @@ def prepare_postgresql_sql(
     if source_text.endswith(("\n", "\r")):
         text += "\n"
     return text, passwords_removed, destination_role_statements
+
+def prepare_postgresql_sql_stream(
+    source,
+    destination,
+    *,
+    destination_role: str | None = None,
+) -> tuple[int, int]:
+    """Stream-sanitize a PostgreSQL SQL dump without loading it into memory."""
+    passwords_removed = 0
+    destination_role_statements = 0
+
+    for raw_line in source:
+        line = raw_line.rstrip("\r\n")
+        transformed, changed = sanitize_role_password_line(
+            line,
+            destination_role=destination_role,
+        )
+        role_match = ROLE_STMT_RE.match(line)
+        if transformed == "" and changed and role_match:
+            role = _unquote_role(role_match.group(2))
+            if destination_role and role == destination_role:
+                destination_role_statements += 1
+                continue
+
+        if transformed != line:
+            passwords_removed += 1
+        destination.write(
+            transformed + ("\n" if raw_line.endswith("\n") else "")
+        )
+
+    return passwords_removed, destination_role_statements
