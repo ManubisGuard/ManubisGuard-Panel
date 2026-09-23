@@ -457,3 +457,57 @@ class FakeAcmeSession:
             )
         raise AssertionError(f"unexpected POST {url}")
 
+
+
+@pytest.mark.asyncio
+async def test_cloudflare_cleanup_retains_record_when_delete_fails(monkeypatch):
+    provider = CloudflareDns01ChallengeProvider("test-token")
+    provider._records[("edge.example.com", "a" * 43)] = ("zone-1", "record-1")
+
+    async def fail_delete(*args, **kwargs):
+        raise AcmeError("delete failed")
+
+    monkeypatch.setattr(provider, "_request", fail_delete)
+
+    with pytest.raises(AcmeError, match="delete failed"):
+        await provider.cleanup("edge.example.com", "a" * 43)
+
+    assert ("edge.example.com", "a" * 43) in provider._records
+
+
+@pytest.mark.asyncio
+async def test_acme_new_order_requires_location_header(tmp_path: Path):
+    class MissingLocationSession(FakeAcmeSession):
+        def post(self, url, data, headers):
+            if url == "https://acme.test/new-account":
+                return FakeAcmeResponse(
+                    201,
+                    b"{}",
+                    {"Location": "https://acme.test/account/1", "Replay-Nonce": "nonce-2"},
+                )
+            if url == "https://acme.test/new-order":
+                return FakeAcmeResponse(
+                    201,
+                    json.dumps(
+                        {
+                            "status": "pending",
+                            "authorizations": [],
+                            "finalize": "https://acme.test/finalize/1",
+                        }
+                    ).encode(),
+                    {"Replay-Nonce": "nonce-3"},
+                )
+            return super().post(url, data, headers)
+
+    async def session_factory(**kwargs):
+        return MissingLocationSession()
+
+    client = AcmeCertificateClient(
+        certificate_store=CertificateArtifactStore(tmp_path),
+        challenge_provider=AcmeHttp01ChallengeStore(tmp_path),
+        directory_url="https://acme.test/directory",
+        session_factory=session_factory,
+    )
+
+    with pytest.raises(AcmeError, match="did not return an order URL"):
+        await client.issue(ManagedDomain(id="domain-1", domain="edge.example.com"))
