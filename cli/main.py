@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """PasarGuard CLI"""
 
-import typer
-
+import typer\n\nfrom app.migration.engine import plan_pasarguard_migration\n
 from cli import console
 from cli.admin import generate_temp_key
 
