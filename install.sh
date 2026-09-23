@@ -235,109 +235,144 @@ confirm_database() {
 select_ssl() {
   echo
   echo "========== SSL configuration =========="
-  echo "1) Domain SSL - Let's Encrypt"
-  echo "2) IP SSL - Let's Encrypt short-lived certificate"
-  echo "3) No SSL"
+  echo "1) Let's Encrypt Domain certificate"
+  echo "2) Let's Encrypt IP certificate (short-lived)"
+  echo "3) Custom certificate + key paths"
+  echo "4) No SSL"
+  echo "Port 80 must be reachable for Let's Encrypt."
   if [[ "$ASSUME_YES" == true ]]; then SSL_MODE="none"; return; fi
+
   while true; do
-    read -r -p "Select [1-3]: " choice
+    read -r -p "Select SSL option [1-4] (default: 1): " choice
+    choice="${choice// /}"
+    [[ -z "$choice" ]] && choice="1"
     case "$choice" in
       1)
         SSL_MODE="domain"
-        read -r -p "Domain/subdomain: " SSL_IDENTIFIER
-        [[ "$SSL_IDENTIFIER" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || { echo "Invalid domain."; continue; }
-        read -r -p "Let's Encrypt email: " SSL_EMAIL
-        [[ "$SSL_EMAIL" == *@*.* ]] || { echo "Invalid email."; continue; }
+        while true; do
+          read -r -p "Enter domain for SSL certificate (example: panel.example.com): " SSL_IDENTIFIER
+          SSL_IDENTIFIER="${SSL_IDENTIFIER// /}"
+          [[ -n "$SSL_IDENTIFIER" && "$SSL_IDENTIFIER" =~ ^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$ ]] && break
+          echo "Invalid domain format."
+        done
         break ;;
       2)
         SSL_MODE="ip"
-        SERVER_PUBLIC_IP="$(curl -4fsS --max-time 10 https://api.ipify.org || true)"
+        SERVER_PUBLIC_IP="$(curl -4fsS --max-time 10 https://api4.ipify.org || true)"
         [[ -n "$SERVER_PUBLIC_IP" ]] || SERVER_PUBLIC_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-        read -r -p "IP address [$SERVER_PUBLIC_IP]: " SSL_IDENTIFIER
+        read -r -p "Enter IPv4 for SSL certificate (default: $SERVER_PUBLIC_IP): " SSL_IDENTIFIER
         SSL_IDENTIFIER="${SSL_IDENTIFIER:-$SERVER_PUBLIC_IP}"
-        python3 - "$SSL_IDENTIFIER" <<'PY' || { echo "Invalid IP."; continue; }
+        python3 - "$SSL_IDENTIFIER" <<'PY' || { echo "Invalid IPv4."; continue; }
 import ipaddress,sys
-try: ipaddress.ip_address(sys.argv[1])
-except Exception: raise SystemExit(1)
+try:
+    x=ipaddress.ip_address(sys.argv[1])
+    assert x.version == 4
+except Exception:
+    raise SystemExit(1)
 PY
-        read -r -p "Let's Encrypt email: " SSL_EMAIL
-        [[ "$SSL_EMAIL" == *@*.* ]] || { echo "Invalid email."; continue; }
         break ;;
-      3) SSL_MODE="none"; break ;;
+      3)
+        SSL_MODE="custom"
+        read -r -p "Enter full path to certificate file: " SSL_CERTFILE
+        read -r -p "Enter full path to private key file: " SSL_KEYFILE
+        [[ -s "$SSL_CERTFILE" && -r "$SSL_CERTFILE" ]] || { echo "Certificate file not found/readable."; continue; }
+        [[ -s "$SSL_KEYFILE" && -r "$SSL_KEYFILE" ]] || { echo "Private key file not found/readable."; continue; }
+        read -r -p "Is this certificate from a public CA? [Y/n]: " SSL_CA_CHOICE
+        if [[ -n "$SSL_CA_CHOICE" && ! "$SSL_CA_CHOICE" =~ ^[Yy]$ ]]; then SSL_CA_TYPE="private"; else SSL_CA_TYPE="public"; fi
+        break ;;
+      4) SSL_MODE="none"; break ;;
       *) echo "Invalid selection." ;;
     esac
   done
   echo "SSL mode: $SSL_MODE"
 }
 
-check_ssl_prerequisites() {
-  [[ "$SSL_MODE" == "none" ]] && return 0
-  if ss -lntp 2>/dev/null | grep -qE ':80[[:space:]]'; then
-    ss -lntp 2>/dev/null | grep -E ':80[[:space:]]' || true
-    die "Port 80 is already in use. Free it before Let's Encrypt validation."
-  fi
-  if ss -lntp 2>/dev/null | grep -qE ':443[[:space:]]'; then
-    ss -lntp 2>/dev/null | grep -E ':443[[:space:]]' || true
-    die "Port 443 is already in use. Free it before enabling direct Uvicorn SSL."
-  fi
-  if [[ "$SSL_MODE" == "domain" ]]; then
-    local resolved
-    resolved="$(getent ahostsv4 "$SSL_IDENTIFIER" 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ')"
-    [[ -n "$resolved" ]] || die "Domain $SSL_IDENTIFIER does not resolve."
-    SERVER_PUBLIC_IP="$(curl -4fsS --max-time 10 https://api.ipify.org || true)"
-    if [[ -n "$SERVER_PUBLIC_IP" && " $resolved " != *" $SERVER_PUBLIC_IP "* ]]; then
-      log "WARNING: $SSL_IDENTIFIER resolves to $resolved; this server is $SERVER_PUBLIC_IP"
-      ask_yes_no "Continue anyway?" || die "Fix DNS before requesting SSL."
-    fi
-  fi
+is_domain() {
+  [[ "$1" =~ ^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$ ]]
 }
 
-ensure_certbot() {
-  if command -v certbot >/dev/null 2>&1; then
-    local version
-    version="$(certbot --version 2>&1 | awk '{print $2}' | sed 's/^v//')"
-    if [[ -n "$version" ]] && dpkg --compare-versions "$version" ge "5.4.0"; then return 0; fi
-  fi
-  if ! command -v snap >/dev/null 2>&1; then
-    apt-get update && apt-get install -y snapd
-    systemctl enable --now snapd.socket >/dev/null 2>&1 || true
-    sleep 2
-  fi
-  snap install core >/dev/null 2>&1 || true
-  snap refresh core >/dev/null 2>&1 || true
-  snap install --classic certbot >/dev/null 2>&1 || snap refresh certbot
-  ln -sf /snap/bin/certbot /usr/local/bin/certbot
+is_ipv4() {
+  python3 - "$1" <<'PY'
+import ipaddress,sys
+try:
+    raise SystemExit(0 if ipaddress.ip_address(sys.argv[1]).version == 4 else 1)
+except Exception:
+    raise SystemExit(1)
+PY
+}
+
+is_port_in_use() {
+  ss -lnt 2>/dev/null | awk -v p=":$1$" '$4 ~ p {found=1} END {exit found ? 0 : 1}'
+}
+
+ensure_acme() {
+  command -v socat >/dev/null 2>&1 || apt-get install -y socat
+  command -v openssl >/dev/null 2>&1 || apt-get install -y openssl
+  command -v crontab >/dev/null 2>&1 || apt-get install -y cron
+  if [[ -x "$HOME/.acme.sh/acme.sh" ]]; then return 0; fi
+  curl -fsSL https://get.acme.sh | sh -s email="$SSL_EMAIL"
+  [[ -x "$HOME/.acme.sh/acme.sh" ]] || [[ -x "/root/.acme.sh/acme.sh" ]] || die "acme.sh installation failed."
+}
+
+setup_domain_ssl() {
+  local domain="$1"
+  local acme="$HOME/.acme.sh/acme.sh"
+  [[ -x "$acme" ]] || acme="/root/.acme.sh/acme.sh"
+  ensure_acme
+  acme="$HOME/.acme.sh/acme.sh"
+  [[ -x "$acme" ]] || acme="/root/.acme.sh/acme.sh"
+  is_port_in_use 80 && die "Port 80 is already in use. Free it before Let's Encrypt validation."
+  mkdir -p "$DATA_DIR/certs/$domain"
+  "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
+  "$acme" --issue --force --standalone -d "$domain" --fullchain-file "$DATA_DIR/certs/$domain/fullchain.pem" --key-file "$DATA_DIR/certs/$domain/privkey.pem" || die "Failed to issue SSL certificate for $domain."
+  "$acme" --upgrade --auto-upgrade >/dev/null 2>&1 || true
+  "$acme" --install-cronjob >/dev/null 2>&1 || true
+  SSL_CERTFILE="$DATA_DIR/certs/$domain/fullchain.pem"
+  SSL_KEYFILE="$DATA_DIR/certs/$domain/privkey.pem"
+  chmod 644 "$SSL_CERTFILE"
+  chmod 600 "$SSL_KEYFILE"
+}
+
+setup_ip_ssl() {
+  local ipv4="$1"
+  local acme="$HOME/.acme.sh/acme.sh"
+  [[ -x "$acme" ]] || acme="/root/.acme.sh/acme.sh"
+  ensure_acme
+  acme="$HOME/.acme.sh/acme.sh"
+  [[ -x "$acme" ]] || acme="/root/.acme.sh/acme.sh"
+  is_port_in_use 80 && die "Port 80 is already in use. Free it before Let's Encrypt validation."
+  mkdir -p "$DATA_DIR/certs/ip"
+  "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
+  "$acme" --issue --force -d "$ipv4" --standalone --server letsencrypt --certificate-profile shortlived --days 6 --fullchain-file "$DATA_DIR/certs/ip/fullchain.pem" --key-file "$DATA_DIR/certs/ip/privkey.pem" || die "Failed to issue IP SSL certificate."
+  "$acme" --upgrade --auto-upgrade >/dev/null 2>&1 || true
+  "$acme" --install-cronjob >/dev/null 2>&1 || true
+  SSL_CERTFILE="$DATA_DIR/certs/ip/fullchain.pem"
+  SSL_KEYFILE="$DATA_DIR/certs/ip/privkey.pem"
+  chmod 644 "$SSL_CERTFILE"
+  chmod 600 "$SSL_KEYFILE"
 }
 
 issue_ssl_certificate() {
-  [[ "$SSL_MODE" == "none" ]] && return 0
-  check_ssl_prerequisites
-  ensure_certbot
-  mkdir -p "$CERT_DIR" "$CERTBOT_CONFIG_DIR" "$CERTBOT_WORK_DIR" "$CERTBOT_LOGS_DIR"
-  chmod 700 "$CERT_DIR"
-  mkdir -p "$CERTBOT_CONFIG_DIR/renewal-hooks/deploy"
-  cat > "$CERTBOT_CONFIG_DIR/renewal-hooks/deploy/restart-pasarguard.sh" <<HOOK
-#!/bin/sh
-set -eu
-cd "$INSTALL_DIR"
-docker compose restart pasarguard >/dev/null 2>&1 || true
-HOOK
-  chmod 700 "$CERTBOT_CONFIG_DIR/renewal-hooks/deploy/restart-pasarguard.sh"
-
-  local common_args=(certonly --standalone --non-interactive --agree-tos --email "$SSL_EMAIL" --cert-name pasarguard --config-dir "$CERTBOT_CONFIG_DIR" --work-dir "$CERTBOT_WORK_DIR" --logs-dir "$CERTBOT_LOGS_DIR")
-  log "Requesting Let's Encrypt certificate..."
-  if [[ "$SSL_MODE" == "ip" ]]; then
-    certbot "${common_args[@]}" --preferred-profile shortlived --ip-address "$SSL_IDENTIFIER"
-  else
-    certbot "${common_args[@]}" -d "$SSL_IDENTIFIER"
-  fi
-  SSL_CERTFILE="$CERTBOT_CONFIG_DIR/live/pasarguard/fullchain.pem"
-  SSL_KEYFILE="$CERTBOT_CONFIG_DIR/live/pasarguard/privkey.pem"
-  [[ -s "$SSL_CERTFILE" && -s "$SSL_KEYFILE" ]] || die "SSL certificate/key was not created."
-  chmod 644 "$SSL_CERTFILE"
-  chmod 600 "$SSL_KEYFILE"
-  log "SSL certificate: $SSL_CERTFILE"
-  log "SSL private key: $SSL_KEYFILE"
+  case "$SSL_MODE" in
+    domain)
+      SERVER_PUBLIC_IP="$(curl -4fsS --max-time 10 https://api4.ipify.org || true)"
+      RESOLVED_IPS="$(getent ahostsv4 "$SSL_IDENTIFIER" 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ')"
+      [[ -n "$RESOLVED_IPS" ]] || die "Domain $SSL_IDENTIFIER does not resolve."
+      if [[ -n "$SERVER_PUBLIC_IP" && " $RESOLVED_IPS " != *" $SERVER_PUBLIC_IP "* ]]; then
+        echo "WARNING: $SSL_IDENTIFIER resolves to $RESOLVED_IPS but this server is $SERVER_PUBLIC_IP."
+        ask_yes_no "Continue anyway?" || die "Fix DNS before requesting SSL."
+      fi
+      setup_domain_ssl "$SSL_IDENTIFIER" ;;
+    ip)
+      setup_ip_ssl "$SSL_IDENTIFIER" ;;
+    custom)
+      [[ -s "$SSL_CERTFILE" && -s "$SSL_KEYFILE" ]] || die "Custom SSL files are invalid."
+      ;;
+    none)
+      SSL_CERTFILE=""
+      SSL_KEYFILE=""
+      ;;
+  esac
 }
 
 prepare_source() {
@@ -392,7 +427,7 @@ write_env() {
     DATABASE_URL="sqlite+aiosqlite:////var/lib/pasarguard/db.sqlite3"
   fi
 
-  if [[ "$SSL_MODE" != "none" ]]; then UVICORN_PORT=443; else UVICORN_PORT=8000; fi
+  UVICORN_PORT=8000
   cat > "$ENV_FILE" <<EOF
 UVICORN_HOST=0.0.0.0
 UVICORN_PORT=$UVICORN_PORT
@@ -452,13 +487,8 @@ install_panel() {
 
   log "Waiting for PasarGuard..."
   local health_url="http://127.0.0.1:8000/health"
-  [[ "$SSL_MODE" != "none" ]] && health_url="https://127.0.0.1:443/health"
   for i in {1..90}; do
-    if [[ "$SSL_MODE" != "none" ]]; then
-      curl -kfsS --max-time 3 "$health_url" >/dev/null 2>&1 && return 0
-    else
-      curl -fsS --max-time 3 "$health_url" >/dev/null 2>&1 && return 0
-    fi
+    curl -kfsS --max-time 3 "$health_url" >/dev/null 2>&1 && return 0
     sleep 2
   done
 
@@ -503,7 +533,11 @@ main() {
     echo "SSL host:    $SSL_IDENTIFIER"
     echo "SSL cert:    $SSL_CERTFILE"
     echo "SSL key:     $SSL_KEYFILE"
-    echo "URL:         https://$SSL_IDENTIFIER"
+    if [[ "$SSL_MODE" == "custom" ]]; then
+      echo "URL:         https://SERVER-IP:8000"
+    else
+      echo "URL:         https://$SSL_IDENTIFIER:8000"
+    fi
   else
     echo "SSL:         disabled"
     echo "URL:         http://127.0.0.1:8000 (localhost only)"
