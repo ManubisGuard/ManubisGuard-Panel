@@ -67,35 +67,54 @@ def prepare_postgresql_sql(
     *,
     destination_role: str | None = None,
 ) -> tuple[str, int, int]:
-    """Sanitize role/password statements in a PostgreSQL plain-SQL dump.
-
-    Returns the transformed SQL, number of password clauses removed, and number
-    of destination-role statements suppressed.
-    """
+    """Sanitize role/password statements, including multiline statements."""
     output: list[str] = []
     passwords_removed = 0
     destination_role_statements = 0
+    pending: list[str] = []
+    pending_role = False
 
-    for line in source_text.splitlines():
-        transformed, changed = sanitize_role_password_line(
-            line,
+    def emit(statement: str) -> None:
+        nonlocal passwords_removed, destination_role_statements
+        transformed, changed = sanitize_role_password_statement(
+            statement,
             destination_role=destination_role,
         )
-        if transformed == "" and changed and ROLE_STMT_RE.match(line):
-            role = _unquote_role(ROLE_STMT_RE.match(line).group(2))
-            if destination_role and role == destination_role:
-                destination_role_statements += 1
-                continue
-
-        if transformed != line:
+        if transformed == "" and changed:
+            destination_role_statements += 1
+            return
+        if changed:
             passwords_removed += 1
         output.append(transformed)
+
+    for raw_line in source_text.splitlines():
+        if not pending and ROLE_STMT_RE.match(raw_line):
+            pending_role = True
+        if pending_role:
+            pending.append(raw_line)
+            if ";" in raw_line:
+                emit("\n".join(pending))
+                pending.clear()
+                pending_role = False
+            continue
+        transformed, changed = sanitize_role_password_line(
+            raw_line,
+            destination_role=destination_role,
+        )
+        if changed:
+            passwords_removed += 1
+        if transformed == "" and changed and ROLE_STMT_RE.match(raw_line):
+            destination_role_statements += 1
+            continue
+        output.append(transformed)
+
+    if pending:
+        emit("\n".join(pending))
 
     text = "\n".join(output)
     if source_text.endswith(("\n", "\r")):
         text += "\n"
     return text, passwords_removed, destination_role_statements
-
 
 
 def prepare_postgresql_sql_stream(
