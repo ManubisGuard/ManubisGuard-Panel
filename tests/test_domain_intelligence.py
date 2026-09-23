@@ -309,3 +309,80 @@ def test_existing_certificate_validator_rejects_mismatched_key_and_domain():
     assert result.domain_matches is False
     assert "private_key_mismatch" in result.errors
     assert "domain_mismatch" in result.errors
+
+
+def test_certificate_inspector_reports_reachable_invalid_certificate(monkeypatch):
+    from datetime import UTC, datetime, timedelta
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+    from app.core.certificate_intelligence import DomainCertificateInspector
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "wrong.example.com")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.now(UTC) - timedelta(minutes=1))
+        .not_valid_after(datetime.now(UTC) + timedelta(days=90))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName("wrong.example.com")]),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+    cert_der = cert.public_bytes(serialization.Encoding.DER)
+
+    class VerifiedTLS:
+        def __enter__(self):
+            raise __import__("ssl").SSLCertVerificationError("hostname mismatch")
+
+        def __exit__(self, *args):
+            return False
+
+    class UnverifiedTLS:
+        def getpeercert(self, binary_form=False):
+            assert binary_form is True
+            return cert_der
+
+        def version(self):
+            return "TLSv1.3"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class VerifiedContext:
+        def wrap_socket(self, raw_socket, server_hostname):
+            return VerifiedTLS()
+
+    class UnverifiedContext:
+        def wrap_socket(self, raw_socket, server_hostname):
+            return UnverifiedTLS()
+
+    class FakeSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    contexts = iter([VerifiedContext(), UnverifiedContext()])
+    monkeypatch.setattr("ssl.create_default_context", lambda: next(contexts))
+    monkeypatch.setattr("ssl._create_unverified_context", lambda: next(contexts))
+    monkeypatch.setattr("socket.create_connection", lambda address, timeout: FakeSocket())
+
+    result = __import__("asyncio").run(DomainCertificateInspector(timeout=1).inspect("edge.example.com"))
+
+    assert result.reachable is True
+    assert result.valid is False
+    assert result.status == "invalid"
+    assert result.subject == "wrong.example.com"
+    assert result.san == ["wrong.example.com"]
+    assert result.error == "SSLCertVerificationError"
