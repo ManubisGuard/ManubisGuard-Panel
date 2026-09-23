@@ -1,0 +1,148 @@
+name: Timescale Portable Bridge Integration
+
+on:
+  push:
+    branches:
+      - feature/amnezia-wg
+  pull_request:
+    branches:
+      - feature/amnezia-wg
+      - main
+  workflow_dispatch:
+
+jobs:
+  postgres-timescale-bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      source:
+        image: timescale/timescaledb:2.30.0-pg17-oss
+        env:
+          POSTGRES_PASSWORD: integration
+          POSTGRES_DB: source_db
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d source_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      destination:
+        image: timescale/timescaledb:2.29.2-pg16-oss
+        env:
+          POSTGRES_PASSWORD: integration
+          POSTGRES_DB: destination_db
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d destination_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: latest
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Sync dependencies
+        run: uv sync --frozen --dev
+
+      - name: Verify database versions
+        env:
+          PGPASSWORD: integration
+        run: |
+          set -euo pipefail
+          source_version="$(psql -h 127.0.0.1 -p 55432 -U postgres -d source_db -Atc 'SHOW server_version;')"
+          destination_version="$(psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -Atc 'SHOW server_version;')"
+          source_ts="$(psql -h 127.0.0.1 -p 55432 -U postgres -d source_db -Atc "SELECT extversion FROM pg_extension WHERE extname='timescaledb';")"
+          destination_ts="$(psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -Atc "SELECT extversion FROM pg_extension WHERE extname='timescaledb';")"
+          test -n "$source_version"
+          test -n "$destination_version"
+          test -n "$source_ts"
+          test -n "$destination_ts"
+          echo "source PostgreSQL=$source_version TimescaleDB=$source_ts"
+          echo "destination PostgreSQL=$destination_version TimescaleDB=$destination_ts"
+
+      - name: Seed source with relational and Timescale data
+        env:
+          PGPASSWORD: integration
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -p 55432 -U postgres -d source_db -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE EXTENSION IF NOT EXISTS timescaledb;
+          CREATE TABLE public.devices (
+            id integer PRIMARY KEY,
+            name text NOT NULL
+          );
+          CREATE TABLE public.usage (
+            time timestamptz NOT NULL,
+            device_id integer NOT NULL REFERENCES public.devices(id),
+            bytes bigint NOT NULL
+          );
+          SELECT create_hypertable('public.usage', by_range('time', INTERVAL '1 day'));
+          INSERT INTO public.devices VALUES
+            (1, 'alpha'), (2, 'beta'), (3, 'gamma');
+          INSERT INTO public.usage
+          SELECT
+            TIMESTAMPTZ '2026-09-20 00:00:00+00' + (g * INTERVAL '1 hour'),
+            (g % 3) + 1,
+            (g + 1) * 100
+          FROM generate_series(0, 47) AS g;
+          CREATE MATERIALIZED VIEW public.daily_usage
+          WITH (timescaledb.continuous)
+          AS
+          SELECT time_bucket('1 day', time) AS bucket,
+                 device_id,
+                 sum(bytes) AS bytes
+          FROM public.usage
+          GROUP BY bucket, device_id
+          WITH NO DATA;
+          CALL refresh_continuous_aggregate('public.daily_usage', NULL, NULL);
+          ANALYZE;
+          SQL
+
+      - name: Build portable bridge artifacts from source
+        env:
+          MANUBISGUARD_BRIDGE_DATABASE_URL: postgresql://postgres:integration@127.0.0.1:55432/source_db
+        run: |
+          set -euo pipefail
+          rm -rf .integration-bridge
+          uv run python -m app.migration.portable_bridge             --database-url-env MANUBISGUARD_BRIDGE_DATABASE_URL             --source-version 2.30.0             --target-version 2.29.2             --output-dir .integration-bridge
+          test -s .integration-bridge/portable-plan.json
+          test -s .integration-bridge/portable-hypertables.sql
+          test -s .integration-bridge/portable-post-data.sql
+
+      - name: Dump portable schema and data from source
+        env:
+          PGPASSWORD: integration
+        run: |
+          set -euo pipefail
+          mkdir -p .integration-dumps
+          pg_dump -h 127.0.0.1 -p 55432 -U postgres -d source_db             --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces             --section=pre-data             --exclude-extension=timescaledb             --exclude-schema=_timescaledb_internal             --exclude-schema=_timescaledb_catalog             --exclude-schema=_timescaledb_config             --exclude-table=public.daily_usage             > .integration-dumps/pre-data.sql
+          pg_dump -h 127.0.0.1 -p 55432 -U postgres -d source_db             --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces             --section=data             --exclude-extension=timescaledb             --exclude-schema=_timescaledb_internal             --exclude-schema=_timescaledb_catalog             --exclude-schema=_timescaledb_config             --exclude-table=public.daily_usage             > .integration-dumps/data.sql
+          pg_dump -h 127.0.0.1 -p 55432 -U postgres -d source_db             --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces             --section=post-data             --exclude-extension=timescaledb             --exclude-schema=_timescaledb_internal             --exclude-schema=_timescaledb_catalog             --exclude-schema=_timescaledb_config             --exclude-table=public.daily_usage             > .integration-dumps/post-data.sql
+
+      - name: Restore portable schema data and Timescale metadata
+        env:
+          PGPASSWORD: integration
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             -c 'CREATE EXTENSION IF NOT EXISTS timescaledb;'
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-dumps/pre-data.sql
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-bridge/portable-hypertables.sql
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-dumps/data.sql
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-dumps/post-data.sql
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-bridge/portable-post-data.sql
+
+      - name: Verify migrated row counts
+        run: |
+          uv run python scripts/verify-migration-counts.py             --source-url postgresql://postgres:integration@127.0.0.1:55432/source_db             --destination-url postgresql://postgres:integration@127.0.0.1:55433/destination_db
