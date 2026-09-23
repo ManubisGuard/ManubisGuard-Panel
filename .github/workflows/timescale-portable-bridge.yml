@@ -116,7 +116,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf .integration-bridge
-          uv run python -m app.migration.portable_bridge             --database-url-env MANUBISGUARD_BRIDGE_DATABASE_URL             --source-version 2.30.0             --target-version 2.29.2             --output-dir .integration-bridge
+          uv run python -m app.migration.portable_bridge --database-url-env MANUBISGUARD_BRIDGE_DATABASE_URL --source-version 2.30.0 --target-version 2.29.2 --output-dir .integration-bridge
           test -s .integration-bridge/portable-plan.json
           test -s .integration-bridge/portable-hypertables.sql
           test -s .integration-bridge/portable-post-data.sql
@@ -127,22 +127,27 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .integration-dumps
-          pg_dump -h 127.0.0.1 -p 55432 -U postgres -d source_db             --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces             --section=pre-data             --exclude-extension=timescaledb             --exclude-schema=_timescaledb_internal             --exclude-schema=_timescaledb_catalog             --exclude-schema=_timescaledb_config             --exclude-table=public.daily_usage             > .integration-dumps/pre-data.sql
-          pg_dump -h 127.0.0.1 -p 55432 -U postgres -d source_db             --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces             --section=data             --exclude-extension=timescaledb             --exclude-schema=_timescaledb_internal             --exclude-schema=_timescaledb_catalog             --exclude-schema=_timescaledb_config             --exclude-table=public.daily_usage             > .integration-dumps/data.sql
-          pg_dump -h 127.0.0.1 -p 55432 -U postgres -d source_db             --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces             --section=post-data             --exclude-extension=timescaledb             --exclude-schema=_timescaledb_internal             --exclude-schema=_timescaledb_catalog             --exclude-schema=_timescaledb_config             --exclude-table=public.daily_usage             > .integration-dumps/post-data.sql
+          source_container="$(docker ps --filter 'ancestor=timescale/timescaledb:2.30.0-pg17-oss' --format '{{.ID}}' | head -n1)"
+          test -n "$source_container"
+          docker exec -e PGPASSWORD=integration "$source_container" pg_dump -U postgres -d source_db --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces --section=pre-data --exclude-extension=timescaledb --exclude-schema=_timescaledb_internal --exclude-schema=_timescaledb_catalog --exclude-schema=_timescaledb_config --exclude-table=public.daily_usage > .integration-dumps/pre-data.sql
+          docker exec -e PGPASSWORD=integration "$source_container" pg_dump -U postgres -d source_db --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces --section=data --exclude-extension=timescaledb --exclude-schema=_timescaledb_internal --exclude-schema=_timescaledb_catalog --exclude-schema=_timescaledb_config --exclude-table=public.daily_usage > .integration-dumps/data.sql
+          docker exec -e PGPASSWORD=integration "$source_container" pg_dump -U postgres -d source_db --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces --section=post-data --exclude-extension=timescaledb --exclude-schema=_timescaledb_internal --exclude-schema=_timescaledb_catalog --exclude-schema=_timescaledb_config --exclude-table=public.daily_usage > .integration-dumps/post-data.sql
+          test -s .integration-dumps/pre-data.sql
+          test -s .integration-dumps/data.sql
+          test -s .integration-dumps/post-data.sql
 
-      - name: Restore portable schema data and Timescale metadata
+      - name: Restore portable schema, data and Timescale metadata
         env:
           PGPASSWORD: integration
         run: |
           set -euo pipefail
-          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             -c 'CREATE EXTENSION IF NOT EXISTS timescaledb;'
-          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-dumps/pre-data.sql
-          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-bridge/portable-hypertables.sql
-          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-dumps/data.sql
-          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-dumps/post-data.sql
-          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1             < .integration-bridge/portable-post-data.sql
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS timescaledb;'
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1 < .integration-dumps/pre-data.sql
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1 < .integration-bridge/portable-hypertables.sql
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1 < .integration-dumps/data.sql
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1 < .integration-dumps/post-data.sql
+          psql -h 127.0.0.1 -p 55433 -U postgres -d destination_db -v ON_ERROR_STOP=1 < .integration-bridge/portable-post-data.sql
 
       - name: Verify migrated row counts
         run: |
-          uv run python scripts/verify-migration-counts.py             --source-url postgresql://postgres:integration@127.0.0.1:55432/source_db             --destination-url postgresql://postgres:integration@127.0.0.1:55433/destination_db
+          uv run python scripts/verify-migration-counts.py --source-url postgresql://postgres:integration@127.0.0.1:55432/source_db --destination-url postgresql://postgres:integration@127.0.0.1:55433/destination_db
