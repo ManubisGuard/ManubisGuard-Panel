@@ -183,16 +183,3 @@ def prepare_timescale_sql_gzip(src: Path, dest: Path) -> Path:
     return dest
 
 
-def run_sql(binary: str, url_args: list[str], sql: str, env: dict[str, str], *, timeout: int = 60) -> str:
-    proc = subprocess.run(
-        [binary, *url_args, "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "-c", sql],
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
-    output = (proc.stdout or "") + (proc.stderr or "")
-    if proc.returncode:
-        raise RuntimeError(output[-4000:] or "psql command failed")
-    return output
