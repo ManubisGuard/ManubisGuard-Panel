@@ -39,6 +39,7 @@ class BackupDetection:
     confidence: str
     evidence: tuple[str, ...] = field(default_factory=tuple)
     schema_revision: str | None = None
+    source_postgres_major: int | None = None
     warnings: tuple[str, ...] = field(default_factory=tuple)
 
     @property
@@ -69,6 +70,11 @@ def _detect_text(path: Path, text: str) -> BackupDetection:
         evidence.extend(f"legacy marker: {marker}" for marker in marker_hits)
 
     revision = None
+    pg_major = None
+    pg_match = re.search(r"dumped from database version\s+(\d+)(?:\.\d+)?", sample, re.I)
+    if pg_match:
+        pg_major = int(pg_match.group(1))
+        evidence.append(f"detected source PostgreSQL major: {pg_major}")
     match = re.search(r"(?:alembic_version[^\n]{0,120})\b([0-9a-z]{8,32})\b", sample)
     if match:
         revision = match.group(1)
@@ -92,6 +98,7 @@ def _detect_text(path: Path, text: str) -> BackupDetection:
         confidence=confidence,
         evidence=tuple(dict.fromkeys(evidence)),
         schema_revision=revision,
+        source_postgres_major=pg_major,
         warnings=tuple(warnings),
     )
 
@@ -109,6 +116,7 @@ def _with_format(result: BackupDetection, fmt: str) -> BackupDetection:
         confidence=result.confidence,
         evidence=result.evidence,
         schema_revision=result.schema_revision,
+        source_postgres_major=result.source_postgres_major,
         warnings=result.warnings,
     )
 
@@ -249,6 +257,11 @@ def inspect_pg_dump_custom(path: str | Path, timeout: int = 120) -> BackupDetect
         evidence.append("TimescaleDB objects found in pg_restore TOC")
 
     revision = None
+    pg_major = None
+    pg_match = re.search(r"dumped from database version\s+(\d+)(?:\.\d+)?", sample, re.I)
+    if pg_match:
+        pg_major = int(pg_match.group(1))
+        evidence.append(f"detected source PostgreSQL major: {pg_major}")
     match = re.search(
         r"alembic_version.*?([0-9a-z]{8,32})",
         sample,
@@ -265,6 +278,7 @@ def inspect_pg_dump_custom(path: str | Path, timeout: int = 120) -> BackupDetect
         confidence=confidence,
         evidence=tuple(dict.fromkeys(evidence)),
         schema_revision=revision,
+        source_postgres_major=pg_major,
         warnings=(
             "Custom PostgreSQL dump was positively identified from a read-only TOC inspection.",
         ),
