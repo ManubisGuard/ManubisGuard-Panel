@@ -642,7 +642,13 @@ final_cutover() {
     start_panel || true
     die "Production safety backup failed; panel was restarted and cutover was aborted."
   fi
-  rename_database
+  apply_runtime_env
+  verify_compose_integrity
+  if ! rename_database; then
+    rollback_runtime_env
+    start_panel || true
+    die "Database rename failed; runtime .env was restored."
+  fi
   start_panel
   health_check || rollback_after_failed_health
   log "Production cutover completed."
@@ -731,8 +737,6 @@ main() {
     return 0
   fi
 
-  verify_compose_integrity
-  apply_runtime_env
   verify_compose_integrity
   create_cutover_database
   timescale_prepare_cutover
