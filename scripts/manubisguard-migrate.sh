@@ -505,7 +505,11 @@ rename_database() {
   psql_prod -d postgres -c "ALTER DATABASE \"$CUTOVER_DB\" WITH ALLOW_CONNECTIONS true;" >/dev/null
   if ! psql_prod -d postgres -c "ALTER DATABASE \"$CUTOVER_DB\" RENAME TO \"$DB_NAME\";" >/dev/null; then
     warn "Cutover rename failed; restoring the production database name."
-    psql_prod -d postgres -c "ALTER DATABASE \"$PREVIOUS_DB\" RENAME TO \"$DB_NAME\";" >/dev/null ||       die "CRITICAL: automatic rollback of database rename failed."
+    psql_prod -d postgres -c "ALTER DATABASE \"$PREVIOUS_DB\" WITH ALLOW_CONNECTIONS true;" >/dev/null 2>&1 || true
+    if ! psql_prod -d postgres -c "ALTER DATABASE \"$PREVIOUS_DB\" RENAME TO \"$DB_NAME\";" >/dev/null; then
+      die "CRITICAL: automatic rollback of database rename failed."
+    fi
+    start_panel || true
     die "Cutover rename failed; production database name restored."
   fi
 }
