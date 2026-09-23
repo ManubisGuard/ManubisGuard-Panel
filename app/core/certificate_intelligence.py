@@ -47,7 +47,7 @@ class DomainCertificateInspector:
                         with context.wrap_socket(retry_socket, server_hostname=domain) as tls_socket:
                             certificate = tls_socket.getpeercert()
                             if not certificate:
-                                raise verification_error
+                                raise
                             result = self._result_from_certificate(
                                 domain, checked_at, certificate, tls_socket.version()
                             )
