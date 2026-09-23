@@ -463,7 +463,7 @@ start_temp_timescale() {
   TEMP_CONTAINER="manubisguard-migration-ts-$ID"
   [ -n "$SOURCE_PG_MAJOR" ] || die "Backup source PostgreSQL major is unknown; exact compatibility runtime cannot be selected safely."
   [[ "$SOURCE_PG_MAJOR" =~ ^(10|11|12|13|14|15|16|17|18)$ ]] || die "Unsupported source PostgreSQL major: $SOURCE_PG_MAJOR"
-  local image="timescale/timescaledb:${version}-pg${SOURCE_PG_MAJOR}"
+  local image="timescale/timescaledb:${version}-pg${SOURCE_PG_MAJOR}-oss"
   log "Starting isolated source-compatible runtime: $image"
   docker pull "$image" >/dev/null
   docker run -d --name "$TEMP_CONTAINER" --restart=no \
@@ -562,6 +562,48 @@ upgrade_temp_timescale_to_target() {
     log "Staging TimescaleDB already matches production: $PROD_TS_VERSION."
     return 0
   fi
+
+  # Timescale documents Docker upgrades as: stop/remove the old image,
+  # launch the new image against the same data volume, then ALTER EXTENSION.
+  # Do not issue ALTER EXTENSION before the destination extension files exist.
+  local target_image="timescale/timescaledb:${PROD_TS_VERSION}-pg${SOURCE_PG_MAJOR}-oss"
+  log "Switching isolated staging runtime to destination TimescaleDB image: $target_image"
+  docker pull "$target_image" >/dev/null
+
+  docker rm -f "$TEMP_CONTAINER" >/dev/null
+  docker run -d --name "$TEMP_CONTAINER" --restart=no \
+    --label "manubisguard.migration=$ID" \
+    -e POSTGRES_USER="$DB_USER" \
+    -e POSTGRES_PASSWORD="$DB_PASS" \
+    -e POSTGRES_DB=postgres \
+    -e POSTGRES_HOST_AUTH_METHOD=trust \
+    -p 127.0.0.1::5432 \
+    -v "$TEMP_VOLUME:/var/lib/postgresql/data" \
+    "$target_image" >/dev/null
+  TEMP_PORT="$(docker port "$TEMP_CONTAINER" 5432/tcp | sed -nE 's/.*:([0-9]+)$/\1/p' | head -n1)"
+  [[ "$TEMP_PORT" =~ ^[0-9]+$ ]] || die "Could not determine upgraded temporary TimescaleDB port."
+
+  local i
+  for i in $(seq 1 90); do
+    if docker exec "$TEMP_CONTAINER" pg_isready -q -U "$DB_USER" -d postgres >/dev/null 2>&1 && \
+       docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" \
+       psql -X -U "$DB_USER" -d postgres -Atc 'SELECT 1;' >/dev/null 2>&1; then
+      break
+    fi
+    if [ "$(docker inspect -f '{{.State.Status}}' "$TEMP_CONTAINER" 2>/dev/null || true)" = "exited" ]; then
+      docker logs "$TEMP_CONTAINER" >"$WORKDIR/timescale-upgrade-container.log" 2>&1 || true
+      die "Destination TimescaleDB runtime exited during isolated upgrade."
+    fi
+    sleep 2
+    [ "$i" -eq 90 ] && die "Destination TimescaleDB runtime did not become ready."
+  done
+
+  local target_available
+  target_available="$(docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" \
+    psql -X -U "$DB_USER" -d postgres -Atc \
+    "SELECT count(*) FROM pg_available_extension_versions WHERE name='timescaledb' AND version='$PROD_TS_VERSION';" \
+    2>/dev/null || true)"
+  [ "$target_available" = "1" ] || die "Destination TimescaleDB $PROD_TS_VERSION is not available for source PostgreSQL $SOURCE_PG_MAJOR."
 
   log "Upgrading isolated staging TimescaleDB $source_version -> $PROD_TS_VERSION."
   docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" \
