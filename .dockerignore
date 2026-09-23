@@ -24,7 +24,7 @@ install_service.sh
 PasarGuard.code-workspace
 scripts
 
-# Dev tooling / CI (not used at runtime)
+# Dev tooling / CI
 Makefile
 .github
 .pre-commit-config.yaml
@@ -45,12 +45,6 @@ test.db
 .AGENT
 graphify-out
 
-# Dashboard: the frontend is prebuilt in CI (build.yml / build-dev.yml) and the
-# compiled output is copied into the context as dashboard/build/. At runtime only
-# the Python integration module and the compiled assets are used (build() never
-# runs because dashboard/build/ already exists), so exclude all source/tooling.
-# Excluding+re-including direct children avoids Docker's "can't re-include a file
-# under an excluded parent directory" limitation.
-dashboard/*
-!dashboard/__init__.py
-!dashboard/build
+# Keep the complete dashboard source, package.json and bun.lock in the image.
+# The application may build the dashboard at startup with Bun when dashboard/build
+# is not present, and it also runs wait-port-gen-api from the dashboard directory.
