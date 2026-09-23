@@ -6,11 +6,8 @@ import hashlib
 import json
 import os
 import re
-import shutil
-import ssl
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -404,7 +401,6 @@ class AcmeCertificateClient:
         raise AcmeError("ACME resource polling timed out.")
 
     @staticmethod
-    @staticmethod
     def _is_bad_nonce(body: bytes) -> bool:
         try:
             payload = json.loads(body)
@@ -459,7 +455,7 @@ class ManagedCertificateEngine:
             return await client.issue(managed_domain)
         if method == "cloudflare":
             raise AcmeError("Cloudflare DNS-01 is not implemented in this phase.")
-        raise AcmeError("Existing certificates must be installed with certificate artifacts." )
+        raise AcmeError("Existing certificates must be installed with certificate artifacts.")
 
     def install_existing(
         self,
