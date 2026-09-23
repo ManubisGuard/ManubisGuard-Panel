@@ -15,11 +15,10 @@ class MigrationPlan:
 
 
 def plan_pasarguard_migration(path: str | Path) -> MigrationPlan:
-    """Build a non-destructive migration plan.
+    """Build a non-destructive migration plan for a PasarGuard backup.
 
-    Phase 1 intentionally stops before writing to any database. Later phases
-    will execute the plan against a temporary PostgreSQL/TimescaleDB database,
-    validate it, and only then perform the production swap/restore.
+    The executable migration path lives in runner.py and the host-side
+    production cutover helper. This function intentionally remains planning-only.
     """
     result = preflight_backup(path)
     actions = (
@@ -28,7 +27,11 @@ def plan_pasarguard_migration(path: str | Path) -> MigrationPlan:
         "map legacy schema to current ManubisGuard schema",
         "run ManubisGuard Alembic migrations to head",
         "validate foreign keys, orphan rows, counts and protocol data",
+        "validate and export the staged ManubisGuard database",
+        "create production-server cutover database",
+        "validate cutover database before production rename",
         "create production safety backup",
+        "swap database names only after all validations pass",
         "apply only after validation succeeds",
     )
     return MigrationPlan(
