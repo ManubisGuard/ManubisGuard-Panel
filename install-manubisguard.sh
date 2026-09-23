@@ -332,20 +332,46 @@ setup_domain_ssl() {
   SSL_KEYFILE="$DATA_DIR/certs/$domain/privkey.pem"
   "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
   if [[ ! -s "$SSL_CERTFILE" || ! -s "$SSL_KEYFILE" ]]; then
-    # Reuse an existing acme.sh certificate instead of requesting a new one.
-    # This avoids failing on a fresh panel install when the certificate is
-    # valid and its next renewal time has not arrived yet.
+    # If acme.sh already knows this domain, do not blindly call --issue:
+    # acme.sh may refuse because the certificate is still within its renewal
+    # window. Let the installer explicitly ask whether to reuse it or renew it.
     if "$acme" --list 2>/dev/null | grep -Fq "$domain"; then
-      log "Existing acme.sh certificate found for $domain; reusing it."
-      "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to reuse existing SSL certificate for $domain."
+      echo
+      echo "Existing SSL certificate detected for: $domain"
+      echo "1) Use the existing certificate (recommended)"
+      echo "2) Force renew the certificate now"
+      echo "3) Cancel SSL setup"
+      local ssl_choice
+      while true; do
+        read -r -p "Select [1-3] (default: 1): " ssl_choice || true
+        ssl_choice="${ssl_choice:-1}"
+        case "${ssl_choice// /}" in
+          1)
+            log "Using existing SSL certificate for $domain."
+            "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install existing SSL certificate for $domain."
+            break
+            ;;
+          2)
+            log "Force renewing SSL certificate for $domain..."
+            "$acme" --renew -d "$domain" --force --server letsencrypt || die "Failed to renew SSL certificate for $domain."
+            "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install renewed SSL certificate for $domain."
+            break
+            ;;
+          3)
+            die "SSL setup cancelled."
+            ;;
+          *)
+            echo "Invalid selection. Choose 1, 2, or 3."
+            ;;
+        esac
+      done
+    else
+      log "No existing acme.sh certificate found for $domain; issuing a new certificate."
+      "$acme" --issue --standalone -d "$domain" --server letsencrypt || die "Failed to issue SSL certificate for $domain."
+      "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install SSL certificate for $domain."
     fi
-  fi
-  if [[ ! -s "$SSL_CERTFILE" || ! -s "$SSL_KEYFILE" ]]; then
-    log "No reusable certificate found for $domain; issuing a new certificate."
-    "$acme" --issue --standalone -d "$domain" --server letsencrypt || die "Failed to issue SSL certificate for $domain."
-    "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install SSL certificate for $domain."
   else
-    log "Existing certificate found for $domain; reusing it."
+    log "Existing installed certificate found for $domain; reusing it."
   fi
   "$acme" --upgrade --auto-upgrade >/dev/null 2>&1 || true
   "$acme" --install-cronjob >/dev/null 2>&1 || true
