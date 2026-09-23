@@ -18,7 +18,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --no-dev
+
 ADD . /build
+
+# Install the exact dashboard dependencies from bun.lock during the image build.
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+RUN cd /build/dashboard && bun install --frozen-lockfile
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
@@ -28,7 +34,10 @@ FROM python:$PYTHON_VERSION-slim-bookworm
 COPY --from=builder /build /code
 WORKDIR /code
 
-COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun\n\nENV PATH="/code/.venv/bin:/usr/local/bin:$PATH"
+# Bun is required at application startup because the dashboard is built there.
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+
+ENV PATH="/code/.venv/bin:/usr/local/bin:$PATH"
 
 # Keep the runtime trust store explicit. Outbound notification clients use it
 # without replacing Python's process-wide SSLContext.
@@ -44,7 +53,6 @@ RUN chmod +x /usr/bin/pasarguard-cli
 COPY tui_wrapper.sh /usr/bin/pasarguard-tui
 RUN chmod +x /usr/bin/pasarguard-tui
 
-# Copy healthcheck script
 COPY healthcheck.sh /code/healthcheck.sh
 RUN chmod +x /code/healthcheck.sh
 
