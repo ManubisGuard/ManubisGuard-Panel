@@ -17,9 +17,7 @@ services:
       retries: 20
 
   pasarguard:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg
     restart: always
     env_file: .env
     network_mode: host
