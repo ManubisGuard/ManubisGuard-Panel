@@ -123,9 +123,12 @@ def test_acme_csr_contains_requested_domain():
 @pytest.mark.asyncio
 async def test_cloudflare_dns01_provider_creates_and_cleans_txt_record():
     session = FakeCloudflareSession()
+    async def session_factory(**kwargs):
+        return session
+
     provider = CloudflareDns01ChallengeProvider(
         "test-token",
-        session_factory=lambda **kwargs: session,
+        session_factory=session_factory,
     )
 
     await provider.present(
@@ -244,12 +247,15 @@ async def test_managed_certificate_engine_uses_cloudflare_dns01_provider(tmp_pat
 async def test_acme_http01_issue_flow_is_atomic_and_cleans_challenge(tmp_path: Path, monkeypatch):
     certificate_store = CertificateArtifactStore(tmp_path)
     challenge_store = AcmeHttp01ChallengeStore(tmp_path)
+    async def session_factory(**kwargs):
+        return FakeAcmeSession()
+
     client = AcmeCertificateClient(
         certificate_store=certificate_store,
         challenge_provider=challenge_store,
         directory_url="https://acme.test/directory",
         poll_interval=0,
-        session_factory=lambda **kwargs: FakeAcmeSession(),
+        session_factory=session_factory,
         sleep=lambda _: asyncio.sleep(0),
     )
 
