@@ -518,3 +518,36 @@ def build_pg_dump_data_args(
         *build_pg_dump_args(database=database, excluded_tables=excluded_tables),
         "--data-only",
     )
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Build a portable TimescaleDB bridge plan.")
+    parser.add_argument("--database-url", required=True)
+    parser.add_argument("--source-version", required=True)
+    parser.add_argument("--target-version", required=True)
+    parser.add_argument("--output-dir", required=True)
+    args = parser.parse_args()
+
+    plan = build_portable_bridge_artifacts(
+        args.database_url,
+        source_version=args.source_version,
+        target_version=args.target_version,
+        output_dir=args.output_dir,
+    )
+    print(
+        json.dumps(
+            {
+                "source_version": plan.source_version,
+                "target_version": plan.target_version,
+                "hypertables": len(plan.hypertables),
+                "continuous_aggregates": len(plan.continuous_aggregates),
+                "policies": len(plan.policies),
+                "excluded_tables": list(plan.excluded_tables),
+                "warnings": list(plan.warnings),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
