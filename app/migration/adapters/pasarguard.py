@@ -18,6 +18,9 @@ from app.migration.schema import (
 from app.migration.staging import MigrationSafetyError
 
 
+LEGACY_SNAPSHOT_NODE_CERTIFICATE = "_manubisguard_legacy_node_certificate"
+
+
 @dataclass(frozen=True)
 class PasarGuardMigrationReport:
     source: str
@@ -93,6 +96,87 @@ class PasarGuardAdapter:
     def normalize_core_type(value: str | None) -> str:
         return normalize_core_type(value)
 
+    async def _prepare_async(self, database_url: str) -> tuple[str, ...]:
+        parsed = make_url(database_url)
+        if not parsed.drivername.startswith("postgresql"):
+            raise MigrationSafetyError("PasarGuard adapter requires PostgreSQL/TimescaleDB.")
+        if parsed.drivername != "postgresql+asyncpg":
+            parsed = parsed.set(drivername="postgresql+asyncpg")
+
+        connect_args: dict[str, Any] = {}
+        sslmode = parsed.query.get("sslmode")
+        if sslmode == "require":
+            connect_args["ssl"] = True
+            query = dict(parsed.query)
+            query.pop("sslmode", None)
+            parsed = parsed.set(query=query)
+        elif sslmode in {"verify-ca", "verify-full"}:
+            raise MigrationSafetyError("verify-ca/verify-full requires an explicit SSL context.")
+
+        engine = create_async_engine(
+            parsed.render_as_string(hide_password=False),
+            poolclass=NullPool,
+            connect_args=connect_args,
+        )
+        try:
+            async with engine.begin() as connection:
+                tables = {
+                    str(value)
+                    for value in (
+                        await connection.execute(
+                            text(
+                                "SELECT table_name FROM information_schema.tables "
+                                "WHERE table_schema='public'"
+                            )
+                        )
+                    ).scalars()
+                }
+                if "nodes" not in tables:
+                    return ()
+
+                columns = {
+                    str(value)
+                    for value in (
+                        await connection.execute(
+                            text(
+                                "SELECT column_name FROM information_schema.columns "
+                                "WHERE table_schema='public' AND table_name='nodes'"
+                            )
+                        )
+                    ).scalars()
+                }
+                if "certificate" not in columns or "server_ca" in columns:
+                    return ()
+
+                await connection.execute(
+                    text(
+                        f"""
+                        CREATE TABLE IF NOT EXISTS public.{LEGACY_SNAPSHOT_NODE_CERTIFICATE} (
+                            node_id integer PRIMARY KEY,
+                            certificate varchar(2048)
+                        )
+                        """
+                    )
+                )
+                await connection.execute(
+                    text(
+                        f"""
+                        INSERT INTO public.{LEGACY_SNAPSHOT_NODE_CERTIFICATE} (node_id, certificate)
+                        SELECT id, certificate
+                        FROM public.nodes
+                        WHERE certificate IS NOT NULL
+                        ON CONFLICT (node_id) DO UPDATE
+                        SET certificate = EXCLUDED.certificate
+                        """
+                    )
+                )
+                return ("captured nodes.certificate before upstream Alembic removes it",)
+        finally:
+            await engine.dispose()
+
+    def prepare(self, database_url: str) -> tuple[str, ...]:
+        return run_async(self._prepare_async(database_url))
+
     async def _apply_async(self, database_url: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
         parsed = make_url(database_url)
         if not parsed.drivername.startswith("postgresql"):
@@ -119,8 +203,9 @@ class PasarGuardAdapter:
         warnings: list[str] = []
         try:
             async with engine.begin() as connection:
-                table_names = set(
-                    (
+                table_names = {
+                    str(value)
+                    for value in (
                         await connection.execute(
                             text(
                                 "SELECT table_name FROM information_schema.tables "
@@ -128,8 +213,43 @@ class PasarGuardAdapter:
                             )
                         )
                     ).scalars()
-                )
+                }
 
+                if (
+                    LEGACY_SNAPSHOT_NODE_CERTIFICATE in table_names
+                    and "nodes" in table_names
+                ):
+                    columns = {
+                        str(value)
+                        for value in (
+                            await connection.execute(
+                                text(
+                                    "SELECT column_name FROM information_schema.columns "
+                                    "WHERE table_schema='public' AND table_name='nodes'"
+                                )
+                            )
+                        ).scalars()
+                    }
+                    if "server_ca" in columns:
+                        result = await connection.execute(
+                            text(
+                                f"""
+                                UPDATE public.nodes AS n
+                                SET server_ca = s.certificate
+                                FROM public.{LEGACY_SNAPSHOT_NODE_CERTIFICATE} AS s
+                                WHERE n.id = s.node_id
+                                  AND (n.server_ca IS NULL OR n.server_ca = '')
+                                  AND s.certificate IS NOT NULL
+                                """
+                            )
+                        )
+                        if result.rowcount:
+                            transformations.append(
+                                f"restored nodes.server_ca from legacy certificate for {result.rowcount} node(s)"
+                            )
+
+                # Refresh the table list because the adapter may have handled a
+                # legacy table before the normal column-alias phase.
                 for table, aliases in LEGACY_COLUMN_ALIASES.items():
                     if table not in table_names:
                         continue
@@ -190,6 +310,12 @@ class PasarGuardAdapter:
                                 f"normalized core_configs.type {raw!r} → {normalized!r} "
                                 f"for {result.rowcount} row(s)"
                             )
+                if LEGACY_SNAPSHOT_NODE_CERTIFICATE in table_names:
+                    await connection.execute(
+                        text(f"DROP TABLE public.{LEGACY_SNAPSHOT_NODE_CERTIFICATE}")
+                    )
+                    transformations.append("removed temporary legacy snapshot table")
+
 
         finally:
             await engine.dispose()
