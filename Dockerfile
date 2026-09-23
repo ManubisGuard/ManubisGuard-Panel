@@ -1,3 +1,5 @@
+FROM oven/bun:1 AS bun
+
 ARG PYTHON_VERSION=3.14
 
 FROM ghcr.io/astral-sh/uv:python$PYTHON_VERSION-bookworm-slim AS builder
@@ -26,7 +28,7 @@ FROM python:$PYTHON_VERSION-slim-bookworm
 COPY --from=builder /build /code
 WORKDIR /code
 
-ENV PATH="/code/.venv/bin:$PATH"
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun\n\nENV PATH="/code/.venv/bin:/usr/local/bin:$PATH"
 
 # Keep the runtime trust store explicit. Outbound notification clients use it
 # without replacing Python's process-wide SSLContext.
