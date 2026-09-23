@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.migration.restore_safety import sanitize_role_password_line
 from app.migration.compatibility import (
     TIMESCALE_FIRST_RELID,
     TimescaleCompatibility,
@@ -169,6 +170,7 @@ def prepare_timescale_sql_file(
     dest: Path,
     *,
     target_pg_major: int | None = None,
+    destination_role: str | None = None,
 ) -> Path:
     """Prepare a Timescale SQL dump for the target PostgreSQL/Timescale runtime."""
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -181,6 +183,12 @@ def prepare_timescale_sql_file(
                 continue
             if filter_postgresql_compatibility_line(line, target_pg_major=target_pg_major):
                 continue
+            line, _changed = sanitize_role_password_line(
+                line,
+                destination_role=destination_role,
+            )
+            if line == "":
+                continue
             out.write(line)
             out.write("\n")
     return dest
@@ -191,6 +199,7 @@ def prepare_timescale_sql_gzip(
     dest: Path,
     *,
     target_pg_major: int | None = None,
+    destination_role: str | None = None,
 ) -> Path:
     import gzip
 
@@ -203,6 +212,12 @@ def prepare_timescale_sql_gzip(
             if filter_timescaledb_ddl_line(line):
                 continue
             if filter_postgresql_compatibility_line(line, target_pg_major=target_pg_major):
+                continue
+            line, _changed = sanitize_role_password_line(
+                line,
+                destination_role=destination_role,
+            )
+            if line == "":
                 continue
             out.write(line)
             out.write("\n")
