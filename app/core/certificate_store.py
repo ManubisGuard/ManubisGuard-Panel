@@ -76,15 +76,6 @@ class CertificateArtifactStore:
                         pass
                 raise
 
-            if had_previous and backup_dir.exists():
-                try:
-                    shutil.rmtree(backup_dir)
-                except OSError:
-                    logger.warning(
-                        "Certificate backup cleanup failed for %s; retaining backup for recovery.",
-                        normalized,
-                        exc_info=True,
-                    )
         finally:
             if staging_dir.exists():
                 shutil.rmtree(staging_dir)
