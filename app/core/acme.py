@@ -273,7 +273,9 @@ class AcmeCertificateClient:
                 initial=await self._post_jws_json(session, authorization_url, ""),
             )
             if final_authorization.get("status") != "valid":
-                raise AcmeError(self._problem_detail(final_authorization, "ACME HTTP-01 validation failed."))
+                raise AcmeError(
+                    self._problem_detail(final_authorization, f"ACME {challenge_type} validation failed.")
+                )
 
     async def _ensure_account(self, session, account_url: str, email: str | None) -> str:
         if self._account_url:
