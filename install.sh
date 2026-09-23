@@ -39,7 +39,7 @@ s=p.read_text()
 s=s.replace('SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///db.sqlite3"',
             'SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:////var/lib/pasarguard/pasarguard.db"')
 s=s.replace('# SUDO_USERNAME = "admin"', 'SUDO_USERNAME = "admin"')
-s=s.replace('# SUDO_PASSWORD = "admin"', 'SUDO_PASSWORD = "CHANGE-ME-IMMEDIATELY"')
+s=s.replace('# SUDO_PASSWORD = "admin"', 'SUDO_PASSWORD = "' + __import__("secrets").token_urlsafe(18) + '"')
 p.write_text(s)
 PY
 
