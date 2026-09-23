@@ -42,7 +42,7 @@ async def test_acme_http01_route_serves_persisted_challenge(tmp_path: Path, monk
     monkeypatch.setenv("PASARGUARD_CERTIFICATE_DIR", str(tmp_path))
     store = AcmeHttp01ChallengeStore()
     token = "c" * 43
-    await store.present(token, "route-value")
+    await store.present("edge.example.com", token, "route-value")
 
     response = await acme_http01_challenge(token)
 
@@ -201,6 +201,20 @@ class FakeCloudflareSession:
 
 @pytest.mark.asyncio
 async def test_managed_certificate_engine_uses_cloudflare_dns01_provider(tmp_path: Path, monkeypatch):
+    class FakeCertificateClient:
+        last_provider = None
+        last_directory = None
+
+        def __init__(self, *, certificate_store, challenge_provider, directory_url):
+            assert certificate_store.base_dir == tmp_path
+            type(self).last_provider = challenge_provider
+            type(self).last_directory = directory_url
+
+        async def issue(self, managed_domain):
+            assert managed_domain.domain == "edge.example.com"
+            return "issued"
+
+    monkeypatch.setattr("app.core.acme.AcmeCertificateClient", FakeCertificateClient)
     monkeypatch.setattr(
         "app.core.acme.certificate_settings",
         type(
@@ -212,11 +226,15 @@ async def test_managed_certificate_engine_uses_cloudflare_dns01_provider(tmp_pat
             },
         )(),
     )
+
     engine = ManagedCertificateEngine(CertificateArtifactStore(tmp_path))
     domain = ManagedDomain(id="domain-1", domain="edge.example.com", certificate_method="cloudflare")
 
-    provider = engine
-    assert provider.store.base_dir == tmp_path
+    assert await engine.issue(domain) == "issued"
+    assert isinstance(FakeCertificateClient.last_provider, CloudflareDns01ChallengeProvider)
+    assert FakeCertificateClient.last_provider.api_token == "test-token"
+    assert FakeCertificateClient.last_directory == "https://acme.test/directory"
+    await FakeCertificateClient.last_provider.close()
 
 
 @pytest.mark.asyncio
