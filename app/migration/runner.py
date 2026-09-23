@@ -16,6 +16,7 @@ from app.migration.staging import (
     StagingDatabase,
     inspect_backup_source,
     restore_backup_into_staging,
+    read_timescaledb_version,
     upgrade_staging_database,
 )
 from app.migration.timescale import choose_timescale_version
@@ -352,6 +353,24 @@ def migrate_pasarguard_staging(
             "Migration preflight blocked the backup: "
             + "; ".join(analysis.preflight.blocking_errors)
         )
+
+    if analysis.uses_timescaledb:
+        live_timescale = read_timescaledb_version(production_url)
+        if not live_timescale:
+            raise MigrationSafetyError(
+                "TimescaleDB backup detected, but the destination TimescaleDB extension "
+                "version could not be read safely."
+            )
+        required_timescale = resolve_staging_timescale_version(
+            analysis,
+            live_version=live_timescale,
+        )
+        if version_tuple(required_timescale) != version_tuple(live_timescale):
+            raise MigrationSafetyError(
+                "TimescaleDB source version does not match the destination staging extension "
+                f"({required_timescale} vs {live_timescale}). A source-compatible staging "
+                "runtime is required; refusing a best-effort restore."
+            )
 
     detection = restore_backup_into_staging(
         backup_path,
