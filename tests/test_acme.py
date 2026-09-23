@@ -511,3 +511,16 @@ async def test_acme_new_order_requires_location_header(tmp_path: Path):
 
     with pytest.raises(AcmeError, match="did not return an order URL"):
         await client.issue(ManagedDomain(id="domain-1", domain="edge.example.com"))
+
+def test_acme_account_store_rejects_symlinked_key(tmp_path):
+    from app.core.acme import AcmeError, _AcmeAccountStore
+
+    store = _AcmeAccountStore(tmp_path, "https://acme.example/directory")
+    store.directory.mkdir(mode=0o700, parents=True)
+    real_key = store.directory / "real.key"
+    real_key.write_bytes(b"invalid")
+    store.key_path.symlink_to(real_key)
+
+    with pytest.raises(AcmeError, match="symbolic link"):
+        store.load_or_create()
+
