@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from app.core.acme import (
@@ -72,7 +73,7 @@ def test_acme_jws_uses_jwk_before_account_creation(tmp_path: Path):
 def test_acme_jws_uses_kid_after_account_creation(tmp_path: Path):
     store = _AcmeAccountStore(tmp_path, "https://acme.test/directory")
     client = AcmeCertificateClient(
-        certificate_store=__import__("app.core.certificate_store", fromlist=["CertificateArtifactStore"]).CertificateArtifactStore(tmp_path),
+        certificate_store=CertificateArtifactStore(tmp_path),
         challenge_provider=AcmeHttp01ChallengeStore(tmp_path),
         directory_url="https://acme.test/directory",
     )
@@ -90,8 +91,6 @@ def test_acme_jws_uses_kid_after_account_creation(tmp_path: Path):
 def test_acme_csr_contains_requested_domain():
     client = object.__new__(AcmeCertificateClient)
     key, csr_der = client._build_csr("edge.example.com")
-
-    from cryptography import x509
 
     csr = x509.load_der_x509_csr(csr_der)
     san = csr.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
