@@ -1,8 +1,13 @@
 from fastapi import APIRouter, Depends
 
+from app.core.certificate_intelligence import DomainCertificateInspector
 from app.core.domain_intelligence import DomainIntelligence
 from app.db import AsyncSession, get_db
-from app.models.domain_intelligence import DomainIntelligenceRequest, DomainIntelligenceResult
+from app.models.domain_intelligence import (
+    DomainCertificateResult,
+    DomainIntelligenceRequest,
+    DomainIntelligenceResult,
+)
 from app.models.settings import General, SettingsSchema
 from app.operation import OperatorType
 from app.operation.settings import SettingsOperation
@@ -32,6 +37,14 @@ async def inspect_domain(
     _=Depends(require_permission("settings", "read_general")),
 ):
     return await DomainIntelligence().inspect(request.domain)
+
+
+@router.post("/domains/certificate", response_model=DomainCertificateResult)
+async def inspect_domain_certificate(
+    request: DomainIntelligenceRequest,
+    _=Depends(require_permission("settings", "read_general")),
+):
+    return await DomainCertificateInspector().inspect(request.domain)
 
 
 @router.put("", response_model=SettingsSchema)
