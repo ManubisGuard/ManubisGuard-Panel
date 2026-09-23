@@ -335,7 +335,7 @@ setup_domain_ssl() {
     # If acme.sh already knows this domain, do not blindly call --issue:
     # acme.sh may refuse because the certificate is still within its renewal
     # window. Let the installer explicitly ask whether to reuse it or renew it.
-    if "$acme" --list 2>/dev/null | grep -Fq "$domain"; then
+    if "$acme" --list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -Fxq "$domain"; then
       echo
       echo "Existing SSL certificate detected for: $domain"
       echo "1) Use the existing certificate (recommended)"
