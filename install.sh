@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-REPO="https://github.com/arsamnikzaad/pasarguard-panel-awg.git"
+REPO="https://github.com/arsamnikzaad/ManubisGuard-Panel.git"
 BRANCH="${PASARGUARD_PANEL_BRANCH:-feature/amnezia-wg}"
-INSTALL_DIR="${PASARGUARD_PANEL_DIR:-/opt/pasarguard-panel-awg}"
+INSTALL_DIR="${PASARGUARD_PANEL_DIR:-/opt/manubisguard-panel}"
 DATA_DIR="/var/lib/pasarguard"
 ENV_FILE="$INSTALL_DIR/.env"
 DATABASE="sqlite"
@@ -18,7 +18,7 @@ SSL_KEYFILE=""
 
 [[ "$EUID" -eq 0 ]] || { echo "ERROR: run this installer as root."; exit 1; }
 
-log() { echo "[PasarGuard] $*"; }
+log() { echo "[ManubisGuard] $*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
 ask_yes_no() {
@@ -495,13 +495,13 @@ install_panel() {
     docker compose stop timescaledb >/dev/null 2>&1 || true
   fi
 
-  log "Building PasarGuard + AmneziaWG..."
+  log "Building ManubisGuard + AmneziaWG..."
   docker compose build --pull pasarguard
 
-  log "Starting PasarGuard..."
+  log "Starting ManubisGuard..."
   docker compose up -d pasarguard
 
-  log "Waiting for PasarGuard..."
+  log "Waiting for ManubisGuard..."
   local health_url="http://127.0.0.1:8000/health"
   [[ "$SSL_MODE" != "none" ]] && health_url="https://127.0.0.1:8000/health"
   for i in {1..90}; do
@@ -510,7 +510,7 @@ install_panel() {
   done
 
   docker compose logs --tail=160 pasarguard || true
-  die "PasarGuard health check failed."
+  die "ManubisGuard health check failed."
 }
 
 main() {
@@ -527,7 +527,7 @@ main() {
 
   echo
   echo "=============================================="
-  echo " PasarGuard + AmneziaWG installation complete"
+  echo " ManubisGuard + AmneziaWG installation complete"
   echo "=============================================="
   echo "Panel:       http://SERVER-IP:8000"
   echo "Username:    admin"
