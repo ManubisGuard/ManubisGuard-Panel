@@ -198,24 +198,38 @@ prepare_config(){
 SERVICE_PORT=$SERVICE_PORT
 SERVICE_PROTOCOL=$SERVICE_PROTOCOL
 API_KEY=$API_KEY
-SSL_CERT_FILE=/var/lib/$APP_NAME/certs/ssl_cert.pem
-SSL_KEY_FILE=/var/lib/$APP_NAME/certs/ssl_key.pem
-GENERATED_CONFIG_PATH=/var/lib/$APP_NAME/generated
+SSL_CERT_FILE=/var/lib/pg-node/certs/ssl_cert.pem
+SSL_KEY_FILE=/var/lib/pg-node/certs/ssl_key.pem
+GENERATED_CONFIG_PATH=/var/lib/pg-node/generated
 PG_NODE_WG_HOST_ROUTING=1
 EOF
   chmod 600 "$ENV_FILE"
+
+  cat > "$APP_DIR/docker-compose.yml" <<EOF
+services:
+  node:
+    image: pasarguard/node:latest
+    restart: always
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    env_file:
+      - .env
+    volumes:
+      - $DATA_DIR:/var/lib/pg-node
+EOF
 }
 
 start_node(){
   cd "$APP_DIR"
   docker compose pull
-  docker compose up -d --build
+  docker compose up -d
   sleep 3
-  docker ps --format '{{.Names}}' | grep -Fxq "$APP_NAME" || {
+  if ! docker compose ps --status running --services 2>/dev/null | grep -Fxq "node"; then
     docker compose ps
     docker compose logs --tail 100
     die "Node container did not start."
-  }
+  fi
   log "Node container is running."
   echo
   echo "Node name: $APP_NAME"
