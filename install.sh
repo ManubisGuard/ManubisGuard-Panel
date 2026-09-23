@@ -33,6 +33,7 @@ if [[ ! -f .env ]]; then
 fi
 
 POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+export POSTGRES_PASSWORD
 ADMIN_PASSWORD="$(openssl rand -hex 18)"
 python3 - "$ADMIN_PASSWORD" <<'PY'
 from pathlib import Path
@@ -48,7 +49,6 @@ s=s.replace('# SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://postgres:DB_PASSW
 p.write_text(s)
 PY
 
-export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
 docker compose build --pull=false
 docker compose up -d
 
