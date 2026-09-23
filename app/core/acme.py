@@ -4,6 +4,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import logging
 import os
 import re
 import tempfile
@@ -13,7 +14,6 @@ from typing import Protocol
 
 import aiohttp
 
-from app.utils.logger import get_logger
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, utils
@@ -27,7 +27,7 @@ from config import certificate_settings
 LETSENCRYPT_PRODUCTION_DIRECTORY = "https://acme-v02.api.letsencrypt.org/directory"
 _ACME_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
-logger = get_logger("acme")
+logger = logging.getLogger(__name__)
 
 
 class AcmeError(RuntimeError):
