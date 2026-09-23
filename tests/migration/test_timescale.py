@@ -1,7 +1,8 @@
-import pytest\n\nfrom app.migration.compatibility import TimescaleCompatibility
+import pytest
+
+from app.migration.compatibility import TimescaleCompatibility
 from app.migration.timescale import (
     TIMESCALE_FIRST_RELID,
-    TIMESCALE_LAST_SCHEMA_NAME,
     build_restore_spec,
     choose_timescale_version,
     filter_timescaledb_ddl_line,
