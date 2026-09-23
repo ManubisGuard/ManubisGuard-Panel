@@ -412,6 +412,11 @@ class ManagedDomain(BaseModel):
         host = value.strip().lower()
         if not host or "://" in host or "/" in host or ":" in host or any(ch.isspace() for ch in host):
             raise ValueError("Invalid domain")
+        if host.startswith("*."):
+            wildcard_host = host[2:]
+            if not re.fullmatch(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}", wildcard_host):
+                raise ValueError("Invalid domain")
+            return host
         if not re.fullmatch(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}", host):
             raise ValueError("Invalid domain")
         return host
