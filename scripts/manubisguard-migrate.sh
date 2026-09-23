@@ -213,7 +213,7 @@ capture_compose_integrity() {
   [ -f "$COMPOSE_FILE" ] || die "Compose file not found: $COMPOSE_FILE"
   COMPOSE_SHA256="$(sha256sum "$COMPOSE_FILE" | awk '{print $1}')"
   [ -n "$COMPOSE_SHA256" ] || die "Could not fingerprint the ManubisGuard compose file."
-  printf '%s  %s\\n' "$COMPOSE_SHA256" "$COMPOSE_FILE" >"$WORKDIR/compose.sha256"
+  printf '%s  %s\n' "$COMPOSE_SHA256" "$COMPOSE_FILE" >"$WORKDIR/compose.sha256"
   log "Compose integrity captured: $COMPOSE_SHA256"
 }
 
@@ -223,7 +223,7 @@ verify_compose_integrity() {
   local current
   current="$(sha256sum "$COMPOSE_FILE" | awk '{print $1}')"
   if [ "$current" != "$COMPOSE_SHA256" ]; then
-    printf '%s  %s\\n' "$current" "$COMPOSE_FILE" >"$WORKDIR/compose-changed.sha256"
+    printf '%s  %s\n' "$current" "$COMPOSE_FILE" >"$WORKDIR/compose-changed.sha256"
     die "CRITICAL: migration attempted to change docker-compose.yml. Production deployment was not trusted."
   fi
 }
