@@ -432,7 +432,7 @@ analyze_backup() {
   if [ -n "$SOURCE_PG_MAJOR" ] && ! [[ "$SOURCE_PG_MAJOR" =~ ^[0-9]+$ ]]; then
     die "Backup reported an unsafe source PostgreSQL major: $SOURCE_PG_MAJOR"
   fi
-  log "Accepted source=$(json_get "$output" ".detection.source_product") format=$(json_get "$output" ".detection.format")"
+  log "Accepted source=$(json_get "$output" ".detection.source_product") format=$(json_get "$output" ".detection.format") PostgreSQL=${SOURCE_PG_MAJOR:-unknown}"
   if [ "$(json_get "$output" ".uses_timescaledb")" = "True" ] || [ "$(json_get "$output" ".uses_timescaledb")" = "true" ]; then
     log "Backup contains TimescaleDB objects."
   fi
@@ -475,8 +475,6 @@ start_temp_timescale() {
     -p 127.0.0.1::5432 \
     -v "$TEMP_VOLUME:/var/lib/postgresql/data" \
     "$image" >/dev/null
-  docker run -d --name "$TEMP_CONTAINER" --restart=no     --label "manubisguard.migration=$ID"     -e POSTGRES_USER="$DB_USER"     -e POSTGRES_PASSWORD="$DB_PASS"     -e POSTGRES_DB=postgres     -e POSTGRES_HOST_AUTH_METHOD=trust     -p 127.0.0.1::5432     -v "$TEMP_VOLUME:/var/lib/postgresql/data"     "$image" >/dev/null
-
   TEMP_PORT="$(docker port "$TEMP_CONTAINER" 5432/tcp | sed -nE 's/.*:([0-9]+)$/\1/p' | head -n1)"
   [[ "$TEMP_PORT" =~ ^[0-9]+$ ]] || die "Could not determine temporary TimescaleDB port."
 
