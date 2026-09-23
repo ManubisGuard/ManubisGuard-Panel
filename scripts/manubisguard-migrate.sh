@@ -57,6 +57,9 @@ CURRENT_ENV="/opt/manubisguard-panel/.env"
 ENV_CANDIDATE=""
 ENV_PREVIOUS=""
 ENV_IMPORTED=false
+RUNTIME_ASSET_STAGE=""
+RUNTIME_ASSET_PREVIOUS=""
+RUNTIME_ASSET_APPLIED=false
 
 log() { printf '[%s] %s\n' "$SCRIPT_NAME" "$*"; }
 warn() { printf '[%s] WARNING: %s\n' "$SCRIPT_NAME" "$*" >&2; }
@@ -254,6 +257,16 @@ prepare_runtime_env() {
   printf '%s\\n' "$output" >"$WORKDIR/env-restore.log"
   cp -- "$CURRENT_ENV" "$WORKDIR/.env.before-migration"
   chmod 600 "$ENV_CANDIDATE" "$WORKDIR/.env.before-migration"
+
+  RUNTIME_ASSET_STAGE="$WORKDIR/runtime-assets"
+  mkdir -p "$RUNTIME_ASSET_STAGE"
+  if ! output="$(python3 /opt/manubisguard-panel/scripts/manubisguard-restore-env.py \
+      "$PANEL_BACKUP" "$CURRENT_ENV" "$ENV_CANDIDATE" \
+      --asset-stage-root "$RUNTIME_ASSET_STAGE" 2>&1)"; then
+    printf '%s\\n' "$output" >>"$WORKDIR/env-restore.error"
+    die "Legacy runtime asset preparation failed."
+  fi
+  printf '%s\\n' "$output" >>"$WORKDIR/env-restore.log"
   if grep -q '^ENV_SOURCE=legacy' "$WORKDIR/env-restore.log" 2>/dev/null; then
     ENV_IMPORTED=true
   fi
@@ -273,7 +286,9 @@ apply_runtime_env() {
   ENV_PREVIOUS="$WORKDIR/.env.pre-cutover"
   cp -- "$CURRENT_ENV" "$ENV_PREVIOUS"
   chmod 600 "$ENV_PREVIOUS"
-  install -m 600 "$ENV_CANDIDATE" "$CURRENT_ENV"
+  if ! install -m 600 "$ENV_CANDIDATE" "$CURRENT_ENV"; then
+    die "Could not apply prepared ManubisGuard .env."
+  fi
   log "Legacy runtime settings applied to ManubisGuard .env."
 }
 
@@ -281,6 +296,77 @@ rollback_runtime_env() {
   [ -s "$ENV_PREVIOUS" ] || return 0
   install -m 600 "$ENV_PREVIOUS" "$CURRENT_ENV"
   log "Runtime .env rolled back to pre-migration state."
+}
+
+apply_runtime_assets() {
+  [ -d "$RUNTIME_ASSET_STAGE" ] || return 0
+  local assets=()
+  while IFS= read -r -d '' asset; do
+    assets+=("$asset")
+  done < <(find "$RUNTIME_ASSET_STAGE" -type f -print0 2>/dev/null)
+
+  [ "${#assets[@]}" -gt 0 ] || return 0
+  RUNTIME_ASSET_PREVIOUS="$WORKDIR/runtime-assets-before-cutover"
+  rm -rf -- "$RUNTIME_ASSET_PREVIOUS"
+  mkdir -p "$RUNTIME_ASSET_PREVIOUS"
+  : >"$RUNTIME_ASSET_PREVIOUS/.missing"
+
+  local asset rel target backup_target
+  for asset in "${assets[@]}"; do
+    rel="${asset#"$RUNTIME_ASSET_STAGE"/}"
+    case "$rel" in
+      ""|/*|../*|*/../*|*/..|..)
+        die "Unsafe staged runtime asset path: $rel"
+        ;;
+    esac
+    target="$DATA_DIR/$rel"
+    case "$target" in
+      "$DATA_DIR"/*) ;;
+      *) die "Runtime asset escaped data directory: $rel" ;;
+    esac
+    if [ -L "$target" ]; then
+      die "Refusing to overwrite symlinked runtime asset: $target"
+    fi
+    if [ -e "$target" ]; then
+      backup_target="$RUNTIME_ASSET_PREVIOUS/$rel"
+      mkdir -p "$(dirname "$backup_target")"
+      cp -a -- "$target" "$backup_target"
+    else
+      printf '%s\n' "$rel" >>"$RUNTIME_ASSET_PREVIOUS/.missing"
+    fi
+  done
+
+  RUNTIME_ASSET_APPLIED=true
+  for asset in "${assets[@]}"; do
+    rel="${asset#"$RUNTIME_ASSET_STAGE"/}"
+    target="$DATA_DIR/$rel"
+    mkdir -p "$(dirname "$target")"
+    if ! install -m 600 "$asset" "$target"; then
+      rollback_runtime_assets
+      die "Could not install staged runtime asset: $rel"
+    fi
+  done
+  log "Referenced legacy runtime SSL assets prepared and applied safely."
+}
+
+rollback_runtime_assets() {
+  [ "$RUNTIME_ASSET_APPLIED" = true ] || return 0
+  [ -d "$RUNTIME_ASSET_STAGE" ] || return 0
+  local asset rel target backup_target
+  while IFS= read -r -d '' asset; do
+    rel="${asset#"$RUNTIME_ASSET_STAGE"/}"
+    target="$DATA_DIR/$rel"
+    if grep -F -x -q -- "$rel" "$RUNTIME_ASSET_PREVIOUS/.missing" 2>/dev/null; then
+      rm -f -- "$target"
+    else
+      backup_target="$RUNTIME_ASSET_PREVIOUS/$rel"
+      if [ -f "$backup_target" ]; then
+        install -m 600 "$backup_target" "$target"
+      fi
+    fi
+  done < <(find "$RUNTIME_ASSET_STAGE" -type f -print0 2>/dev/null)
+  RUNTIME_ASSET_APPLIED=false
+  log "Runtime assets rolled back to pre-migration state."
 }
 
 verify_compose_integrity() {
@@ -627,6 +713,7 @@ rename_database() {
       die "CRITICAL: automatic rollback of database rename failed."
     fi
     rollback_runtime_env
+    rollback_runtime_assets
     start_panel || true
     die "Cutover rename failed; production database name restored."
   fi
@@ -657,6 +744,7 @@ rollback_after_failed_health() {
   FAILED_DB="$DB_NAME"_"failed_"$ID
   warn "Panel did not become healthy; rolling the database back."
   rollback_runtime_env
+  rollback_runtime_assets
   docker compose -f "$COMPOSE_FILE" stop "$COMPOSE_SERVICE" >/dev/null 2>&1 || true
   psql_prod -d postgres -c "ALTER DATABASE \"$DB_NAME\" WITH ALLOW_CONNECTIONS false;" >/dev/null 2>&1 || true
   terminate_database_connections "$DB_NAME" || true
@@ -674,6 +762,7 @@ final_cutover() {
     start_panel || true
     die "Production safety backup failed; panel was restarted and cutover was aborted."
   fi
+  apply_runtime_assets
   apply_runtime_env
   verify_compose_integrity
   rename_database
