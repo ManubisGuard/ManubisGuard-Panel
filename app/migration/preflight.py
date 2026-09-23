@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from app.migration.detector import BackupDetection, detect_backup
+from app.migration.detector import (
+    BackupDetection,
+    detect_backup,
+    inspect_pg_dump_custom,
+)
 
 
 @dataclass(frozen=True)
@@ -30,7 +34,14 @@ def preflight_backup(path: str | Path) -> PreflightResult:
         )
 
     if detection.format == "pg_dump_custom" and detection.source_product == "unknown":
-        errors.append("PostgreSQL custom dump requires isolated pg_restore inspection before import.")
+        inspected = inspect_pg_dump_custom(path)
+        detection = inspected
+        warnings = list(inspected.warnings)
+        if not inspected.is_pasarguard:
+            errors.append(
+                "PostgreSQL custom dump could not be positively identified as PasarGuard "
+                "from a read-only pg_restore TOC inspection."
+            )
 
     if detection.confidence == "low":
         errors.append("Detection confidence is too low for an automatic migration.")
