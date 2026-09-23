@@ -1,5 +1,8 @@
+from io import StringIO
+
 from app.migration.restore_safety import (
     prepare_postgresql_sql,
+    prepare_postgresql_sql_stream,
     sanitize_role_password_line,
 )
 
@@ -49,3 +52,23 @@ def test_prepare_postgresql_sql_counts_transformations():
     assert 'CREATE ROLE legacy_admin WITH LOGIN;' in transformed
     assert removed == 1
     assert suppressed == 1
+
+
+def test_stream_sanitizer_handles_realistic_globals_shape_without_loading_password():
+    source = StringIO(
+        "-- PostgreSQL database cluster dump\n"
+        'CREATE ROLE "pasarguard";\n'
+        'ALTER ROLE "pasarguard" WITH SUPERUSER LOGIN PASSWORD \'legacy-secret\';\n'
+        'CREATE ROLE "legacy_admin" WITH LOGIN PASSWORD \'other-secret\';\n'
+    )
+    output = StringIO()
+    removed, suppressed = prepare_postgresql_sql_stream(
+        source, output, destination_role="pasarguard"
+    )
+    transformed = output.getvalue()
+    assert "legacy-secret" not in transformed
+    assert "other-secret" not in transformed
+    assert "pasarguard" not in transformed
+    assert 'CREATE ROLE "legacy_admin" WITH LOGIN;' in transformed
+    assert removed == 1
+    assert suppressed == 2
