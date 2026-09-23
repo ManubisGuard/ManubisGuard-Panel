@@ -154,6 +154,7 @@ def detect_backup(path: str | Path) -> BackupDetection:
                 confidence=result.confidence,
                 evidence=result.evidence,
                 schema_revision=result.schema_revision,
+                source_postgres_major=result.source_postgres_major,
                 warnings=(*result.warnings, "Archive contents must be validated before restore."),
             )
 
