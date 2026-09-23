@@ -205,8 +205,9 @@ async def test_managed_certificate_engine_uses_cloudflare_dns01_provider(tmp_pat
         last_provider = None
         last_directory = None
 
-        def __init__(self, *, certificate_store, challenge_provider, directory_url):
+        def __init__(self, *, certificate_store, challenge_provider, directory_url, provider_name):
             assert certificate_store.base_dir == tmp_path
+            assert provider_name == "cloudflare"
             type(self).last_provider = challenge_provider
             type(self).last_directory = directory_url
 
