@@ -12,7 +12,7 @@ install_base() {
   command -v git >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v docker >/dev/null 2>&1 && return
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y git curl ca-certificates
+    DEBIAN_FRONTEND=noninteractive apt-get install -y git curl ca-certificates openssl
   else
     echo "ERROR: this installer currently requires Debian/Ubuntu (apt-get)."
     exit 1
