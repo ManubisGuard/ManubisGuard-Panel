@@ -241,6 +241,7 @@ class AcmeCertificateClient:
         order: dict,
         challenges: list[tuple[str, str]],
     ) -> None:
+        challenge_type = self.challenge_provider.challenge_type
         for authorization_url in order.get("authorizations", []):
             authorization = await self._post_jws_json(session, authorization_url, "")
             status = authorization.get("status")
