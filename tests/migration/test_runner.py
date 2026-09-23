@@ -1,11 +1,9 @@
-import pytest
 import zipfile
 
 from pathlib import Path
 
 from app.migration.compatibility import TimescaleCompatibility
-from app.migration.runner import analyze_backup, migrate_pasarguard_staging
-from app.migration.staging import MigrationSafetyError
+from app.migration.runner import analyze_backup
 
 
 def test_runner_analyzes_old_timescale_sql_without_database_access(tmp_path: Path):
