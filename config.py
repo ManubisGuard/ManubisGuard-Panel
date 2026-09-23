@@ -215,6 +215,21 @@ class JobSettings(EnvSettings):
     )
 
 
+class CertificateSettings(EnvSettings):
+    artifact_directory: str = Field(
+        default="/var/lib/PasarGuard/certs",
+        validation_alias="PASARGUARD_CERTIFICATE_DIR",
+    )
+    acme_directory_url: str = Field(
+        default="https://acme-v02.api.letsencrypt.org/directory",
+        validation_alias="PASARGUARD_ACME_DIRECTORY_URL",
+    )
+    cloudflare_api_token: str = Field(
+        default="",
+        validation_alias="PASARGUARD_CLOUDFLARE_API_TOKEN",
+    )
+
+
 class FeatureSettings(EnvSettings):
     stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
 
@@ -234,6 +249,7 @@ auth_settings = AuthSettings()
 usage_settings = UsageSettings()
 job_settings = JobSettings()
 feature_settings = FeatureSettings()
+certificate_settings = CertificateSettings()
 
 if not database_settings.is_postgresql:
     usage_settings.enable_recording_nodes_stats = False
