@@ -350,6 +350,19 @@ def _timescale_seed_cleanup(url: str) -> None:
     _psql_query(url, TIMESCALEDB_CATALOG_SEED_CLEAR_SQL, timeout=120)
 
 
+def read_timescaledb_version(url: str) -> str | None:
+    """Read the installed TimescaleDB extension version without mutating the target."""
+    try:
+        value = _psql_query(
+            url,
+            "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'",
+            timeout=30,
+        )
+    except MigrationSafetyError:
+        return None
+    return value.strip() or None
+
+
 def _timescale_pre_restore(url: str) -> None:
     _psql_query(url, "CREATE EXTENSION IF NOT EXISTS timescaledb", timeout=120)
     _psql_query(url, "SELECT timescaledb_pre_restore()", timeout=120)
