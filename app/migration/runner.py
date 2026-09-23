@@ -7,12 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from app.migration.adapters.pasarguard import PasarGuardAdapter
-from app.migration.async_utils import run_async
 from app.migration.compatibility import (
     TimescaleCompatibility,
     analyze_timescale_sql,
 )
-from app.migration.detector import BackupDetection
 from app.migration.preflight import PreflightResult, preflight_backup
 from app.migration.staging import (
     MigrationSafetyError,
