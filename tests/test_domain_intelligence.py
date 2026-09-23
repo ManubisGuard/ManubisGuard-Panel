@@ -1,8 +1,7 @@
-import aiohttp
 import pytest
 
 from app.core.domain_intelligence import DomainIntelligence
-from app.models.domain_intelligence import DomainDNSResult, DomainHTTPProbe
+from app.models.domain_intelligence import DomainDNSResult, DomainHTTPProbe, DomainIntelligenceResult
 
 
 def test_domain_intelligence_result_classifies_https_and_redirects():
@@ -26,10 +25,7 @@ def test_domain_intelligence_result_classifies_https_and_redirects():
         final_url="https://edge.example.com/",
     )
 
-    result = __import__(
-        "app.models.domain_intelligence",
-        fromlist=["DomainIntelligenceResult"],
-    ).DomainIntelligenceResult.now("edge.example.com", dns, http, https)
+    result = DomainIntelligenceResult.now("edge.example.com", dns, http, https)
 
     assert result.status == "redirected"
     assert result.tls_valid is True
