@@ -60,3 +60,7 @@ class DomainIntelligenceResult(BaseModel):
             service_hints=service_hints,
             status=status,
         )
+
+
+class DomainIntelligenceRequest(BaseModel):
+    domain: str
