@@ -43,7 +43,16 @@ class PasarGuardAdapter:
 
     name = "pasarguard"
     target_product = "manubisguard"
-    target_revision = "awg2026091901"
+
+    @staticmethod
+    def current_target_revision() -> str:
+        from pathlib import Path
+
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+
+        config = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
+        return ScriptDirectory.from_config(config).get_current_head()
 
     def plan(
         self,
@@ -74,7 +83,7 @@ class PasarGuardAdapter:
             source=str(path),
             detection=detection,
             source_revision=detection.schema_revision,
-            target_revision=self.target_revision,
+            target_revision=self.current_target_revision(),
             transformations=transformations,
             blockers=tuple(blockers),
             warnings=tuple(warnings),
