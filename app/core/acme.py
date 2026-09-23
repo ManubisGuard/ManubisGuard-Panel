@@ -150,11 +150,12 @@ class CloudflareDns01ChallengeProvider:
 
     async def cleanup(self, identifier: str, token: str) -> None:
         _AcmeTokenValidator.validate(token)
-        record = self._records.pop((identifier, token), None)
+        record = self._records.get((identifier, token))
         if record is None:
             return
         zone_id, record_id = record
         await self._request("DELETE", f"/zones/{zone_id}/dns_records/{record_id}")
+        self._records.pop((identifier, token), None)
 
     async def _find_zone(self, identifier: str) -> str:
         labels = identifier.rstrip(".").split(".")
