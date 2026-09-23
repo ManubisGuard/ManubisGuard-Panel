@@ -40,6 +40,8 @@ class DomainIntelligence:
 
     async def inspect(self, domain: str) -> DomainIntelligenceResult:
         normalized = ManagedDomain(id="domain-intelligence", domain=domain).domain
+        if normalized.startswith("*."):
+            raise ValueError("Wildcard domains cannot be inspected directly.")
         timeout = aiohttp.ClientTimeout(total=self.timeout)
 
         if self._session_factory is not None:
