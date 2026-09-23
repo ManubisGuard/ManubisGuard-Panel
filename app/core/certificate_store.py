@@ -49,6 +49,7 @@ class CertificateArtifactStore:
 
         staging_dir.mkdir(mode=0o700)
         os.chmod(staging_dir, 0o700)
+        committed = False
         try:
             self._atomic_write(staging_dir / "cert.pem", certificate_pem, 0o644)
             self._atomic_write(staging_dir / "key.pem", private_key_pem, 0o600)
@@ -59,9 +60,15 @@ class CertificateArtifactStore:
 
             try:
                 os.replace(staging_dir, target_dir)
+                committed = True
             except Exception:
                 if had_previous and not target_dir.exists() and backup_dir.exists():
-                    os.replace(backup_dir, target_dir)
+                    try:
+                        os.replace(backup_dir, target_dir)
+                    except OSError:
+                        # Keep the backup directory for manual recovery rather than
+                        # deleting the last known-good certificate pair.
+                        pass
                 raise
 
             if had_previous and backup_dir.exists():
@@ -69,7 +76,7 @@ class CertificateArtifactStore:
         finally:
             if staging_dir.exists():
                 shutil.rmtree(staging_dir)
-            if backup_dir.exists():
+            if committed and backup_dir.exists():
                 shutil.rmtree(backup_dir)
 
         return result
