@@ -549,8 +549,11 @@ install_panel() {
     docker compose stop timescaledb >/dev/null 2>&1 || true
   fi
 
-  log "Building ManubisGuard + AmneziaWG..."
-  docker compose build --pull pasarguard
+  log "Pulling prebuilt ManubisGuard + AmneziaWG image..."
+  if ! docker compose pull pasarguard; then
+    log "Prebuilt image unavailable; building locally from the Fork..."
+    docker compose build --pull pasarguard
+  fi
 
   log "Starting ManubisGuard..."
   docker compose up -d pasarguard
