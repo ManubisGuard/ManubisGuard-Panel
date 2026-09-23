@@ -150,8 +150,27 @@ def filter_timescaledb_ddl_line(line: str) -> bool:
     )
 
 
-def prepare_timescale_sql_file(src: Path, dest: Path) -> Path:
-    """Stream a SQL dump, remove extension DDL and prepend safe catalog seed cleanup."""
+def filter_postgresql_compatibility_line(line: str, *, target_pg_major: int | None) -> bool:
+    """Return True for pg_dump statements unsupported by an older target PostgreSQL.
+
+    PostgreSQL 17 pg_dump emits SET transaction_timeout = 0. PostgreSQL 16
+    does not recognize that GUC, so a PG17 logical backup cannot be replayed
+    verbatim into the PG16 ManubisGuard target. This filter is deliberately
+    narrow: unknown statements are never silently discarded.
+    """
+    if target_pg_major is not None and target_pg_major < 17:
+        if re.match(r"^\s*SET\s+transaction_timeout\s*=", line, re.I):
+            return True
+    return False
+
+
+def prepare_timescale_sql_file(
+    src: Path,
+    dest: Path,
+    *,
+    target_pg_major: int | None = None,
+) -> Path:
+    """Prepare a Timescale SQL dump for the target PostgreSQL/Timescale runtime."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     with src.open("r", encoding="utf-8", errors="replace") as inp, dest.open("w", encoding="utf-8") as out:
         out.write(TIMESCALEDB_CATALOG_SEED_CLEAR_SQL.rstrip())
@@ -160,12 +179,19 @@ def prepare_timescale_sql_file(src: Path, dest: Path) -> Path:
             line = raw.rstrip("\r\n")
             if filter_timescaledb_ddl_line(line):
                 continue
+            if filter_postgresql_compatibility_line(line, target_pg_major=target_pg_major):
+                continue
             out.write(line)
             out.write("\n")
     return dest
 
 
-def prepare_timescale_sql_gzip(src: Path, dest: Path) -> Path:
+def prepare_timescale_sql_gzip(
+    src: Path,
+    dest: Path,
+    *,
+    target_pg_major: int | None = None,
+) -> Path:
     import gzip
 
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +201,8 @@ def prepare_timescale_sql_gzip(src: Path, dest: Path) -> Path:
         for raw in inp:
             line = raw.rstrip("\r\n")
             if filter_timescaledb_ddl_line(line):
+                continue
+            if filter_postgresql_compatibility_line(line, target_pg_major=target_pg_major):
                 continue
             out.write(line)
             out.write("\n")
