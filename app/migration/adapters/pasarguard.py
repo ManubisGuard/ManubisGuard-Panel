@@ -65,11 +65,14 @@ class PasarGuardAdapter:
         blockers: list[str] = []
         warnings: list[str] = []
         transformations = (
+            "capture legacy data that upstream Alembic would drop",
             "preserve legacy primary keys where possible",
             "apply ManubisGuard Alembic migrations in staging",
+            "restore captured nodes.certificate into nodes.server_ca when applicable",
             "normalize legacy column aliases when both forms exist",
             "normalize core_configs.type aliases",
             "preserve settings JSON and unknown keys unless explicitly unsafe",
+            "remove temporary migration snapshot tables",
             "validate foreign-key graph before production cutover",
         )
 
