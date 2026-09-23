@@ -1,5 +1,7 @@
+import asyncio
 import base64
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -279,6 +281,3 @@ class FakeAcmeSession:
             )
         raise AssertionError(f"unexpected POST {url}")
 
-
-from datetime import datetime, timedelta, timezone
-import asyncio
