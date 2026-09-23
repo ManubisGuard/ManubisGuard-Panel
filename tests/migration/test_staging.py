@@ -95,3 +95,34 @@ def test_old_timescale_dump_fingerprint_is_detected(tmp_path: Path):
     result = analyze_timescale_sql(dump.read_text())
     assert result.catalog_era == "schema_name"
     assert result.recommended_version == "2.28.3"
+
+
+def test_archive_deployment_files_are_ignored_when_finding_database(tmp_path: Path):
+    from app.migration.staging import _find_candidate
+
+    archive_root = tmp_path / "backup"
+    archive_root.mkdir()
+    (archive_root / "docker-compose.yml").write_text(
+        "services:\n  pasarguard:\n    image: legacy/pasarguard:old\n",
+        encoding="utf-8",
+    )
+    (archive_root / ".env").write_text(
+        "POSTGRES_PASSWORD=must-never-be-applied\n",
+        encoding="utf-8",
+    )
+    sql = archive_root / "database.sql"
+    sql.write_text(
+        "-- PasarGuard backup\n"
+        "CREATE TABLE alembic_version (version_num varchar(32));\n"
+        "CREATE TABLE users (id integer);\n"
+        "CREATE TABLE nodes (id integer);\n"
+        "CREATE TABLE core_configs (id integer);\n"
+        "-- PostgreSQL database dump complete\n",
+        encoding="utf-8",
+    )
+
+    candidate, detection = _find_candidate(archive_root)
+
+    assert candidate == sql
+    assert detection.is_pasarguard is True
+    assert not (tmp_path / ".env").exists()
