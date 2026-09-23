@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import re
-import shutil
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.migration.compatibility import (
     TIMESCALE_FIRST_RELID,
-    TIMESCALE_LAST_SCHEMA_NAME,
     TimescaleCompatibility,
     version_tuple,
 )
