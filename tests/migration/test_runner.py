@@ -1,8 +1,11 @@
+import pytest
 import zipfile
 
 from pathlib import Path
 
-from app.migration.runner import analyze_backup
+from app.migration.compatibility import TimescaleCompatibility
+from app.migration.runner import analyze_backup, migrate_pasarguard_staging
+from app.migration.staging import MigrationSafetyError
 
 
 def test_runner_analyzes_old_timescale_sql_without_database_access(tmp_path: Path):
@@ -80,3 +83,35 @@ def test_resolved_timescale_version_must_match_live_version():
         ),
     })()
     assert resolve_staging_timescale_version(analysis, live_version="2.28.2") == "2.28.2"
+
+
+def test_migration_blocks_timescale_mismatch_before_restore(monkeypatch, tmp_path: Path):
+    import app.migration.runner as runner
+
+    analysis = type("A", (), {
+        "preflight": type("P", (), {"ok": True, "blocking_errors": ()})(),
+        "uses_timescaledb": True,
+        "timescale": TimescaleCompatibility(
+            versions=("2.28.2",),
+            source_version="2.28.2",
+            catalog_era="schema_name",
+        ),
+        "detection": None,
+    })()
+
+    monkeypatch.setattr(runner, "analyze_backup", lambda *args, **kwargs: analysis)
+    monkeypatch.setattr(runner, "read_timescaledb_version", lambda url: "2.29.0")
+    monkeypatch.setattr(
+        runner,
+        "restore_backup_into_staging",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("restore must not start")),
+    )
+
+    staging = runner.StagingDatabase(
+        "manubisguard_migration_0123456789ab",
+        "postgresql://user:pass@localhost:5433/manubisguard_migration_0123456789ab",
+        "postgresql://user:pass@localhost:5432/pasarguard",
+    )
+
+    with pytest.raises(MigrationSafetyError, match="source version does not match"):
+        migrate_pasarguard_staging(tmp_path / "backup.sql", staging, production_url=staging._production_url)
