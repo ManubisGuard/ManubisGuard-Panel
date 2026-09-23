@@ -307,17 +307,27 @@ class AcmeCertificateClient:
             await self._refresh_nonce(session, url)
 
         body = self._signed_payload(url, payload, use_jwk=use_jwk)
-        async with session.post(
-            url,
-            data=body,
-            headers={"Content-Type": "application/jose+json", "Accept": "application/json"},
-        ) as response:
-            body_bytes = await response.read()
-            self._nonce = response.headers.get("Replay-Nonce", self._nonce)
-            if response.status >= 400:
+        encoded_body = json.dumps(body, separators=(",", ":")).encode()
+        for attempt in range(2):
+            async with session.post(
+                url,
+                data=encoded_body,
+                headers={"Content-Type": "application/jose+json", "Accept": "application/json"},
+            ) as response:
+                body_bytes = await response.read()
+                self._nonce = response.headers.get("Replay-Nonce", self._nonce)
+                if response.status < 400:
+                    return _BufferedResponse(response.status, response.headers, body_bytes)
+                if attempt == 0 and self._is_bad_nonce(body_bytes):
+                    if self._nonce:
+                        encoded_body = json.dumps(
+                            self._signed_payload(url, payload, use_jwk=use_jwk),
+                            separators=(",", ":"),
+                        ).encode()
+                        continue
                 detail = body_bytes.decode(errors="replace")
                 raise AcmeError(f"ACME request failed ({response.status}): {detail[:1000]}")
-            return _BufferedResponse(response.status, response.headers, body_bytes)
+        raise AcmeError("ACME request failed after nonce retry.")
 
     async def _refresh_nonce(self, session, resource_url: str) -> None:
         directory = await self._get_json(session, self.directory_url)
@@ -392,6 +402,15 @@ class AcmeCertificateClient:
             await self._sleep(self.poll_interval)
             payload = await self._post_jws_json(session, url, "")
         raise AcmeError("ACME resource polling timed out.")
+
+    @staticmethod
+    @staticmethod
+    def _is_bad_nonce(body: bytes) -> bool:
+        try:
+            payload = json.loads(body)
+        except (TypeError, ValueError):
+            return False
+        return isinstance(payload, dict) and payload.get("type", "").endswith(":badNonce")
 
     @staticmethod
     def _problem_detail(payload: dict, fallback: str) -> str:
