@@ -254,7 +254,10 @@ prepare_runtime_env() {
   printf '%s\\n' "$output" >"$WORKDIR/env-restore.log"
   cp -- "$CURRENT_ENV" "$WORKDIR/.env.before-migration"
   chmod 600 "$ENV_CANDIDATE" "$WORKDIR/.env.before-migration"
-  if grep -q '^ENV_SOURCE=legacy  [ -n "$COMPOSE_SHA256" ] || die "Compose integrity fingerprint is missing."
+  if grep -q '^ENV_SOURCE=legacy' "$WORKDIR/env-restore.log" 2>/dev/null; then
+    ENV_IMPORTED=true
+  fi
+  [ -n "$COMPOSE_SHA256" ] || die "Compose integrity fingerprint is missing."
   [ -f "$COMPOSE_FILE" ] || die "CRITICAL: ManubisGuard compose file disappeared."
   local current
   current="$(sha256sum "$COMPOSE_FILE" | awk '{print $1}')"
