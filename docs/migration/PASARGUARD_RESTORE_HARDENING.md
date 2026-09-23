@@ -34,3 +34,22 @@ Every change to this pipeline must be followed by:
 - a second review of failure/rollback paths;
 - GitHub Actions verification when a run is available;
 - no claim of a green CI state when GitHub has not reported a completed successful run.
+
+
+## Adaptive cross-version restore bridge
+
+Version differences are handled as a migration plan, not by replaying a legacy catalog into the production runtime.
+
+1. Detect the source PostgreSQL major from the dump header/TOC and the exact TimescaleDB version from trusted backup metadata/fingerprints.
+2. Start an isolated Docker runtime using the **source PostgreSQL major + source TimescaleDB version**. Timescale publishes versioned image tags such as `2.28.2-pg17`, so the source catalog is restored by compatible binaries. citeturn2search0
+3. Restore the legacy backup only into that isolated runtime.
+4. If the destination TimescaleDB is newer and the source is older, upgrade the isolated database extension to the destination TimescaleDB version before exporting. Timescale documents extension upgrades as a separate step and provides a PostgreSQL/Timescale compatibility matrix. citeturn8search2turn8search0
+5. Export the validated staging database with the **staging runtime's** `pg_dump`, not the production client's. PostgreSQL recommends using the newer dump tool for cross-major migrations; its output may require targeted editing when loading into an older PostgreSQL major. `--quote-all-identifiers` is recommended for cross-version dumps. citeturn6search0turn6search7
+6. Restore the logical SQL into a disposable cutover database on the production PostgreSQL major. Only explicitly known incompatible statements are filtered (currently PostgreSQL 17's `transaction_timeout` for a PostgreSQL 16 target) and destination Timescale extension DDL is suppressed because the cutover database already has the destination extension.
+7. Run the complete ManubisGuard validation suite against the cutover database. Production is renamed only after the cutover database passes validation.
+
+### Important boundary
+
+An older source TimescaleDB → newer destination TimescaleDB can use this bridge because the source catalog is first restored in its native runtime and then upgraded in isolation.
+
+A **newer source TimescaleDB → older destination TimescaleDB** is not treated as a blind downgrade. Timescale documents downgrade paths separately and notes that downgrade support is constrained; the engine must use a schema/data portability bridge or require a destination upgrade rather than silently attempting a catalog downgrade. citeturn8search4
