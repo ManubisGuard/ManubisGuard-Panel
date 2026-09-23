@@ -23,7 +23,7 @@ install_base() {
 }
 
 install_base
-mkdir -p "$DATA_DIR"
+mkdir -p "$DATA_DIR/timescaledb"
 rm -rf "$INSTALL_DIR"
 git clone --depth 1 --branch "$BRANCH" "$REPO" "$INSTALL_DIR"
 cd "$INSTALL_DIR"
@@ -32,6 +32,7 @@ if [[ ! -f .env ]]; then
   cp .env.example .env
 fi
 
+POSTGRES_PASSWORD="$(openssl rand -hex 32)"
 ADMIN_PASSWORD="$(openssl rand -hex 18)"
 python3 - "$ADMIN_PASSWORD" <<'PY'
 from pathlib import Path
@@ -43,12 +44,14 @@ s=s.replace('SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///db.sqlite3"',
             'SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:////var/lib/pasarguard/pasarguard.db"')
 s=s.replace('# SUDO_USERNAME = "admin"', 'SUDO_USERNAME = "admin"')
 s=s.replace('# SUDO_PASSWORD = "admin"', f'SUDO_PASSWORD = "{password}"')
+s=s.replace('# SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://postgres:DB_PASSWORD@localhost:5432/pasarguard"', f'SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://pasarguard:{__import__("os").environ.get("POSTGRES_PASSWORD")}@127.0.0.1:5432/pasarguard"')
 p.write_text(s)
 PY
 
+export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
 docker compose build --pull=false
 docker compose up -d
 
 echo "Panel source: $REPO"
-echo "Panel branch: $BRANCH"\necho "Initial admin username: admin"\necho "Initial admin password: $ADMIN_PASSWORD"
+echo "Panel branch: $BRANCH"\necho "Initial admin username: admin"\necho "Initial admin password: $ADMIN_PASSWORD"\necho "TimescaleDB: 127.0.0.1:5432 / database=pasarguard / user=pasarguard"
 docker compose ps
