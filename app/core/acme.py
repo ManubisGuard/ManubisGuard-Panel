@@ -249,6 +249,8 @@ class _AcmeAccountStore:
         return key
 
     def _load_existing(self) -> ec.EllipticCurvePrivateKey:
+        if self.key_path.is_symlink():
+            raise AcmeError("Stored ACME account key cannot be a symbolic link.")
         try:
             key = serialization.load_pem_private_key(
                 self.key_path.read_bytes(),
