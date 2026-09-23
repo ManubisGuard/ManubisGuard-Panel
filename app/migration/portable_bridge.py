@@ -85,14 +85,6 @@ WHERE proc_name LIKE 'policy_%'
 ORDER BY hypertable_schema, hypertable_name, proc_name
 """
 
-CAGG_POLICIES_QUERY = """
-SELECT relation_schema, relation_name, proc_name,
-       schedule_interval::text, config
-FROM timescaledb_experimental.policies
-WHERE proc_name LIKE 'policy_%'
-ORDER BY relation_schema, relation_name, proc_name
-"""
-
 _SUPPORTED_POLICIES = {
     "policy_retention",
     "policy_refresh_continuous_aggregate",
@@ -447,23 +439,11 @@ async def _read_source_metadata(database_url: str) -> tuple[
             records = await connection.fetch(query)
             return [dict(record) for record in records]
 
-        regular_policies = await rows(POLICIES_QUERY)
-        cagg_policies = await rows(CAGG_POLICIES_QUERY)
-        normalized_cagg_policies = [
-            {
-                "hypertable_schema": row["relation_schema"],
-                "hypertable_name": row["relation_name"],
-                "proc_name": row["proc_name"],
-                "schedule_interval": row["schedule_interval"],
-                "config": row["config"],
-            }
-            for row in cagg_policies
-        ]
         return (
             await rows(HYPERTABLES_QUERY),
             await rows(DIMENSIONS_QUERY),
             await rows(CONTINUOUS_AGGREGATES_QUERY),
-            [*regular_policies, *normalized_cagg_policies],
+            await rows(POLICIES_QUERY),
         )
     finally:
         await connection.close()
