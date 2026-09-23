@@ -230,14 +230,14 @@ def test_certificate_inspector_classifies_expired_certificate(monkeypatch):
     assert result.days_remaining < 0
 
 
-
 def test_existing_certificate_validator_accepts_matching_pair():
     from app.core.certificate_intelligence import ExistingCertificateValidator
+    from datetime import datetime, timedelta, timezone
+
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
-    from datetime import datetime, timedelta, timezone
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "edge.example.com")])
