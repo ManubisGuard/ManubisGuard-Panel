@@ -9,7 +9,7 @@ DATA_DIR="/var/lib/pasarguard"
 [[ "$EUID" -eq 0 ]] || { echo "ERROR: run as root"; exit 1; }
 
 install_base() {
-  command -v git >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v docker >/dev/null 2>&1 && return
+  command -v git >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 && return
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y git curl ca-certificates openssl python3 docker.io docker-compose-plugin
