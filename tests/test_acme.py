@@ -151,7 +151,7 @@ async def test_cloudflare_dns01_provider_creates_and_cleans_txt_record():
     )
     assert session.created_record["name"] == "_acme-challenge.example.com"
     assert session.created_record["content"] == AcmeCertificateClient._b64(
-        hashlib.sha256(("d" * 43 + ".thumbprint").encode()).digest()
+        hashlib.sha256(("e" * 43 + ".thumbprint").encode()).digest()
     )
     assert session.headers["Authorization"] == "Bearer test-token"
 
@@ -333,6 +333,7 @@ async def test_acme_http01_issue_flow_is_atomic_and_cleans_challenge(tmp_path: P
     )
 
     assert result.provider == "letsencrypt"
+    assert result.order_url == "https://acme.test/order/1"
     assert result.certificate.valid is True
     assert certificate_store.exists("edge.example.com") is True
     assert challenge_store.get(FakeAcmeSession.challenge_token) is None
