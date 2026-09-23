@@ -18,6 +18,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy.engine import URL, make_url
 
+from app.migration.compatibility import analyze_timescale_sql
 from app.migration.detector import BackupDetection, detect_backup
 
 
@@ -218,6 +219,50 @@ def _find_candidate(root: Path) -> tuple[Path, BackupDetection]:
     return candidates[0]
 
 
+def _read_sql_compatibility(path: Path) -> str:
+    with path.open("rt", encoding="utf-8", errors="replace") as fh:
+        head = fh.read(1_200_000)
+        try:
+            fh.seek(max(0, path.stat().st_size - 1_200_000))
+            tail = fh.read(1_200_000)
+        except OSError:
+            tail = ""
+    return head + "\n" + tail
+
+
+async def _timescale_extension_version(url: str) -> str | None:
+    conn = await asyncpg.connect(**_asyncpg_kwargs(url))
+    try:
+        return await conn.fetchval(
+            "SELECT default_version FROM pg_available_extensions WHERE name = 'timescaledb'"
+        )
+    finally:
+        await conn.close()
+
+
+def _assert_timescale_catalog_compatible(source: Path, staging_url: str) -> None:
+    if source.name.lower().endswith(".gz"):
+        with gzip.open(source, "rt", encoding="utf-8", errors="replace") as fh:
+            sql = fh.read(1_200_000)
+    else:
+        sql = _read_sql_compatibility(source)
+    compatibility = analyze_timescale_sql(sql)
+    if compatibility.catalog_era != "schema_name":
+        return
+    live = asyncio.run(_timescale_extension_version(staging_url))
+    try:
+        live_tuple = tuple(int(x) for x in live.split(".")[:3]) if live else None
+    except ValueError:
+        live_tuple = None
+    if live_tuple and live_tuple >= (2, 29, 0):
+        raise MigrationSafetyError(
+            "PasarGuard backup uses the pre-2.29 TimescaleDB chunk catalog "
+            "(schema_name/table_name), while staging uses TimescaleDB "
+            f"{live}. Restore is blocked before any data is written. "
+            "A version-aligned staging TimescaleDB is required."
+        )
+
+
 def _run_psql(source: Path, url: str, timeout: int, compressed: bool) -> None:
     binary = shutil.which("psql")
     if not binary:
@@ -341,10 +386,9 @@ def restore_backup_into_staging(
             detection = inspected
         elif not detection.is_pasarguard or detection.confidence not in {"high", "medium"}:
             raise MigrationSafetyError("Backup is not positively identified as PasarGuard.")
-        if detection.format == "sql":
-            _run_psql(source, staging.staging_url, timeout, False)
-        elif detection.format == "sql.gz":
-            _run_psql(source, staging.staging_url, timeout, True)
+        if detection.format in {"sql", "sql.gz"}:
+            _assert_timescale_catalog_compatible(source, staging.staging_url)
+            _run_psql(source, staging.staging_url, timeout, detection.format == "sql.gz")
         elif detection.format == "pg_dump_custom":
             _run_pg_restore(source, staging.staging_url, timeout)
         else:
