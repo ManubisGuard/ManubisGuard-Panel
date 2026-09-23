@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import tarfile
@@ -94,23 +95,26 @@ def _detect_text(path: Path, text: str) -> BackupDetection:
 
 
 def _detect_json(path: Path, payload: Any) -> BackupDetection:
-    raw = json.dumps(payload, ensure_ascii=False)[:5_000_000].lower()
-    result = _detect_text(path, raw)
-    if isinstance(payload, dict):
-        keys = {str(k).lower() for k in payload}
-        if {"manifest", "version"} <= keys:
-            evidence = (*result.evidence, "JSON manifest/version structure")
-            result = BackupDetection(
-                **{**result.__dict__, "evidence": tuple(dict.fromkeys(evidence))}
-            )
-    return result
+    raw = json.dumps(payload, ensure_ascii=False)[:5_000_000]
+    return _detect_text(path, raw)
+
+
+def _with_format(result: BackupDetection, fmt: str) -> BackupDetection:
+    return BackupDetection(
+        path=result.path,
+        format=fmt,
+        source_product=result.source_product,
+        confidence=result.confidence,
+        evidence=result.evidence,
+        schema_revision=result.schema_revision,
+        warnings=result.warnings,
+    )
 
 
 def detect_backup(path: str | Path) -> BackupDetection:
     """Detect a backup without touching any production database.
 
-    This function is deliberately conservative: unknown formats are never
-    treated as safe PasarGuard backups.
+    Unknown formats are never treated as safe PasarGuard backups.
     """
     p = Path(path).expanduser()
     if not p.exists():
@@ -125,43 +129,50 @@ def detect_backup(path: str | Path) -> BackupDetection:
         with zipfile.ZipFile(p) as archive:
             names = "\n".join(archive.namelist()).lower()
             if "manifest.json" in names:
-                with archive.open("manifest.json") as fh:
-                    try:
+                try:
+                    with archive.open("manifest.json") as fh:
                         payload = json.load(fh)
-                    except Exception:
-                        payload = {"files": archive.namelist()}
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                    payload = {"files": archive.namelist()}
                 result = _detect_json(p, payload)
-                return BackupDetection(
-                    **{
-                        **result.__dict__,
-                        "format": "zip",
-                        "warnings": (*result.warnings, "Archive contents must be validated before restore."),
-                    }
-                )
-            return _detect_text(p, names)
+            else:
+                result = _detect_text(p, names)
+            return BackupDetection(
+                path=result.path,
+                format="zip",
+                source_product=result.source_product,
+                confidence=result.confidence,
+                evidence=result.evidence,
+                schema_revision=result.schema_revision,
+                warnings=(*result.warnings, "Archive contents must be validated before restore."),
+            )
 
-    if ".tar" in suffixes or ".tgz" in suffixes or ".gz" in suffixes and name.endswith(".tar.gz"):
+    if ".tar" in suffixes or ".tgz" in suffixes or (name.endswith(".tar.gz") and ".gz" in suffixes):
         with tarfile.open(p, "r:*") as archive:
             names = "\n".join(member.name for member in archive.getmembers()).lower()
         return _detect_text(p, names)
 
-    if name.endswith((".json", ".json.gz")):
-        import gzip
-
-        opener = gzip.open if name.endswith(".gz") else open
-        with opener(p, "rt", encoding="utf-8", errors="replace") as fh:
+    if name.endswith(".json.gz"):
+        with gzip.open(p, "rt", encoding="utf-8", errors="replace") as fh:
             payload = json.load(fh)
-        return _detect_json(p, payload)
+        return _with_format(_detect_json(p, payload), "json.gz")
 
-    if name.endswith((".sql", ".sql.gz")):
-        import gzip
+    if name.endswith(".json"):
+        with p.open("rt", encoding="utf-8", errors="replace") as fh:
+            payload = json.load(fh)
+        return _with_format(_detect_json(p, payload), "json")
 
-        opener = gzip.open if name.endswith(".gz") else open
-        with opener(p, "rt", encoding="utf-8", errors="replace") as fh:
-            text = fh.read(5_000_000)
-        return _detect_text(p, text)
+    if name.endswith(".sql.gz"):
+        with gzip.open(p, "rt", encoding="utf-8", errors="replace") as fh:
+            sql = fh.read(5_000_000)
+        return _with_format(_detect_text(p, sql), "sql.gz")
 
-    # pg_dump custom/tar formats are binary. Do not guess their origin.
+    if name.endswith(".sql"):
+        with p.open("rt", encoding="utf-8", errors="replace") as fh:
+            sql = fh.read(5_000_000)
+        return _with_format(_detect_text(p, sql), "sql")
+
+    # PostgreSQL custom/tar formats are binary. Do not guess their origin.
     with p.open("rb") as fh:
         header = fh.read(16)
     if header.startswith(b"PGDMP"):
@@ -171,7 +182,7 @@ def detect_backup(path: str | Path) -> BackupDetection:
             source_product="unknown",
             confidence="low",
             evidence=("PostgreSQL custom dump signature PGDMP",),
-            warnings=("The dump must be inspected with pg_restore before product detection."),
+            warnings=("The dump must be inspected with pg_restore before product detection.",),
         )
 
     with p.open("rb") as fh:
