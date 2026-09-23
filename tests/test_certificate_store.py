@@ -95,3 +95,28 @@ def test_certificate_artifact_store_rolls_back_on_directory_swap_failure(tmp_pat
     loaded_certificate, loaded_key = store.load("edge.example.com")
     assert loaded_certificate == certificate_pem
     assert loaded_key == private_key_pem
+
+
+def test_certificate_artifact_store_retains_backup_if_cleanup_fails(tmp_path: Path, monkeypatch):
+    certificate_pem, private_key_pem = _make_pair()
+    replacement_certificate_pem, replacement_key_pem = _make_pair()
+
+    store = CertificateArtifactStore(tmp_path)
+    store.save("edge.example.com", certificate_pem, private_key_pem)
+
+    import shutil
+
+    original_rmtree = shutil.rmtree
+
+    def fail_backup_cleanup(path, *args, **kwargs):
+        if ".backup-" in str(path):
+            raise OSError("simulated backup cleanup failure")
+        return original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr("app.core.certificate_store.shutil.rmtree", fail_backup_cleanup)
+
+    result = store.save("edge.example.com", replacement_certificate_pem, replacement_key_pem)
+
+    assert result.valid is True
+    assert store.load("edge.example.com") == (replacement_certificate_pem, replacement_key_pem)
+    assert any(".edge.example.com.backup-" in path.name for path in tmp_path.iterdir())
