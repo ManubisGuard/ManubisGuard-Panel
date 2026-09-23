@@ -167,6 +167,11 @@ def main() -> int:
     parser.add_argument("current_env")
     parser.add_argument("candidate_env")
     parser.add_argument("--runtime-root", default="/var/lib/pasarguard")
+    parser.add_argument(
+        "--asset-stage-root",
+        default="",
+        help="Stage referenced runtime certificate/key assets under this work directory.",
+    )
     parser.add_argument("--cert-dest", default="")
     args = parser.parse_args()
 
@@ -191,6 +196,36 @@ def main() -> int:
 
     print("ENV_SOURCE=legacy")
     print("IMPORTED_KEYS=" + ",".join(imported))
+
+    env_map = parse_env(merged)
+    cert_keys = ("UVICORN_SSL_CERTFILE", "UVICORN_SSL_KEYFILE")
+
+    if args.asset_stage_root:
+        runtime_root = Path(args.runtime_root).resolve()
+        stage_root = Path(args.asset_stage_root).resolve()
+        staged = 0
+        for key in cert_keys:
+            value = env_map.get(key, "")
+            if not value:
+                continue
+            resolved = Path(value).resolve()
+            try:
+                rel = resolved.relative_to(runtime_root)
+            except ValueError:
+                print(f"ASSET_SKIPPED_OUTSIDE_RUNTIME={key}")
+                continue
+            member = "pasarguard_data/" + rel.as_posix()
+            payload = read_archive_member(backup, member)
+            if payload is None:
+                print(f"ASSET_SOURCE_MISSING={key}")
+                continue
+            target = stage_root / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
+            os.chmod(target, 0o600)
+            staged += 1
+            print(f"ASSET_STAGED={key}:{rel.as_posix()}")
+        print(f"ASSET_STAGED_COUNT={staged}")
 
     if args.cert_dest:
         runtime_root = Path(args.runtime_root).resolve()
