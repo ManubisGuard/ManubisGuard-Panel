@@ -7,17 +7,13 @@ from app.core.certificate_store import CertificateArtifactStore
 def test_certificate_artifact_store_rejects_invalid_pair(tmp_path: Path):
     store = CertificateArtifactStore(tmp_path)
 
-    result = store.save(
-        "edge.example.com",
-        "not-a-certificate",
-        "not-a-private-key",
-    )
+    result = store.save("edge.example.com", "not-a-certificate", "not-a-private-key")
 
     assert result.valid is False
     assert store.exists("edge.example.com") is False
 
 
-def test_certificate_artifact_store_writes_and_loads_valid_pair(tmp_path: Path):
+def _make_pair():
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -39,12 +35,18 @@ def test_certificate_artifact_store_writes_and_loads_valid_pair(tmp_path: Path):
         )
         .sign(key, hashes.SHA256())
     )
-    certificate_pem = certificate.public_bytes(serialization.Encoding.PEM).decode()
-    private_key_pem = key.private_bytes(
-        serialization.Encoding.PEM,
-        serialization.PrivateFormat.PKCS8,
-        serialization.NoEncryption(),
-    ).decode()
+    return (
+        certificate.public_bytes(serialization.Encoding.PEM).decode(),
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ).decode(),
+    )
+
+
+def test_certificate_artifact_store_writes_and_loads_valid_pair(tmp_path: Path):
+    certificate_pem, private_key_pem = _make_pair()
 
     store = CertificateArtifactStore(tmp_path)
     result = store.save("EDGE.EXAMPLE.COM", certificate_pem, private_key_pem)
@@ -56,6 +58,7 @@ def test_certificate_artifact_store_writes_and_loads_valid_pair(tmp_path: Path):
     assert loaded_certificate == certificate_pem
     assert loaded_key == private_key_pem
 
+    assert (tmp_path / "edge.example.com").stat().st_mode & 0o777 == 0o700
     assert (tmp_path / "edge.example.com" / "key.pem").stat().st_mode & 0o777 == 0o600
     assert (tmp_path / "edge.example.com" / "cert.pem").stat().st_mode & 0o777 == 0o644
 
