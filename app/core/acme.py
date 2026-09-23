@@ -279,7 +279,7 @@ class AcmeCertificateClient:
         if email:
             payload["contact"] = [f"mailto:{email}"]
 
-        response = await self._post_jws_response(session, account_url, payload)
+        response = await self._post_jws_response(session, account_url, payload, use_jwk=True)
         location = response.headers.get("Location")
         if not location:
             raise AcmeError("ACME account creation did not return an account URL.")
@@ -297,24 +297,27 @@ class AcmeCertificateClient:
         response = await self._post_jws_response(session, url, payload)
         return await response.text()
 
-    async def _post_jws_response(self, session, url: str, payload):
-        if not self._account_key or not self._account_url:
-            raise AcmeError("ACME account is not initialized.")
+    async def _post_jws_response(self, session, url: str, payload, *, use_jwk: bool = False):
+        if not self._account_key:
+            raise AcmeError("ACME account key is not initialized.")
+        if not use_jwk and not self._account_url:
+            raise AcmeError("ACME account URL is not initialized.")
 
         if not self._nonce:
             await self._refresh_nonce(session, url)
 
-        body = self._signed_payload(url, payload)
+        body = self._signed_payload(url, payload, use_jwk=use_jwk)
         async with session.post(
             url,
             data=body,
             headers={"Content-Type": "application/jose+json", "Accept": "application/json"},
         ) as response:
+            body_bytes = await response.read()
             self._nonce = response.headers.get("Replay-Nonce", self._nonce)
             if response.status >= 400:
-                detail = await response.text()
+                detail = body_bytes.decode(errors="replace")
                 raise AcmeError(f"ACME request failed ({response.status}): {detail[:1000]}")
-            return _BufferedResponse(response)
+            return _BufferedResponse(response.status, response.headers, body_bytes)
 
     async def _refresh_nonce(self, session, resource_url: str) -> None:
         directory = await self._get_json(session, self.directory_url)
@@ -332,14 +335,17 @@ class AcmeCertificateClient:
                 raise AcmeError(f"ACME directory request failed ({response.status}).")
             return await response.json(content_type=None)
 
-    def _signed_payload(self, url: str, payload) -> dict:
+    def _signed_payload(self, url: str, payload, *, use_jwk: bool = False) -> dict:
         assert self._account_key is not None
         protected = {
             "alg": "ES256",
             "nonce": self._nonce,
             "url": url,
-            "kid": self._account_url,
         }
+        if use_jwk:
+            protected["jwk"] = self._account_jwk()
+        else:
+            protected["kid"] = self._account_url
         protected_b64 = self._b64(json.dumps(protected, separators=(",", ":")).encode())
         payload_bytes = (
             payload.encode() if isinstance(payload, str) else json.dumps(payload, separators=(",", ":")).encode()
@@ -351,15 +357,18 @@ class AcmeCertificateClient:
         signature = self._b64(r.to_bytes(32, "big") + s.to_bytes(32, "big"))
         return {"protected": protected_b64, "payload": payload_b64, "signature": signature}
 
-    def _account_thumbprint(self) -> str:
+    def _account_jwk(self) -> dict:
         assert self._account_key is not None
         public = self._account_key.public_key().public_numbers()
-        jwk = {
+        return {
             "crv": "P-256",
             "kty": "EC",
             "x": self._b64(self._int_bytes(public.x)),
             "y": self._b64(self._int_bytes(public.y)),
         }
+
+    def _account_thumbprint(self) -> str:
+        jwk = self._account_jwk()
         digest = hashlib.sha256(json.dumps(jwk, separators=(",", ":"), sort_keys=True).encode()).digest()
         return self._b64(digest)
 
@@ -401,23 +410,18 @@ class AcmeCertificateClient:
 
 
 class _BufferedResponse:
-    """Keep a response usable after the aiohttp context manager exits."""
+    """Small response snapshot safe to consume after aiohttp closes the response."""
 
-    def __init__(self, response):
-        self.status = response.status
-        self.headers = response.headers
-        self._body = None
-        self._response = response
+    def __init__(self, status: int, headers, body: bytes):
+        self.status = status
+        self.headers = headers
+        self._body = body
 
     async def json(self, content_type=None):
-        if self._body is None:
-            self._body = await self._response.read()
         return json.loads(self._body)
 
     async def text(self) -> str:
-        if self._body is None:
-            self._body = await self._response.read()
-        return self._body.decode()
+        return self._body.decode(errors="replace")
 
 
 class ManagedCertificateEngine:
