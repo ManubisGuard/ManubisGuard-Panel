@@ -39,3 +39,25 @@ def test_managed_domain_rejects_url_and_invalid_hostname():
 def test_managed_domain_normalizes_valid_hostname():
     item = ManagedDomain(id="d1", domain="  Edge.Example.COM  ")
     assert item.domain == "edge.example.com"
+
+
+def test_general_preserves_managed_domain_configuration():
+    domain = ManagedDomain(
+        id="d1",
+        domain="Edge.Example.COM",
+        node_id=7,
+        certificate_method="cloudflare",
+        address_mode="both",
+        protocols=["Xray", "AmneziaWG"],
+        email="admin@example.com",
+        auto_renew=False,
+        status="active",
+        certificate_expires_at="2030-01-01T00:00:00Z",
+        last_checked_at="2029-12-01T00:00:00Z",
+    )
+    address = ManagedServerAddress(id="a1", node_id=7, address="203.0.113.10", enabled=False)
+    general = General(primary_domain=domain, domains=[domain], server_addresses=[address])
+
+    assert general.primary_domain == domain
+    assert general.domains == [domain]
+    assert general.server_addresses == [address]
