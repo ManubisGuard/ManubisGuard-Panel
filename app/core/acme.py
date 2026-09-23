@@ -138,7 +138,8 @@ class CloudflareDns01ChallengeProvider:
         _AcmeTokenValidator.validate(token)
         content = AcmeCertificateClient._b64(hashlib.sha256(key_authorization.encode()).digest())
         zone_id = await self._find_zone(identifier)
-        name = f"_acme-challenge.{identifier.rstrip('.')}"
+        dns_identifier = identifier[2:] if identifier.startswith("*.") else identifier
+        name = f"_acme-challenge.{dns_identifier.rstrip('.')}"
         payload = {"type": "TXT", "name": name, "content": content, "ttl": 120}
         data = await self._request("POST", f"/zones/{zone_id}/dns_records", payload)
         result = data.get("result")
