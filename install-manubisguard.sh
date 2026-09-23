@@ -332,6 +332,16 @@ setup_domain_ssl() {
   SSL_KEYFILE="$DATA_DIR/certs/$domain/privkey.pem"
   "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
   if [[ ! -s "$SSL_CERTFILE" || ! -s "$SSL_KEYFILE" ]]; then
+    # Reuse an existing acme.sh certificate instead of requesting a new one.
+    # This avoids failing on a fresh panel install when the certificate is
+    # valid and its next renewal time has not arrived yet.
+    if "$acme" --list 2>/dev/null | grep -Fq "$domain"; then
+      log "Existing acme.sh certificate found for $domain; reusing it."
+      "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to reuse existing SSL certificate for $domain."
+    fi
+  fi
+  if [[ ! -s "$SSL_CERTFILE" || ! -s "$SSL_KEYFILE" ]]; then
+    log "No reusable certificate found for $domain; issuing a new certificate."
     "$acme" --issue --standalone -d "$domain" --server letsencrypt || die "Failed to issue SSL certificate for $domain."
     "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install SSL certificate for $domain."
   else
