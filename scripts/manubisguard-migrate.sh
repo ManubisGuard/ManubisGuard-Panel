@@ -266,8 +266,16 @@ start_temp_timescale() {
   fi
 
   TEMP_CONTAINER="manubisguard-migration-ts-$ID"
-  local image="timescale/timescaledb:$version-pg$PG_MAJOR"
-  log "Starting isolated compatibility image: $image"
+  local image
+  if [ -n "$PROD_TS_VERSION" ] && [ "$version" != "$PROD_TS_VERSION" ]; then
+    local target_series
+    target_series="${PROD_TS_VERSION%.*}"
+    image="timescale/timescaledb-ha:pg${PG_MAJOR}-ts${target_series}-all"
+    log "Starting isolated historical-extension compatibility image: $image"
+  else
+    image="timescale/timescaledb:$version-pg$PG_MAJOR"
+    log "Starting isolated TimescaleDB image: $image"
+  fi
   docker pull "$image" >/dev/null
   docker run -d --name "$TEMP_CONTAINER" --restart=no     --label "manubisguard.migration=$ID"     -e POSTGRES_USER="$DB_USER"     -e POSTGRES_PASSWORD="$DB_PASS"     -e POSTGRES_DB=postgres     -e POSTGRES_HOST_AUTH_METHOD=trust     -p 127.0.0.1::5432     -v "$TEMP_VOLUME:/var/lib/postgresql/data"     "$image" >/dev/null
 
@@ -291,6 +299,15 @@ start_temp_timescale() {
   local live
   live="$(docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER"     psql -X -U "$DB_USER" -d postgres -Atc     "SELECT COALESCE((SELECT default_version FROM pg_available_extensions WHERE name='timescaledb'), '');"     2>/dev/null || true)"
   log "Temporary TimescaleDB on localhost:$TEMP_PORT extension=${live:-unknown}"
+
+  if [ -n "$PROD_TS_VERSION" ] && [ "$version" != "$PROD_TS_VERSION" ]; then
+    local available
+    available="$(docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" \
+      psql -X -U "$DB_USER" -d postgres -Atc \
+      "SELECT count(*) FROM pg_available_extension_versions WHERE name='timescaledb' AND version='$version';" \
+      2>/dev/null || true)"
+    [ "$available" = "1" ] || die "Compatibility image does not contain TimescaleDB source version $version."
+  fi
 }
 
 build_temp_url() {
@@ -344,24 +361,27 @@ upgrade_temp_timescale_to_target() {
     "SELECT COALESCE((SELECT extversion FROM pg_extension WHERE extname='timescaledb'), '');" \
     2>/dev/null || true)"
   source_version="${source_version:-$PROD_TS_VERSION}"
-  [ "$source_version" = "$PROD_TS_VERSION" ] && return 0
 
-  log "Upgrading isolated TimescaleDB $source_version -> $PROD_TS_VERSION on the same staging volume."
-  docker rm -f "$TEMP_CONTAINER" >/dev/null
-  TEMP_CONTAINER=""
-  TEMP_PORT=""
-  start_temp_timescale "$PROD_TS_VERSION"
-
-  build_temp_url
-  local ext_version
-  ext_version="$(docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER"     psql -X -U "$DB_USER" -d "$STAGING_DB" -Atc     "SELECT COALESCE((SELECT extversion FROM pg_extension WHERE extname='timescaledb'), '');"     2>/dev/null || true)"
-  [ -n "$ext_version" ] || die "TimescaleDB extension disappeared during version alignment."
-
-  if [ "$ext_version" != "$PROD_TS_VERSION" ]; then
-    psql_temp -d "$STAGING_DB" -c "ALTER EXTENSION timescaledb UPDATE TO '$PROD_TS_VERSION';" >/dev/null
+  if [ "$source_version" = "$PROD_TS_VERSION" ]; then
+    log "Staging TimescaleDB already matches production: $PROD_TS_VERSION."
+    return 0
   fi
+
+  log "Upgrading isolated staging TimescaleDB $source_version -> $PROD_TS_VERSION."
+  docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" \
+    psql -X -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$STAGING_DB" \
+    -c "ALTER EXTENSION timescaledb UPDATE TO '$PROD_TS_VERSION';" >/dev/null
+
+  local ext_version
+  ext_version="$(docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" \
+    psql -X -U "$DB_USER" -d "$STAGING_DB" -Atc \
+    "SELECT COALESCE((SELECT extversion FROM pg_extension WHERE extname='timescaledb'), '');" \
+    2>/dev/null || true)"
+  [ "$ext_version" = "$PROD_TS_VERSION" ] || \
+    die "TimescaleDB staging extension did not reach destination version $PROD_TS_VERSION."
+
   psql_temp -d "$STAGING_DB" -c "SELECT timescaledb_post_restore();" >/dev/null 2>&1 || true
-  log "Staging extension aligned to TimescaleDB $PROD_TS_VERSION."
+  log "Staging TimescaleDB extension aligned to $PROD_TS_VERSION."
 }
 
 validate_after_timescale_upgrade() {
