@@ -67,3 +67,14 @@ def test_general_preserves_managed_domain_configuration():
     assert general.primary_domain == domain
     assert general.domains == [domain]
     assert general.server_addresses == [address]
+
+
+def test_managed_domain_accepts_acme_wildcard_hostname():
+    item = ManagedDomain(id="wildcard", domain="*.Edge.Example.COM")
+    assert item.domain == "*.edge.example.com"
+
+
+@pytest.mark.parametrize("domain", ["*.*.example.com", "foo.*.example.com", "*"])
+def test_managed_domain_rejects_invalid_wildcard_hostname(domain):
+    with pytest.raises(ValueError):
+        ManagedDomain(id="wildcard-invalid", domain=domain)
