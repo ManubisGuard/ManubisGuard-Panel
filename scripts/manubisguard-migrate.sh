@@ -51,6 +51,7 @@ CUTOVER_DB=""
 CUTOVER_URL=""
 PREVIOUS_DB=""
 FAILED_DB=""
+COMPOSE_SHA256=""
 
 log() { printf '[%s] %s\n' "$SCRIPT_NAME" "$*"; }
 warn() { printf '[%s] WARNING: %s\n' "$SCRIPT_NAME" "$*" >&2; }
@@ -205,6 +206,25 @@ load_database_identity() {
     PROD_HAS_TIMESCALE=true
   fi
   log "Production DB=$DB_NAME PostgreSQL=$PG_MAJOR TimescaleDB=${PROD_TS_VERSION:-none}"
+}
+
+capture_compose_integrity() {
+  [ -f "$COMPOSE_FILE" ] || die "Compose file not found: $COMPOSE_FILE"
+  COMPOSE_SHA256="$(sha256sum "$COMPOSE_FILE" | awk '{print $1}')"
+  [ -n "$COMPOSE_SHA256" ] || die "Could not fingerprint the ManubisGuard compose file."
+  printf '%s  %s\\n' "$COMPOSE_SHA256" "$COMPOSE_FILE" >"$WORKDIR/compose.sha256"
+  log "Compose integrity captured: $COMPOSE_SHA256"
+}
+
+verify_compose_integrity() {
+  [ -n "$COMPOSE_SHA256" ] || die "Compose integrity fingerprint is missing."
+  [ -f "$COMPOSE_FILE" ] || die "CRITICAL: ManubisGuard compose file disappeared."
+  local current
+  current="$(sha256sum "$COMPOSE_FILE" | awk '{print $1}')"
+  if [ "$current" != "$COMPOSE_SHA256" ]; then
+    printf '%s  %s\\n' "$current" "$COMPOSE_FILE" >"$WORKDIR/compose-changed.sha256"
+    die "CRITICAL: migration attempted to change docker-compose.yml. Production deployment was not trusted."
+  fi
 }
 
 copy_backup_to_workspace() {
@@ -617,9 +637,11 @@ main() {
   find_services
   load_database_identity
   copy_backup_to_workspace
+  capture_compose_integrity
   log "Workspace: $WORKDIR"
 
   analyze_backup
+  verify_compose_integrity
 
   local uses_ts stage_version
   uses_ts="$(json_get "$(cat "$WORKDIR/analysis.json")" ".uses_timescaledb")"
@@ -635,14 +657,17 @@ main() {
     die "This migration helper currently supports the PostgreSQL/TimescaleDB production path only."
   fi
 
+  verify_compose_integrity
   if ! run_staging; then
     die "Staging restore failed. Production was not modified."
   fi
   validate_staging_result
+  verify_compose_integrity
 
   upgrade_temp_timescale_to_target
   validate_after_timescale_upgrade
   dump_staging
+  verify_compose_integrity
 
   if [ "$APPLY" != true ]; then
     log "STAGING-ONLY COMPLETE. Production was not modified."
@@ -651,12 +676,14 @@ main() {
     return 0
   fi
 
+  verify_compose_integrity
   create_cutover_database
   timescale_prepare_cutover
   restore_dump_to_cutover
   validate_cutover
   compare_cutover_counts
   final_cutover
+  verify_compose_integrity
 }
 
 main "$@"
