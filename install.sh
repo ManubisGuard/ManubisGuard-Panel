@@ -232,6 +232,114 @@ confirm_database() {
   fi
 }
 
+select_ssl() {
+  echo
+  echo "========== SSL configuration =========="
+  echo "1) Domain SSL - Let's Encrypt"
+  echo "2) IP SSL - Let's Encrypt short-lived certificate"
+  echo "3) No SSL"
+  if [[ "$ASSUME_YES" == true ]]; then SSL_MODE="none"; return; fi
+  while true; do
+    read -r -p "Select [1-3]: " choice
+    case "$choice" in
+      1)
+        SSL_MODE="domain"
+        read -r -p "Domain/subdomain: " SSL_IDENTIFIER
+        [[ "$SSL_IDENTIFIER" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || { echo "Invalid domain."; continue; }
+        read -r -p "Let's Encrypt email: " SSL_EMAIL
+        [[ "$SSL_EMAIL" == *@*.* ]] || { echo "Invalid email."; continue; }
+        break ;;
+      2)
+        SSL_MODE="ip"
+        SERVER_PUBLIC_IP="$(curl -4fsS --max-time 10 https://api.ipify.org || true)"
+        [[ -n "$SERVER_PUBLIC_IP" ]] || SERVER_PUBLIC_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+        read -r -p "IP address [$SERVER_PUBLIC_IP]: " SSL_IDENTIFIER
+        SSL_IDENTIFIER="${SSL_IDENTIFIER:-$SERVER_PUBLIC_IP}"
+        python3 - "$SSL_IDENTIFIER" <<'PY' || { echo "Invalid IP."; continue; }
+import ipaddress,sys
+try: ipaddress.ip_address(sys.argv[1])
+except Exception: raise SystemExit(1)
+PY
+        read -r -p "Let's Encrypt email: " SSL_EMAIL
+        [[ "$SSL_EMAIL" == *@*.* ]] || { echo "Invalid email."; continue; }
+        break ;;
+      3) SSL_MODE="none"; break ;;
+      *) echo "Invalid selection." ;;
+    esac
+  done
+  echo "SSL mode: $SSL_MODE"
+}
+
+check_ssl_prerequisites() {
+  [[ "$SSL_MODE" == "none" ]] && return 0
+  if ss -lntp 2>/dev/null | grep -qE ':80[[:space:]]'; then
+    ss -lntp 2>/dev/null | grep -E ':80[[:space:]]' || true
+    die "Port 80 is already in use. Free it before Let's Encrypt validation."
+  fi
+  if ss -lntp 2>/dev/null | grep -qE ':443[[:space:]]'; then
+    ss -lntp 2>/dev/null | grep -E ':443[[:space:]]' || true
+    die "Port 443 is already in use. Free it before enabling direct Uvicorn SSL."
+  fi
+  if [[ "$SSL_MODE" == "domain" ]]; then
+    local resolved
+    resolved="$(getent ahostsv4 "$SSL_IDENTIFIER" 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ')"
+    [[ -n "$resolved" ]] || die "Domain $SSL_IDENTIFIER does not resolve."
+    SERVER_PUBLIC_IP="$(curl -4fsS --max-time 10 https://api.ipify.org || true)"
+    if [[ -n "$SERVER_PUBLIC_IP" && " $resolved " != *" $SERVER_PUBLIC_IP "* ]]; then
+      log "WARNING: $SSL_IDENTIFIER resolves to $resolved; this server is $SERVER_PUBLIC_IP"
+      ask_yes_no "Continue anyway?" || die "Fix DNS before requesting SSL."
+    fi
+  fi
+}
+
+ensure_certbot() {
+  if command -v certbot >/dev/null 2>&1; then
+    local version
+    version="$(certbot --version 2>&1 | awk '{print $2}' | sed 's/^v//')"
+    if [[ -n "$version" ]] && dpkg --compare-versions "$version" ge "5.4.0"; then return 0; fi
+  fi
+  if ! command -v snap >/dev/null 2>&1; then
+    apt-get update && apt-get install -y snapd
+    systemctl enable --now snapd.socket >/dev/null 2>&1 || true
+    sleep 2
+  fi
+  snap install core >/dev/null 2>&1 || true
+  snap refresh core >/dev/null 2>&1 || true
+  snap install --classic certbot >/dev/null 2>&1 || snap refresh certbot
+  ln -sf /snap/bin/certbot /usr/local/bin/certbot
+}
+
+issue_ssl_certificate() {
+  [[ "$SSL_MODE" == "none" ]] && return 0
+  check_ssl_prerequisites
+  ensure_certbot
+  mkdir -p "$CERT_DIR" "$CERTBOT_CONFIG_DIR" "$CERTBOT_WORK_DIR" "$CERTBOT_LOGS_DIR"
+  chmod 700 "$CERT_DIR"
+  mkdir -p "$CERTBOT_CONFIG_DIR/renewal-hooks/deploy"
+  cat > "$CERTBOT_CONFIG_DIR/renewal-hooks/deploy/restart-pasarguard.sh" <<HOOK
+#!/bin/sh
+set -eu
+cd "$INSTALL_DIR"
+docker compose restart pasarguard >/dev/null 2>&1 || true
+HOOK
+  chmod 700 "$CERTBOT_CONFIG_DIR/renewal-hooks/deploy/restart-pasarguard.sh"
+
+  local common_args=(certonly --standalone --non-interactive --agree-tos --email "$SSL_EMAIL" --cert-name pasarguard --config-dir "$CERTBOT_CONFIG_DIR" --work-dir "$CERTBOT_WORK_DIR" --logs-dir "$CERTBOT_LOGS_DIR")
+  log "Requesting Let's Encrypt certificate..."
+  if [[ "$SSL_MODE" == "ip" ]]; then
+    certbot "${common_args[@]}" --preferred-profile shortlived --ip-address "$SSL_IDENTIFIER"
+  else
+    certbot "${common_args[@]}" -d "$SSL_IDENTIFIER"
+  fi
+  SSL_CERTFILE="$CERTBOT_CONFIG_DIR/live/pasarguard/fullchain.pem"
+  SSL_KEYFILE="$CERTBOT_CONFIG_DIR/live/pasarguard/privkey.pem"
+  [[ -s "$SSL_CERTFILE" && -s "$SSL_KEYFILE" ]] || die "SSL certificate/key was not created."
+  chmod 644 "$SSL_CERTFILE"
+  chmod 600 "$SSL_KEYFILE"
+  log "SSL certificate: $SSL_CERTFILE"
+  log "SSL private key: $SSL_KEYFILE"
+}
+
 prepare_source() {
   if [[ -d "$INSTALL_DIR/.git" ]]; then
     if git -C "$INSTALL_DIR" status --porcelain 2>/dev/null | grep -q . && [[ "$ASSUME_YES" != true ]]; then
@@ -343,9 +451,13 @@ install_panel() {
   docker compose up -d pasarguard
 
   log "Waiting for PasarGuard..."
+  local health_url="http://127.0.0.1:8000/health"
+  [[ "$SSL_MODE" != "none" ]] && health_url="https://127.0.0.1:443/health"
   for i in {1..90}; do
-    if curl -fsS --max-time 3 http://127.0.0.1:8000/health >/dev/null 2>&1; then
-      return 0
+    if [[ "$SSL_MODE" != "none" ]]; then
+      curl -kfsS --max-time 3 "$health_url" >/dev/null 2>&1 && return 0
+    else
+      curl -fsS --max-time 3 "$health_url" >/dev/null 2>&1 && return 0
     fi
     sleep 2
   done
