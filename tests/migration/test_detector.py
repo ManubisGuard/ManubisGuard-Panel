@@ -88,3 +88,21 @@ def test_zip_symlink_is_blocked(tmp_path: Path):
 
     assert not result.ok
     assert any("link/special" in error.lower() for error in result.blocking_errors)
+
+
+def test_detects_source_postgres_major_from_dump_header(tmp_path: Path):
+    backup = tmp_path / "backup.sql"
+    backup.write_text(
+        "-- PostgreSQL database dump\n"
+        "-- Dumped from database version 17.10\n"
+        "-- Dumped by pg_dump version 17.10\n"
+        "CREATE TABLE alembic_version (version_num varchar(32));\n"
+        "CREATE TABLE core_configs (id integer);\n"
+        "CREATE TABLE nodes (id integer);\n"
+        "-- PasarGuard backup\n",
+        encoding="utf-8",
+    )
+
+    result = detect_backup(backup)
+
+    assert result.source_postgres_major == 17
