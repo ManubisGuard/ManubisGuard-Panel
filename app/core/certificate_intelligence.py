@@ -177,13 +177,13 @@ class ExistingCertificateValidator:
 
         result.domain_matches = self._domain_matches(normalized, result.san, result.subject)
         if not result.key_matches:
-            errors.append("private_key_mismatch")
+            result.errors.append("private_key_mismatch")
         if not result.domain_matches:
-            errors.append("domain_mismatch")
+            result.errors.append("domain_mismatch")
         if not result.currently_valid:
-            errors.append("certificate_expired_or_not_yet_valid")
+            result.errors.append("certificate_expired_or_not_yet_valid")
 
-        result.valid = not errors
+        result.valid = not result.errors
         return result
 
     @staticmethod
