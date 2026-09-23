@@ -546,9 +546,11 @@ rollback_after_failed_health() {
   FAILED_DB="$DB_NAME"_"failed_"$ID
   warn "Panel did not become healthy; rolling the database back."
   docker compose -f "$COMPOSE_FILE" stop "$COMPOSE_SERVICE" >/dev/null 2>&1 || true
+  psql_prod -d postgres -c "ALTER DATABASE \"$DB_NAME\" WITH ALLOW_CONNECTIONS false;" >/dev/null 2>&1 || true
   terminate_database_connections "$DB_NAME" || true
   psql_prod -d postgres -c "ALTER DATABASE \"$DB_NAME\" RENAME TO \"$FAILED_DB\";" >/dev/null 2>&1 || true
   terminate_database_connections "$PREVIOUS_DB" || true
+  psql_prod -d postgres -c "ALTER DATABASE \"$PREVIOUS_DB\" WITH ALLOW_CONNECTIONS true;" >/dev/null 2>&1 || true
   psql_prod -d postgres -c "ALTER DATABASE \"$PREVIOUS_DB\" RENAME TO \"$DB_NAME\";" >/dev/null 2>&1 ||     die "CRITICAL: rollback failed; old database remains $PREVIOUS_DB."
   start_panel || true
   die "Panel health failed. Production was rolled back. Failed database kept as $FAILED_DB."
