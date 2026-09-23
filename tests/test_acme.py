@@ -369,6 +369,7 @@ class FakeAcmeSession:
             if self.authz_polls == 1:
                 body = {
                     "status": "pending",
+                    "identifier": {"type": "dns", "value": "edge.example.com"},
                     "challenges": [
                         {
                             "type": "http-01",
