@@ -9,6 +9,7 @@ from uuid import uuid4
 from app.core.certificate_intelligence import ExistingCertificateValidator
 from app.models.domain_intelligence import ExistingCertificateValidation
 from app.models.settings import ManagedDomain
+from config import certificate_settings
 
 
 DEFAULT_CERTIFICATE_DIR = Path("/var/lib/PasarGuard/certs")
@@ -18,7 +19,7 @@ class CertificateArtifactStore:
     """Store managed TLS certificate artifacts outside the database."""
 
     def __init__(self, base_dir: str | Path | None = None):
-        configured = base_dir if base_dir is not None else os.getenv("PASARGUARD_CERTIFICATE_DIR")
+        configured = base_dir if base_dir is not None else certificate_settings.artifact_directory
         self.base_dir = Path(configured) if configured else DEFAULT_CERTIFICATE_DIR
 
     def validate_pair(
