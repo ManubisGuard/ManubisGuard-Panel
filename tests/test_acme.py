@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -33,8 +34,6 @@ async def test_http01_challenge_store_persists_and_cleans_up(tmp_path: Path):
 
     await store.cleanup("edge.example.com", token)
     assert store.get(token) is None
-
-
 
 
 @pytest.mark.asyncio
@@ -138,7 +137,7 @@ async def test_cloudflare_dns01_provider_creates_and_cleans_txt_record():
     assert session.created_record["type"] == "TXT"
     assert session.created_record["name"] == "_acme-challenge.edge.example.com"
     assert session.created_record["content"] == AcmeCertificateClient._b64(
-        __import__("hashlib").sha256(("d" * 43 + ".thumbprint").encode()).digest()
+        hashlib.sha256(("d" * 43 + ".thumbprint").encode()).digest()
     )
     assert session.headers["Authorization"] == "Bearer test-token"
 
@@ -311,6 +310,7 @@ class FakeAcmeSession:
     challenge_token = "b" * 43
     challenge_presented = False
     certificate_pem = ""
+    last_headers = {}
 
     def __init__(self):
         self.authz_polls = 0
@@ -341,6 +341,7 @@ class FakeAcmeSession:
         return FakeAcmeResponse(200, headers={"Replay-Nonce": "nonce-1"})
 
     def post(self, url, data, headers):
+        self.last_headers = headers
         assert headers["Content-Type"] == "application/jose+json"
         if url == "https://acme.test/new-account":
             return FakeAcmeResponse(
@@ -394,6 +395,7 @@ class FakeAcmeSession:
             body = {"status": "valid", "certificate": "https://acme.test/cert/1"}
             return FakeAcmeResponse(200, json.dumps(body).encode(), {"Replay-Nonce": "nonce-order"})
         if url == "https://acme.test/cert/1":
+            assert self.last_headers["Accept"] == "application/pem-certificate-chain"
             return FakeAcmeResponse(
                 200,
                 self.certificate_pem.encode(),
