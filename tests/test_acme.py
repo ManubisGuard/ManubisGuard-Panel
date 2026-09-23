@@ -18,6 +18,7 @@ from app.core.acme import (
 )
 from app.core.certificate_store import CertificateArtifactStore
 from app.models.settings import ManagedDomain
+from app.routers.acme import acme_http01_challenge
 
 
 @pytest.mark.asyncio
@@ -31,6 +32,22 @@ async def test_http01_challenge_store_persists_and_cleans_up(tmp_path: Path):
 
     await store.cleanup(token)
     assert store.get(token) is None
+
+
+
+
+@pytest.mark.asyncio
+async def test_acme_http01_route_serves_persisted_challenge(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("PASARGUARD_CERTIFICATE_DIR", str(tmp_path))
+    store = AcmeHttp01ChallengeStore()
+    token = "c" * 43
+    await store.present(token, "route-value")
+
+    response = await acme_http01_challenge(token)
+
+    assert response.status_code == 200
+    assert response.body == b"route-value"
+    assert response.headers["cache-control"] == "no-store"
 
 
 @pytest.mark.asyncio
