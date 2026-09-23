@@ -112,6 +112,11 @@ def read_archive_member(archive: Path, wanted: str) -> bytes | None:
         if suffix.endswith(".zip"):
             with zipfile.ZipFile(archive) as zf:
                 for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    mode = (info.external_attr >> 16) & 0o170000
+                    if mode == 0o120000 or (mode and mode != 0o100000):
+                        raise ValueError("archive contains a link or special file")
                     name = safe_member(info.filename)
                     if name == wanted:
                         return zf.read(info)
