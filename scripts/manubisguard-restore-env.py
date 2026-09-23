@@ -28,6 +28,19 @@ DENY_KEYS = {
     "POSTGRES_PASSWORD",
     "PGADMIN_EMAIL",
     "PGADMIN_PASSWORD",
+    "PGHOST",
+    "PGPORT",
+    "PGUSER",
+    "PGDATABASE",
+    "PGPASSWORD",
+    "PGSERVICE",
+    "PGSERVICEFILE",
+    "POSTGRES_USER",
+    "POSTGRES_DB",
+    "POSTGRES_HOST",
+    "DB_HOST",
+    "DB_PORT",
+    "DATABASE_URL",
 }
 
 # Deployment/build controls must never come from a backup.
@@ -140,6 +153,11 @@ def extract_archive_tree(archive: Path, destination: Path) -> None:
         if suffix.endswith(".zip"):
             with zipfile.ZipFile(archive) as zf:
                 for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    mode = (info.external_attr >> 16) & 0o170000
+                    if mode == 0o120000 or (mode and mode != 0o100000):
+                        raise ValueError("archive contains a link or special file")
                     name = safe_member(info.filename)
                     if not name:
                         continue
