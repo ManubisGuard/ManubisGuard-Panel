@@ -249,24 +249,18 @@ PY
 prepare_runtime_env() {
   [ -f "$CURRENT_ENV" ] || die "Current ManubisGuard .env not found: $CURRENT_ENV"
   ENV_CANDIDATE="$WORKDIR/.env.migration"
-  log "Preparing runtime .env from legacy backup without importing deployment/database identity..."
-  if ! output="$(python3 /opt/manubisguard-panel/scripts/manubisguard-restore-env.py       "$PANEL_BACKUP" "$CURRENT_ENV" "$ENV_CANDIDATE" 2>&1)"; then
+  RUNTIME_ASSET_STAGE="$WORKDIR/runtime-assets"
+  mkdir -p "$RUNTIME_ASSET_STAGE"
+  log "Preparing runtime .env and referenced SSL assets from legacy backup..."
+  if ! output="$(python3 /opt/manubisguard-panel/scripts/manubisguard-restore-env.py \
+      "$PANEL_BACKUP" "$CURRENT_ENV" "$ENV_CANDIDATE" \
+      --asset-stage-root "$RUNTIME_ASSET_STAGE" 2>&1)"; then
     printf '%s\\n' "$output" >"$WORKDIR/env-restore.error"
-    die "Legacy .env preparation failed."
+    die "Legacy runtime environment preparation failed."
   fi
   printf '%s\\n' "$output" >"$WORKDIR/env-restore.log"
   cp -- "$CURRENT_ENV" "$WORKDIR/.env.before-migration"
   chmod 600 "$ENV_CANDIDATE" "$WORKDIR/.env.before-migration"
-
-  RUNTIME_ASSET_STAGE="$WORKDIR/runtime-assets"
-  mkdir -p "$RUNTIME_ASSET_STAGE"
-  if ! output="$(python3 /opt/manubisguard-panel/scripts/manubisguard-restore-env.py \
-      "$PANEL_BACKUP" "$CURRENT_ENV" "$ENV_CANDIDATE" \
-      --asset-stage-root "$RUNTIME_ASSET_STAGE" 2>&1)"; then
-    printf '%s\\n' "$output" >>"$WORKDIR/env-restore.error"
-    die "Legacy runtime asset preparation failed."
-  fi
-  printf '%s\\n' "$output" >>"$WORKDIR/env-restore.log"
   if grep -q '^ENV_SOURCE=legacy' "$WORKDIR/env-restore.log" 2>/dev/null; then
     ENV_IMPORTED=true
   fi
