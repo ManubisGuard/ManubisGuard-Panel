@@ -72,3 +72,31 @@ def test_stream_sanitizer_handles_realistic_globals_shape_without_loading_passwo
     assert 'CREATE ROLE "legacy_admin" WITH LOGIN;' in transformed
     assert removed == 1
     assert suppressed == 2
+
+
+def test_create_user_password_is_removed():
+    transformed, removed, suppressed = prepare_postgresql_sql(
+        "CREATE USER legacy WITH LOGIN PASSWORD 'secret';\n",
+    )
+    assert "secret" not in transformed
+    assert removed == 1
+    assert suppressed == 0
+
+
+def test_multiline_role_password_is_removed():
+    transformed, removed, suppressed = prepare_postgresql_sql(
+        "ALTER ROLE legacy\nWITH LOGIN\nPASSWORD 'secret';\n",
+    )
+    assert "secret" not in transformed
+    assert removed == 1
+    assert suppressed == 0
+
+
+def test_multiline_destination_user_statement_is_suppressed():
+    transformed, removed, suppressed = prepare_postgresql_sql(
+        "ALTER USER destination\nWITH LOGIN\nPASSWORD 'secret';\n",
+        destination_role="destination",
+    )
+    assert transformed == ""
+    assert removed == 0
+    assert suppressed == 1
