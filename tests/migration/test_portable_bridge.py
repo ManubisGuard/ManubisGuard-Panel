@@ -9,7 +9,10 @@ from app.migration.portable_bridge import (
     build_hypertable_sql,
     build_pg_dump_data_args,
     build_policy_sql,
+    build_portable_bridge_artifacts,
     build_portable_plan,
+    render_hypertable_sql,
+    render_post_data_sql,
     render_recreate_sql,
 )
 
@@ -172,3 +175,65 @@ def test_rendered_plan_analyzes_data_after_rebuild():
         policy_rows=[],
     )
     assert render_recreate_sql(plan).rstrip().endswith("ANALYZE;")
+
+
+def test_bridge_artifacts_are_written_from_source_metadata(monkeypatch, tmp_path):
+    import app.migration.portable_bridge as bridge
+
+    monkeypatch.setattr(
+        bridge,
+        "_read_source_metadata",
+        lambda url: None,
+    )
+
+    async def fake_read(_url):
+        return (
+            [{"hypertable_schema": "public", "hypertable_name": "usage"}],
+            [{
+                "hypertable_schema": "public",
+                "hypertable_name": "usage",
+                "dimension_number": 1,
+                "column_name": "time",
+                "dimension_type": "Time",
+                "time_interval": "1 day",
+                "integer_interval": None,
+                "num_partitions": None,
+            }],
+            [],
+            [],
+        )
+
+    monkeypatch.setattr(bridge, "_read_source_metadata", fake_read)
+    plan = build_portable_bridge_artifacts(
+        "postgresql://unused",
+        source_version="2.30.0",
+        target_version="2.29.0",
+        output_dir=tmp_path,
+    )
+    assert plan.hypertables
+    assert (tmp_path / "portable-plan.json").exists()
+    assert "create_hypertable" in (tmp_path / "portable-hypertables.sql").read_text()
+    assert (tmp_path / "portable-post-data.sql").read_text().endswith("ANALYZE;\n")
+
+
+def test_bridge_recreation_is_ordered_around_data():
+    plan = build_portable_plan(
+        source_version="2.30.0",
+        target_version="2.29.0",
+        hypertable_rows=[{"hypertable_schema": "public", "hypertable_name": "usage"}],
+        dimension_rows=[{
+            "hypertable_schema": "public",
+            "hypertable_name": "usage",
+            "dimension_number": 1,
+            "column_name": "time",
+            "dimension_type": "Time",
+            "time_interval": "1 day",
+            "integer_interval": None,
+            "num_partitions": None,
+        }],
+        continuous_aggregate_rows=[],
+        policy_rows=[],
+    )
+    assert "create_hypertable" in render_hypertable_sql(plan)
+    assert "ANALYZE;" in render_post_data_sql(plan)
+    assert render_recreate_sql(plan).startswith(render_hypertable_sql(plan))
