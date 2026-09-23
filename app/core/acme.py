@@ -483,10 +483,10 @@ class AcmeCertificateClient:
                     return _BufferedResponse(response.status, response.headers, body_bytes)
                 if attempt == 0 and self._is_bad_nonce(body_bytes) and self._nonce:
                     encoded_body = json.dumps(
-                            self._signed_payload(url, payload, use_jwk=use_jwk),
-                            separators=(",", ":"),
-                        ).encode()
-                        continue
+                        self._signed_payload(url, payload, use_jwk=use_jwk),
+                        separators=(",", ":"),
+                    ).encode()
+                    continue
                 detail = body_bytes.decode(errors="replace")
                 raise AcmeError(f"ACME request failed ({response.status}): {detail[:1000]}")
         raise AcmeError("ACME request failed after nonce retry.")
