@@ -1,4 +1,6 @@
 from pathlib import Path
+
+import pytest
 import importlib.util
 
 
@@ -67,3 +69,37 @@ def test_archive_env_reader_reads_only_exact_env_member(tmp_path: Path):
         zf.writestr(".env", "UVICORN_PORT=8443\n")
         zf.writestr(".env.old", "UVICORN_PORT=1234\n")
     assert mod.read_archive_member(backup, ".env") == b"UVICORN_PORT=8443\n"
+
+
+def test_merge_env_rejects_alternate_postgresql_identity_variables():
+    mod = load_module()
+    current = "UVICORN_PORT=8000\nPGUSER=current\nPGDATABASE=pasarguard\n"
+    legacy = (
+        "PGUSER=legacy\n"
+        "PGDATABASE=legacy_db\n"
+        "PGPASSWORD=legacy-secret\n"
+        "DATABASE_URL=postgresql://legacy@host/legacy\n"
+        "UVICORN_PORT=8443\n"
+    )
+    merged, imported = mod.merge_env(current, legacy)
+    values = mod.parse_env(merged)
+    assert values["PGUSER"] == "current"
+    assert values["PGDATABASE"] == "pasarguard"
+    assert "PGPASSWORD" not in values
+    assert "DATABASE_URL" not in values
+    assert "PGUSER" not in imported
+    assert "PGDATABASE" not in imported
+    assert "UVICORN_PORT" in imported
+
+
+def test_extract_archive_tree_rejects_zip_symlink(tmp_path: Path):
+    mod = load_module()
+    backup = tmp_path / "backup.zip"
+    import zipfile
+    info = zipfile.ZipInfo("pasarguard_data/certs/link.pem")
+    info.external_attr = 0o120777 << 16
+    with zipfile.ZipFile(backup, "w") as zf:
+        zf.writestr(info, "/etc/passwd")
+    destination = tmp_path / "tree"
+    with pytest.raises(ValueError, match="link or special"):
+        mod.extract_archive_tree(backup, destination)
