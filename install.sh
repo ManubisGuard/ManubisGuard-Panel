@@ -12,14 +12,12 @@ install_base() {
   command -v git >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v docker >/dev/null 2>&1 && return
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y git curl ca-certificates openssl
+    DEBIAN_FRONTEND=noninteractive apt-get install -y git curl ca-certificates openssl python3 docker.io docker-compose-plugin
   else
     echo "ERROR: this installer currently requires Debian/Ubuntu (apt-get)."
     exit 1
   fi
-  if ! command -v docker >/dev/null 2>&1; then
-    curl -fsSL https://get.docker.com | sh
-  fi
+
 }
 
 install_base
