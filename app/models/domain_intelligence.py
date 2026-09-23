@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.models.settings import ManagedDomain
 
 
 class DomainDNSResult(BaseModel):
@@ -64,6 +66,11 @@ class DomainIntelligenceResult(BaseModel):
 
 class DomainIntelligenceRequest(BaseModel):
     domain: str
+
+    @field_validator("domain")
+    @classmethod
+    def normalize_domain(cls, value: str) -> str:
+        return ManagedDomain(id="domain-intelligence-request", domain=value).domain
 
 
 class DomainCertificateResult(BaseModel):
