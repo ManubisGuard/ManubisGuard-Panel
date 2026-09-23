@@ -73,6 +73,7 @@ def cmd_migrate_inspect(
             "confidence": result.detection.confidence,
             "evidence": list(result.detection.evidence),
             "schema_revision": result.detection.schema_revision,
+            "source_postgres_major": result.detection.source_postgres_major,
             "warnings": list(result.detection.warnings),
         },
         "preflight": {
