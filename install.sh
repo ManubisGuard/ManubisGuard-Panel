@@ -59,27 +59,37 @@ parse_args() {
 
 install_base() {
   export DEBIAN_FRONTEND=noninteractive
-  apt-get update
-  apt-get install -y ca-certificates curl git openssl python3
 
+  # Do not touch APT when a working Docker/Compose installation already exists.
+  # This avoids Ubuntu's containerd vs Docker's containerd.io conflict.
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    log "Docker and Compose v2 already available."
+    log "Docker and Compose v2 already available; skipping Docker/APT installation."
   else
+    local missing=()
+    for cmd in curl git openssl python3; do
+      command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+    done
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+      log "Installing missing base packages: ${missing[*]}"
+      apt-get update
+      apt-get install -y ca-certificates curl git openssl python3
+    fi
+
     if ! command -v docker >/dev/null 2>&1; then
       log "Installing Docker using the official PasarGuard-compatible method..."
+      # Remove only conflicting Ubuntu Docker/container runtime packages.
+      # Docker data under /var/lib/docker is intentionally preserved.
+      apt-mark unhold docker.io docker-compose docker-compose-v2 containerd runc >/dev/null 2>&1 || true
       apt-get remove -y docker.io docker-compose docker-compose-v2 containerd runc >/dev/null 2>&1 || true
       curl -fsSL https://get.docker.com | sh
     fi
 
-    if ! command -v docker >/dev/null 2>&1; then
-      die "Docker installation failed."
-    fi
+    command -v docker >/dev/null 2>&1 || die "Docker installation failed."
 
     if ! docker compose version >/dev/null 2>&1; then
-      if command -v apt-get >/dev/null 2>&1; then
-        apt-get update
-        apt-get install -y docker-compose-plugin >/dev/null 2>&1 || true
-      fi
+      apt-get update
+      apt-get install -y docker-compose-plugin
     fi
   fi
 
