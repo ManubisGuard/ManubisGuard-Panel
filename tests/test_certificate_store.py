@@ -64,7 +64,7 @@ def test_certificate_artifact_store_writes_and_loads_valid_pair(tmp_path: Path):
 
 
 def test_certificate_artifact_store_uses_configured_directory(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("PASARGUARD_CERTIFICATE_DIR", str(tmp_path))
+    monkeypatch.setattr("app.core.certificate_store.certificate_settings.artifact_directory", str(tmp_path))
     store = CertificateArtifactStore()
     assert store.base_dir == tmp_path
 
