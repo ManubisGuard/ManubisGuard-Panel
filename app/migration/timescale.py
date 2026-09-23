@@ -73,18 +73,24 @@ def choose_timescale_version(
     if live is None:
         raise ValueError(f"Invalid destination TimescaleDB version: {live_version!r}")
 
-    source = None
-    if compatibility.versions:
-        parsed = [v for v in compatibility.versions if version_tuple(v)]
-        if parsed:
-            source = max(parsed, key=lambda v: version_tuple(v) or ())
+    source = compatibility.source_version
+    if source is None and len(compatibility.versions) == 1:
+        source = compatibility.versions[0]
 
     if compatibility.catalog_era == "schema_name":
-        # The pre-2.29 fingerprint is authoritative even when a backup text block
-        # also mentions a newer target image/version.
-        if source and version_tuple(source) and version_tuple(source) >= TIMESCALE_FIRST_RELID:
-            source = TIMESCALE_LAST_SCHEMA_NAME
-        source = source or TIMESCALE_LAST_SCHEMA_NAME
+        # The pre-2.29 catalog requires restoring with the exact source
+        # extension version before any upgrade. A catalog fingerprint alone
+        # cannot distinguish 2.27.x from 2.28.x, so guessing is forbidden.
+        if source is None:
+            raise ValueError(
+                "Pre-2.29 TimescaleDB catalog detected but the exact source "
+                "extension version is unknown. Provide source-version metadata "
+                "or --source-timescale explicitly."
+            )
+        if version_tuple(source) and version_tuple(source) >= TIMESCALE_FIRST_RELID:
+            raise ValueError(
+                f"TimescaleDB source version {source} conflicts with the pre-2.29 catalog fingerprint."
+            )
     elif compatibility.catalog_era == "relid":
         # relid is the post-2.29 catalog. A claim of a pre-2.29 source version
         # is internally inconsistent and must not be guessed around.
@@ -131,7 +137,7 @@ def build_restore_spec(
 
     return TimescaleRestoreSpec(
         target_version=target,
-        source_version=target,
+        source_version=compatibility.source_version or target,
         catalog_era=compatibility.catalog_era,
         image_tag=image_tag,
         conversion_required=conversion_required,
