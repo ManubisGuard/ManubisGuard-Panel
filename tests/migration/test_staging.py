@@ -64,3 +64,23 @@ def test_zip_symlink_is_blocked(tmp_path: Path):
     destination.mkdir()
     with pytest.raises(MigrationSafetyError):
         _safe_extract_zip(archive, destination)
+
+
+def test_sql_gzip_detection_keeps_compressed_format(tmp_path: Path):
+    import gzip
+
+    from app.migration.detector import detect_backup
+
+    backup = tmp_path / "backup.sql.gz"
+    with gzip.open(backup, "wt", encoding="utf-8") as fh:
+        fh.write(
+            "-- PasarGuard backup\n"
+            "CREATE TABLE alembic_version (version_num varchar(32));\n"
+            "CREATE TABLE nodes (id integer);\n"
+            "CREATE TABLE core_configs (id integer);\n"
+        )
+
+    result = detect_backup(backup)
+
+    assert result.format == "sql.gz"
+    assert result.is_pasarguard
