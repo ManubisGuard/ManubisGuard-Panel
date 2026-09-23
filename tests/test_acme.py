@@ -39,7 +39,7 @@ async def test_http01_challenge_store_persists_and_cleans_up(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_acme_http01_route_serves_persisted_challenge(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("PASARGUARD_CERTIFICATE_DIR", str(tmp_path))
+    monkeypatch.setattr("app.core.acme.certificate_settings.artifact_directory", str(tmp_path))
     store = AcmeHttp01ChallengeStore()
     token = "c" * 43
     await store.present("edge.example.com", token, "route-value")
