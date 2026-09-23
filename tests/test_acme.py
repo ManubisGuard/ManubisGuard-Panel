@@ -174,6 +174,9 @@ class FakeCloudflareSession:
         self.deleted_path = None
         self.headers = {}
 
+    async def close(self):
+        return None
+
     def request(self, method, url, json=None, params=None, headers=None):
         self.headers = headers or {}
         path = url.removeprefix("https://api.cloudflare.com/client/v4")
