@@ -64,3 +64,19 @@ class DomainIntelligenceResult(BaseModel):
 
 class DomainIntelligenceRequest(BaseModel):
     domain: str
+
+
+class DomainCertificateResult(BaseModel):
+    domain: str
+    checked_at: datetime
+    reachable: bool = False
+    valid: bool | None = None
+    expires_at: datetime | None = None
+    days_remaining: int | None = None
+    subject: str | None = None
+    issuer: str | None = None
+    serial_number: str | None = None
+    tls_version: str | None = None
+    san: list[str] = Field(default_factory=list)
+    error: str | None = None
+    status: Literal["valid", "expiring", "expired", "invalid", "unreachable"] = "unreachable"
