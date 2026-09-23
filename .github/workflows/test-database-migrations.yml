@@ -13,6 +13,8 @@ on:
             - "uv.lock"
             - "pyproject.toml"
             - ".github/workflows/test-database-migrations.yml"
+            - "scripts/manubisguard-migrate.sh"
+            - "install-manubisguard.sh"
     workflow_dispatch:
 
 jobs:
