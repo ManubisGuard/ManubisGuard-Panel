@@ -41,6 +41,7 @@ PG_MAJOR=""
 PROD_TS_VERSION=""
 PROD_HAS_TIMESCALE=false
 SOURCE_PG_MAJOR=""
+SOURCE_TS_VERSION=""
 
 TEMP_CONTAINER=""
 TEMP_VOLUME=""
@@ -432,7 +433,11 @@ analyze_backup() {
   if [ -n "$SOURCE_PG_MAJOR" ] && ! [[ "$SOURCE_PG_MAJOR" =~ ^[0-9]+$ ]]; then
     die "Backup reported an unsafe source PostgreSQL major: $SOURCE_PG_MAJOR"
   fi
-  log "Accepted source=$(json_get "$output" ".detection.source_product") format=$(json_get "$output" ".detection.format") PostgreSQL=${SOURCE_PG_MAJOR:-unknown}"
+  SOURCE_TS_VERSION="$(json_get "$output" ".timescale.source_version")"
+  if [ -n "$SOURCE_TS_VERSION" ] && ! [[ "$SOURCE_TS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9]+)*$ ]]; then
+    die "Backup reported an unsafe source TimescaleDB version: $SOURCE_TS_VERSION"
+  fi
+  log "Accepted source=$(json_get "$output" ".detection.source_product") format=$(json_get "$output" ".detection.format") PostgreSQL=${SOURCE_PG_MAJOR:-unknown} TimescaleDB=${SOURCE_TS_VERSION:-unknown}"
   if [ "$(json_get "$output" ".uses_timescaledb")" = "True" ] || [ "$(json_get "$output" ".uses_timescaledb")" = "true" ]; then
     log "Backup contains TimescaleDB objects."
   fi
@@ -633,6 +638,160 @@ validate_after_timescale_upgrade() {
   local ok
   ok="$(json_get "$output" ".valid")"
   [ "$ok" = "True" ] || [ "$ok" = "true" ] || die "Post-upgrade staging validation failed."
+}
+
+timescale_version_gt() {
+  python3 - "$1" "$2" <<'PY'
+import sys
+from app.migration.compatibility import version_tuple
+left = version_tuple(sys.argv[1])
+right = version_tuple(sys.argv[2])
+if left is None or right is None:
+    raise SystemExit(2)
+raise SystemExit(0 if left > right else 1)
+PY
+}
+
+portable_bridge_required() {
+  [ "$PROD_HAS_TIMESCALE" = true ] || return 1
+  [ -n "$SOURCE_TS_VERSION" ] || die "Portable Timescale bridge requires an exact source TimescaleDB version."
+  [ -n "$PROD_TS_VERSION" ] || die "Portable Timescale bridge requires the destination TimescaleDB version."
+  timescale_version_gt "$SOURCE_TS_VERSION" "$PROD_TS_VERSION"
+}
+
+PORTABLE_BRIDGE_DIR=""
+PORTABLE_PRE_DATA_DUMP=""
+PORTABLE_DATA_DUMP=""
+PORTABLE_POST_DATA_DUMP=""
+PORTABLE_HYPERTABLE_SQL=""
+PORTABLE_POST_DATA_SQL=""
+PORTABLE_EXCLUDE_TABLES=""
+
+prepare_portable_bridge() {
+  portable_bridge_required || return 1
+  PORTABLE_BRIDGE_DIR="$WORKDIR/portable-bridge"
+  mkdir -p "$PORTABLE_BRIDGE_DIR"
+  local container_dir="/tmp/manubisguard-portable-$ID"
+  docker exec "$PANEL_CONTAINER" rm -rf "$container_dir"
+  docker exec "$PANEL_CONTAINER" mkdir -p "$container_dir"
+
+  log "Extracting portable Timescale metadata from source-compatible staging runtime..."
+  docker exec \
+    -e MANUBISGUARD_BRIDGE_DATABASE_URL="$STAGING_URL" \
+    "$PANEL_CONTAINER" \
+    python -m app.migration.portable_bridge \
+    --database-url-env MANUBISGUARD_BRIDGE_DATABASE_URL \
+    --source-version "$SOURCE_TS_VERSION" \
+    --target-version "$PROD_TS_VERSION" \
+    --output-dir "$container_dir" \
+    >"$WORKDIR/portable-bridge.json"
+
+  docker cp "$PANEL_CONTAINER:$container_dir/portable-plan.json" \
+    "$PORTABLE_BRIDGE_DIR/portable-plan.json"
+  docker cp "$PANEL_CONTAINER:$container_dir/portable-hypertables.sql" \
+    "$PORTABLE_BRIDGE_DIR/portable-hypertables.sql"
+  docker cp "$PANEL_CONTAINER:$container_dir/portable-post-data.sql" \
+    "$PORTABLE_BRIDGE_DIR/portable-post-data.sql"
+  docker cp "$PANEL_CONTAINER:$container_dir/portable-exclude-tables.txt" \
+    "$PORTABLE_BRIDGE_DIR/portable-exclude-tables.txt"
+
+  PORTABLE_HYPERTABLE_SQL="$PORTABLE_BRIDGE_DIR/portable-hypertables.sql"
+  PORTABLE_POST_DATA_SQL="$PORTABLE_BRIDGE_DIR/portable-post-data.sql"
+  PORTABLE_EXCLUDE_TABLES="$PORTABLE_BRIDGE_DIR/portable-exclude-tables.txt"
+
+  log "Portable bridge metadata prepared: $(cat "$WORKDIR/portable-bridge.json")"
+}
+
+portable_pg_dump() {
+  local section="$1"
+  local output="$2"
+  local extra_args=()
+  local table
+  if [ -s "$PORTABLE_EXCLUDE_TABLES" ]; then
+    while IFS= read -r table; do
+      [ -n "$table" ] || continue
+      extra_args+=("--exclude-table=$table")
+    done <"$PORTABLE_EXCLUDE_TABLES"
+  fi
+
+  local args=(
+    pg_dump
+    -U "$DB_USER"
+    -d "$STAGING_DB"
+    --format=plain
+    --quote-all-identifiers
+    --no-owner
+    --no-privileges
+    --no-tablespaces
+    "--section=$section"
+    "--exclude-extension=timescaledb"
+    "--exclude-schema=_timescaledb_internal"
+    "--exclude-schema=_timescaledb_catalog"
+    "--exclude-schema=_timescaledb_config"
+  )
+  args+=("\${extra_args[@]}")
+
+  if ! docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" "\${args[@]}" >"$output"; then
+    rm -f "$output"
+    die "Portable $section pg_dump failed. Production was not modified."
+  fi
+  [ -s "$output" ] || die "Portable $section dump is empty."
+  chmod 600 "$output"
+}
+
+filter_portable_dump_for_target() {
+  local source="$1"
+  local target="$2"
+  cat "$source" | docker exec -i "$PANEL_CONTAINER" python -c '
+import sys
+from app.migration.timescale import filter_postgresql_compatibility_line, filter_timescaledb_ddl_line
+for raw in sys.stdin:
+    line = raw.rstrip("\r\n")
+    if filter_postgresql_compatibility_line(line, target_pg_major=int("'$PG_MAJOR'")):
+        continue
+    if filter_timescaledb_ddl_line(line):
+        continue
+    sys.stdout.write(line + "\n")
+' >"$target"
+  [ -s "$target" ] || die "Filtered portable dump became empty."
+}
+
+restore_portable_bridge_to_cutover() {
+  [ -n "$CUTOVER_DB" ] || die "Portable bridge requires a cutover database."
+  [ -s "$PORTABLE_HYPERTABLE_SQL" ] || die "Portable hypertable SQL is missing."
+  [ -s "$PORTABLE_POST_DATA_SQL" ] || die "Portable post-data SQL is missing."
+
+  PORTABLE_PRE_DATA_DUMP="$PORTABLE_BRIDGE_DIR/pre-data.sql"
+  PORTABLE_DATA_DUMP="$PORTABLE_BRIDGE_DIR/data.sql"
+  PORTABLE_POST_DATA_DUMP="$PORTABLE_BRIDGE_DIR/post-data.sql"
+
+  log "Building portable PostgreSQL pre-data/schema transfer..."
+  portable_pg_dump pre-data "$PORTABLE_PRE_DATA_DUMP.raw"
+  filter_portable_dump_for_target "$PORTABLE_PRE_DATA_DUMP.raw" "$PORTABLE_PRE_DATA_DUMP"
+
+  log "Restoring portable pre-data schema into cutover database..."
+  cat "$PORTABLE_PRE_DATA_DUMP" | psql_prod -d "$CUTOVER_DB"
+
+  log "Recreating Timescale hypertables and dimensions before data load..."
+  cat "$PORTABLE_HYPERTABLE_SQL" | psql_prod -d "$CUTOVER_DB"
+
+  log "Building portable user-table data transfer..."
+  portable_pg_dump data "$PORTABLE_DATA_DUMP.raw"
+  filter_portable_dump_for_target "$PORTABLE_DATA_DUMP.raw" "$PORTABLE_DATA_DUMP"
+
+  log "Restoring portable user-table data..."
+  cat "$PORTABLE_DATA_DUMP" | psql_prod -d "$CUTOVER_DB"
+
+  log "Building portable post-data/index/constraint transfer..."
+  portable_pg_dump post-data "$PORTABLE_POST_DATA_DUMP.raw"
+  filter_portable_dump_for_target "$PORTABLE_POST_DATA_DUMP.raw" "$PORTABLE_POST_DATA_DUMP"
+
+  log "Restoring portable post-data objects..."
+  cat "$PORTABLE_POST_DATA_DUMP" | psql_prod -d "$CUTOVER_DB"
+
+  log "Recreating continuous aggregates, policies and statistics..."
+  cat "$PORTABLE_POST_DATA_SQL" | psql_prod -d "$CUTOVER_DB"
+  rm -f "$PORTABLE_PRE_DATA_DUMP.raw" "$PORTABLE_DATA_DUMP.raw" "$PORTABLE_POST_DATA_DUMP.raw"
 }
 
 dump_staging() {
@@ -914,8 +1073,13 @@ main() {
   local uses_ts stage_version
   uses_ts="$(json_get "$(cat "$WORKDIR/analysis.json")" ".uses_timescaledb")"
   if [ "$PROD_HAS_TIMESCALE" = true ]; then
-    stage_version="$(json_get "$(cat "$WORKDIR/analysis.json")" ".staging_timescale_version")"
-    stage_version="${stage_version:-$PROD_TS_VERSION}"
+    if portable_bridge_required; then
+      stage_version="$SOURCE_TS_VERSION"
+      log "Source TimescaleDB $SOURCE_TS_VERSION is newer than destination $PROD_TS_VERSION; enabling Portable Timescale Bridge."
+    else
+      stage_version="$(json_get "$(cat "$WORKDIR/analysis.json")" ".staging_timescale_version")"
+      stage_version="${stage_version:-$PROD_TS_VERSION}"
+    fi
     [ -n "$stage_version" ] || die "No compatible TimescaleDB staging version was selected."
     start_temp_timescale "$stage_version"
     create_staging_database
@@ -931,6 +1095,28 @@ main() {
   fi
   validate_staging_result
   verify_compose_integrity
+
+  if portable_bridge_required; then
+    prepare_portable_bridge
+    verify_compose_integrity
+
+    if [ "$APPLY" != true ]; then
+      log "STAGING-ONLY PORTABLE BRIDGE PREPARED. Production was not modified."
+      log "Portable artifacts: $PORTABLE_BRIDGE_DIR"
+      log "Use --apply to restore the portable bridge into an isolated cutover database."
+      return 0
+    fi
+
+    verify_compose_integrity
+    create_cutover_database
+    timescale_prepare_cutover
+    restore_portable_bridge_to_cutover
+    validate_cutover
+    compare_cutover_counts
+    final_cutover
+    verify_compose_integrity
+    return 0
+  fi
 
   upgrade_temp_timescale_to_target
   validate_after_timescale_upgrade
