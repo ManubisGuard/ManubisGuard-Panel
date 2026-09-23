@@ -9,6 +9,15 @@ ENV_FILE="$INSTALL_DIR/.env"
 DATABASE="sqlite"
 ASSUME_YES=false
 OVERRIDE=false
+SSL_MODE="none"
+SSL_IDENTIFIER=""
+SSL_EMAIL=""
+SSL_CERTFILE=""
+SSL_KEYFILE=""
+CERT_DIR="$DATA_DIR/certs"
+CERTBOT_CONFIG_DIR="$CERT_DIR/letsencrypt"
+CERTBOT_WORK_DIR="$CERT_DIR/work"
+CERTBOT_LOGS_DIR="$CERT_DIR/logs"
 
 [[ "$EUID" -eq 0 ]] || { echo "ERROR: run this installer as root."; exit 1; }
 
@@ -43,7 +52,12 @@ usage() {
   echo
   echo "Options:"
   echo "  --yes        Accept safe reuse choices automatically; never deletes data"
-  echo "  --override   Explicitly allow replacement of detected PasarGuard DB/data"
+  echo "  --override   Explicitly allow replacement/update of an existing PasarGuard installation"
+  echo
+  echo "SSL is selected interactively during installation:"
+  echo "  1) Domain SSL"
+  echo "  2) IP SSL (short-lived)"
+  echo "  3) No SSL"
 }
 
 parse_args() {
@@ -93,58 +107,59 @@ parse_args() {
 detect_environment() {
   echo
   echo "========== Environment detection =========="
-
   if command -v docker >/dev/null 2>&1; then
     DOCKER_VERSION="$(docker --version 2>/dev/null || true)"
-    if docker compose version >/dev/null 2>&1; then
-      COMPOSE_VERSION="$(docker compose version 2>/dev/null || true)"
-      if docker info >/dev/null 2>&1; then
-        log "Docker detected and healthy: $DOCKER_VERSION"
-        log "Compose detected: $COMPOSE_VERSION"
-        log "Action: reuse existing Docker installation."
-      else
-        log "Docker is installed but the daemon is not healthy."
-        systemctl enable --now docker >/dev/null 2>&1 || true
-        docker info >/dev/null 2>&1 || die "Docker is installed but cannot be started."
-      fi
+    if docker compose version >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+      log "Docker detected and healthy: $DOCKER_VERSION"
+      log "Compose: $(docker compose version 2>/dev/null)"
+    elif docker compose version >/dev/null 2>&1; then
+      systemctl enable --now docker >/dev/null 2>&1 || true
+      docker info >/dev/null 2>&1 || die "Docker cannot be started."
     else
-      log "Docker detected but Docker Compose v2 is missing."
-      if ask_yes_no "Install only the missing Docker Compose plugin?"; then
-        apt-get update
-        apt-get install -y docker-compose-plugin
-      else
-        die "Docker Compose v2 is required."
-      fi
+      ask_yes_no "Docker exists but Compose v2 is missing. Install the plugin?" || die "Docker Compose v2 is required."
+      apt-get update && apt-get install -y docker-compose-plugin
     fi
   else
-    log "Docker not detected."
-    if ask_yes_no "Install Docker using the official Docker repository?"; then
-      install_docker
-    else
-      die "Docker is required."
-    fi
+    ask_yes_no "Docker is not installed. Install it now?" || die "Docker is required."
+    install_docker
   fi
 
-  if [[ -f "$DATA_DIR/db.sqlite3" ]]; then
-    log "Existing SQLite database detected: $DATA_DIR/db.sqlite3"
-  fi
-
+  EXISTING_PANEL=false
+  EXISTING_DB="none"
+  [[ -f "$INSTALL_DIR/.env" || -f "$INSTALL_DIR/docker-compose.yml" || -d "$INSTALL_DIR/.git" ]] && EXISTING_PANEL=true
+  docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Eq '(^|/|_)pasarguard($|_)|pasarguard-panel' && EXISTING_PANEL=true || true
+  [[ -s "$DATA_DIR/db.sqlite3" ]] && EXISTING_DB="sqlite" && log "SQLite detected: $DATA_DIR/db.sqlite3"
   if [[ -d "$DATA_DIR/timescaledb" ]] && find "$DATA_DIR/timescaledb" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
-    log "Existing TimescaleDB data detected: $DATA_DIR/timescaledb"
+    EXISTING_DB="timescaledb"
+    log "TimescaleDB data detected: $DATA_DIR/timescaledb"
   fi
-
   if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Eq '(^|_)timescaledb$|pasarguard.*timescaledb'; then
-    log "Existing TimescaleDB container detected."
+    log "TimescaleDB container detected."
   fi
-
   if ss -lnt 2>/dev/null | grep -qE '127\.0\.0\.1:5432|0\.0\.0\.0:5432|\*:5432'; then
     log "Port 5432 is already in use."
+    EXISTING_DB="timescaledb"
   fi
 
-  if [[ -d "$INSTALL_DIR/.git" ]]; then
-    log "Existing PasarGuard source detected: $INSTALL_DIR"
+  if [[ "$EXISTING_PANEL" == true ]]; then
+    echo
+    echo "Existing PasarGuard installation detected: $INSTALL_DIR"
+    echo "Detected database: $EXISTING_DB"
+    echo "  1) Reuse/update existing installation (preserve data)"
+    echo "  2) Override application source/config (preserve database)"
+    echo "  3) Cancel"
+    if [[ "$ASSUME_YES" == true ]]; then
+      EXISTING_ACTION="reuse"
+    else
+      read -r -p "Select [1-3]: " EXISTING_ACTION
+      case "$EXISTING_ACTION" in
+        1) EXISTING_ACTION="reuse" ;;
+        2) EXISTING_ACTION="override"; OVERRIDE=true ;;
+        3|"") die "Installation cancelled. Existing data was not modified." ;;
+        *) die "Invalid selection." ;;
+      esac
+    fi
   fi
-
   echo "==========================================="
 }
 
@@ -184,36 +199,35 @@ install_base() {
 
 confirm_database() {
   local sqlite_exists=false timescale_exists=false port5432=false
-
   [[ -s "$DATA_DIR/db.sqlite3" ]] && sqlite_exists=true
-  if [[ -d "$DATA_DIR/timescaledb" ]] && find "$DATA_DIR/timescaledb" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
-    timescale_exists=true
-  fi
+  [[ "$EXISTING_DB" == "timescaledb" ]] && timescale_exists=true
   ss -lnt 2>/dev/null | grep -qE '127\.0\.0\.1:5432|0\.0\.0\.0:5432|\*:5432' && port5432=true || true
 
   if [[ "$DATABASE" == "sqlite" ]]; then
+    if $timescale_exists || $port5432; then
+      log "Existing TimescaleDB detected; it will be preserved."
+      ask_yes_no "Continue with SQLite?" || die "Installation cancelled."
+    fi
     if $sqlite_exists; then
-      echo
-      log "SQLite database already exists."
-      if [[ "$OVERRIDE" == true ]]; then
-        log "Override requested, but existing SQLite data will NOT be deleted automatically."
-      elif ! ask_yes_no "Use the existing SQLite database?"; then
-        die "Installation cancelled to protect the existing SQLite database."
-      fi
+      ask_yes_no "Use the existing SQLite database?" || die "Installation cancelled."
     fi
     return
   fi
 
+  if $sqlite_exists; then
+    log "Existing SQLite database detected."
+    log "No automatic SQLite -> TimescaleDB migration is performed."
+    ask_yes_no "Continue with TimescaleDB and preserve the SQLite file?" || die "Installation cancelled."
+  fi
+
   if $timescale_exists || $port5432; then
-    echo
     log "Existing PostgreSQL/TimescaleDB resources detected."
     $timescale_exists && log "  Data directory: $DATA_DIR/timescaledb"
-    $port5432 && log "  TCP port 5432: already in use"
-    echo
+    $port5432 && log "  Port 5432: already in use"
     if [[ "$OVERRIDE" == true ]]; then
-      log "Override requested. Existing database is still preserved; the installer will not purge or delete an external database."
-    elif ! ask_yes_no "Use the existing TimescaleDB/PostgreSQL environment if compatible?"; then
-      die "Installation cancelled. No database data was modified."
+      log "Override selected. Existing database will NOT be purged."
+    else
+      ask_yes_no "Reuse the existing TimescaleDB/PostgreSQL environment?" || die "Installation cancelled. Database was not modified."
     fi
   fi
 }
@@ -270,9 +284,18 @@ write_env() {
     DATABASE_URL="sqlite+aiosqlite:////var/lib/pasarguard/db.sqlite3"
   fi
 
+  if [[ "$SSL_MODE" != "none" ]]; then UVICORN_PORT=443; else UVICORN_PORT=8000; fi
   cat > "$ENV_FILE" <<EOF
 UVICORN_HOST=0.0.0.0
-UVICORN_PORT=8000
+UVICORN_PORT=$UVICORN_PORT
+UVICORN_SSL_CERTFILE=$SSL_CERTFILE
+UVICORN_SSL_KEYFILE=$SSL_KEYFILE
+UVICORN_SSL_CA_TYPE=public
+PASARGUARD_SSL_ENABLED=$([[ "$SSL_MODE" == "none" ]] && echo False || echo True)
+PASARGUARD_SSL_MODE=$SSL_MODE
+PASARGUARD_SSL_IDENTIFIER=$SSL_IDENTIFIER
+PASARGUARD_SSL_CERTFILE=$SSL_CERTFILE
+PASARGUARD_SSL_KEYFILE=$SSL_KEYFILE
 ROLE=all-in-one
 SQLALCHEMY_DATABASE_URL=$DATABASE_URL
 SQLALCHEMY_POOL_SIZE=5
@@ -335,8 +358,10 @@ main() {
   parse_args "$@"
   detect_environment
   install_base
-  prepare_source
   confirm_database
+  select_ssl
+  prepare_source
+  issue_ssl_certificate
   prepare_passwords
   write_env
   install_panel
@@ -361,6 +386,16 @@ main() {
   echo "Branch:      $BRANCH"
   echo "Data:        $DATA_DIR"
   echo "Compose:     $INSTALL_DIR/docker-compose.yml"
+  if [[ "$SSL_MODE" != "none" ]]; then
+    echo "SSL mode:    $SSL_MODE"
+    echo "SSL host:    $SSL_IDENTIFIER"
+    echo "SSL cert:    $SSL_CERTFILE"
+    echo "SSL key:     $SSL_KEYFILE"
+    echo "URL:         https://$SSL_IDENTIFIER"
+  else
+    echo "SSL:         disabled"
+    echo "URL:         http://127.0.0.1:8000 (localhost only)"
+  fi
   echo "=============================================="
   docker compose ps
 }
