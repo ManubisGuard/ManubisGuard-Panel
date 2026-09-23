@@ -267,16 +267,25 @@ start_temp_timescale() {
 
   TEMP_CONTAINER="manubisguard-migration-ts-$ID"
   local image
+  local source_series
+  source_series="${version%.*}"
+
   if [ -n "$PROD_TS_VERSION" ] && [ "$version" != "$PROD_TS_VERSION" ]; then
-    local target_series
-    target_series="${PROD_TS_VERSION%.*}"
-    image="timescale/timescaledb-ha:pg${PG_MAJOR}-ts${target_series}-all"
-    log "Starting isolated historical-extension compatibility image: $image"
+    # The compatibility image must contain the SOURCE extension version, not
+    # merely the destination series. A 2.28.2 backup must first run with
+    # 2.28 extension files and only then be upgraded to the destination.
+    image="timescale/timescaledb-ha:pg${PG_MAJOR}-ts${source_series}-all"
+    log "Starting isolated source-compatible TimescaleDB image: $image"
+    if ! docker pull "$image" >/dev/null 2>&1; then
+      image="timescale/timescaledb-ha:pg${PG_MAJOR}-all"
+      log "Source-series image unavailable; trying multi-version image: $image"
+      docker pull "$image" >/dev/null || die "Could not pull a TimescaleDB image containing source version $version."
+    fi
   else
     image="timescale/timescaledb:$version-pg$PG_MAJOR"
     log "Starting isolated TimescaleDB image: $image"
+    docker pull "$image" >/dev/null
   fi
-  docker pull "$image" >/dev/null
   docker run -d --name "$TEMP_CONTAINER" --restart=no     --label "manubisguard.migration=$ID"     -e POSTGRES_USER="$DB_USER"     -e POSTGRES_PASSWORD="$DB_PASS"     -e POSTGRES_DB=postgres     -e POSTGRES_HOST_AUTH_METHOD=trust     -p 127.0.0.1::5432     -v "$TEMP_VOLUME:/var/lib/postgresql/data"     "$image" >/dev/null
 
   TEMP_PORT="$(docker port "$TEMP_CONTAINER" 5432/tcp | sed -nE 's/.*:([0-9]+)$/\1/p' | head -n1)"
