@@ -33,7 +33,7 @@ export default function DomainsSettings() {
   const { data: nodesResponse } = useGetNodesSimple()
   const nodes = ((nodesResponse as any)?.data?.nodes ?? (nodesResponse as any)?.nodes ?? []) as Array<{ id: number; name: string }>
 
-  const general = ((generalSettings as any)?.data ?? generalSettings ?? {}) as { domains?: ApiManagedDomain[]; primary_domain?: ApiManagedDomain | null; server_addresses?: ApiManagedServerAddress[] }
+  const general = ((generalSettings as any)?.data ?? generalSettings ?? {}) as { default_method?: unknown; custom_variables?: unknown; reality_sni_pool?: string[]; domains?: ApiManagedDomain[]; primary_domain?: ApiManagedDomain | null; server_addresses?: ApiManagedServerAddress[] }
   const storedDomains = general.domains ?? []
   const storedPrimary = general.primary_domain ?? null
   const storedAddresses = general.server_addresses ?? []
@@ -58,6 +58,9 @@ export default function DomainsSettings() {
       const cleanPrimary = primary?.domain ? { ...primary, domain: normalizeDomain(primary.domain) } : null
 
       await updateSettings({
+        default_method: general.default_method,
+        custom_variables: general.custom_variables,
+        reality_sni_pool: general.reality_sni_pool,
         domains: cleanDomains,
         primary_domain: cleanPrimary,
         server_addresses: addresses.filter(item => item.address.trim()).map(item => ({ ...item, address: item.address.trim() })),
