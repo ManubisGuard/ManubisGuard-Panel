@@ -51,7 +51,7 @@ class AcmeHttp01ChallengeStore:
     """Persist HTTP-01 challenge responses in a shared filesystem."""
 
     def __init__(self, base_dir: str | Path | None = None):
-        configured = base_dir if base_dir is not None else os.getenv("PASARGUARD_CERTIFICATE_DIR")
+        configured = base_dir if base_dir is not None else certificate_settings.artifact_directory
         self.base_dir = Path(configured) if configured else Path("/var/lib/PasarGuard/certs")
         self.challenge_dir = self.base_dir / "_acme" / "http-01"
 
@@ -255,6 +255,11 @@ class _AcmeAccountStore:
             raise AcmeError("Stored ACME account key is invalid.") from exc
         if not isinstance(key, ec.EllipticCurvePrivateKey) or not isinstance(key.curve, ec.SECP256R1):
             raise AcmeError("Stored ACME account key is not an ES256 P-256 private key.")
+        try:
+            os.chmod(self.key_path, 0o600)
+            os.chmod(self.directory, 0o700)
+        except OSError as exc:
+            raise AcmeError("Unable to enforce secure permissions on the ACME account key.") from exc
         return key
 
 
@@ -311,11 +316,14 @@ class AcmeCertificateClient:
         try:
             directory = await self._get_json(session, self.directory_url)
             await self._ensure_account(session, directory["newAccount"], managed_domain.email)
-            order_url, order = await self._post_jws_json(
+            order_headers, order = await self._post_jws_json_with_headers(
                 session,
                 directory["newOrder"],
                 {"identifiers": [{"type": "dns", "value": domain}]},
             )
+            order_url = order_headers.get("Location")
+            if not order_url:
+                raise AcmeError("ACME newOrder response did not return an order URL.")
 
             challenges: list[tuple[str, str]] = []
             try:
@@ -436,11 +444,16 @@ class AcmeCertificateClient:
         return location
 
     async def _post_jws_json(self, session, url: str, payload):
+        _, payload_json = await self._post_jws_json_with_headers(session, url, payload)
+        return payload_json
+
+    async def _post_jws_json_with_headers(self, session, url: str, payload):
         response = await self._post_jws_response(session, url, payload)
         try:
-            return await response.json(content_type=None)
+            payload_json = await response.json(content_type=None)
         except (TypeError, ValueError) as exc:
             raise AcmeError("ACME server returned invalid JSON.") from exc
+        return response.headers, payload_json
 
     async def _post_jws_text(
         self,
