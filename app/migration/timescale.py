@@ -10,8 +10,6 @@ from app.migration.compatibility import (
     TIMESCALE_FIRST_RELID,
     TIMESCALE_LAST_SCHEMA_NAME,
     TimescaleCompatibility,
-    analyze_timescale_sql,
-    max_version,
     version_tuple,
 )
 
@@ -82,11 +80,23 @@ def choose_timescale_version(
             source = max(parsed, key=lambda v: version_tuple(v) or ())
 
     if compatibility.catalog_era == "schema_name":
+        # The pre-2.29 fingerprint is authoritative even when a backup text block
+        # also mentions a newer target image/version.
         if source and version_tuple(source) and version_tuple(source) >= TIMESCALE_FIRST_RELID:
             source = TIMESCALE_LAST_SCHEMA_NAME
         source = source or TIMESCALE_LAST_SCHEMA_NAME
     elif compatibility.catalog_era == "relid":
-        source = source or live_version
+        # relid is the post-2.29 catalog. A claim of a pre-2.29 source version
+        # is internally inconsistent and must not be guessed around.
+        if source and version_tuple(source) and version_tuple(source) < TIMESCALE_FIRST_RELID:
+            raise ValueError(
+                f"Backup reports TimescaleDB {source} but contains the 2.29+ relid catalog."
+            )
+        source = source or "2.29.0"
+
+    minimum = compatibility.minimum_version
+    if minimum and (not source or (version_tuple(source) or ()) < (version_tuple(minimum) or ())):
+        source = minimum
 
     if source and version_tuple(source) and version_tuple(source) > live:
         raise ValueError(
