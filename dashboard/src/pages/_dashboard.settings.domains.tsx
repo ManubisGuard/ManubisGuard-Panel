@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { useGetGeneralSettings, useGetNodesSimple, type ManagedDomain as ApiManagedDomain, type ManagedServerAddress as ApiManagedServerAddress } from '@/service/api'
+import { useGetGeneralSettings, useGetNodesSimple, useInspectDomainIntelligence, type ManagedDomain as ApiManagedDomain, type ManagedServerAddress as ApiManagedServerAddress } from '@/service/api'
 import { Globe2, Plus, RefreshCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSettingsContext } from './_dashboard.settings'
@@ -31,6 +31,8 @@ export default function DomainsSettings() {
   const { updateSettings, isSaving } = useSettingsContext()
   const { data: generalSettings, isLoading } = useGetGeneralSettings()
   const { data: nodesResponse } = useGetNodesSimple()
+  const inspectMutation = useInspectDomainIntelligence()
+  const [intelligence, setIntelligence] = useState<Record<string, any>>({})
   const nodes = ((nodesResponse as any)?.data?.nodes ?? (nodesResponse as any)?.nodes ?? []) as Array<{ id: number; name: string }>
 
   const general = ((generalSettings as any)?.data ?? generalSettings ?? {}) as { default_method?: unknown; custom_variables?: unknown; reality_sni_pool?: string[]; domains?: ApiManagedDomain[]; primary_domain?: ApiManagedDomain | null; server_addresses?: ApiManagedServerAddress[] }
@@ -155,6 +157,31 @@ export default function DomainsSettings() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">This is the publishing policy for the managed address. Certificate installation is handled by the node/core layer.</p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!domain.domain.trim() || inspectMutation.isPending}
+                  onClick={async () => {
+                    try {
+                      const response = await inspectMutation.mutateAsync({ data: { domain: domain.domain.trim() } })
+                      setIntelligence(current => ({ ...current, [domain.id]: (response as any)?.data ?? response }))
+                      updateDomain(domain.id, { last_checked_at: new Date().toISOString() })
+                    } catch {
+                      setIntelligence(current => ({ ...current, [domain.id]: null }))
+                    }
+                  }}
+                >
+                  <RefreshCcw className="mr-2 size-4" />
+                  {inspectMutation.isPending ? 'Checking…' : 'Inspect domain'}
+                </Button>
+                {intelligence[domain.id] && (
+                  <span className="text-xs text-muted-foreground">
+                    {intelligence[domain.id].status} · DNS {intelligence[domain.id].dns?.a?.length ?? 0} A / {intelligence[domain.id].dns?.aaaa?.length ?? 0} AAAA · HTTPS {intelligence[domain.id].https?.status_code ?? '—'}
+                  </span>
+                )}
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/50 pt-4 text-xs text-muted-foreground">
