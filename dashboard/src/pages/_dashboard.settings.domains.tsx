@@ -199,9 +199,9 @@ function NodeSelect({ value, nodes, onChange }: { value?: number | null; nodes: 
   )
 }
 
-function CertSelect({ value, onChange }: { value: NonNullable<ApiManagedDomain['certificate_method']>; onChange: (value: ManagedDomain['certificate_method']) => void }) {
+function CertSelect({ value, onChange }: { value: NonNullable<ApiManagedDomain['certificate_method']>; onChange: (value: ApiManagedDomain['certificate_method']) => void }) {
   return (
-    <Select value={value} onValueChange={value => onChange(value as ManagedDomain['certificate_method'])}>
+    <Select value={value} onValueChange={value => onChange(value as ApiManagedDomain['certificate_method'])}>
       <SelectTrigger><SelectValue /></SelectTrigger>
       <SelectContent>
         <SelectItem value="letsencrypt">Auto with Let's Encrypt</SelectItem>
