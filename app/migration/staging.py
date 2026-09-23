@@ -230,16 +230,30 @@ def _read_sql_compatibility(path: Path) -> str:
     return head + "\n" + tail
 
 
-async def _timescale_extension_version(url: str) -> str | None:
-    conn = await asyncpg.connect(**_asyncpg_kwargs(url))
-    try:
-        return await conn.fetchval(
-            "SELECT default_version FROM pg_available_extensions WHERE name = 'timescaledb'"
-        )
-    finally:
-        await conn.close()
-
-
+def _timescale_extension_version(url: str) -> str | None:
+    binary = shutil.which("psql")
+    if not binary:
+        return None
+    result = subprocess.run(
+        [
+            binary,
+            *_cli_args(url),
+            "--no-psqlrc",
+            "--tuples-only",
+            "--no-align",
+            "-c",
+            "SELECT default_version FROM pg_available_extensions WHERE name = 'timescaledb'",
+        ],
+        env=_cli_env(url),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode:
+        return None
+    value = (result.stdout or "").strip()
+    return value or None
 def _assert_timescale_catalog_compatible(source: Path, staging_url: str) -> None:
     if source.name.lower().endswith(".gz"):
         with gzip.open(source, "rt", encoding="utf-8", errors="replace") as fh:
@@ -249,7 +263,7 @@ def _assert_timescale_catalog_compatible(source: Path, staging_url: str) -> None
     compatibility = analyze_timescale_sql(sql)
     if compatibility.catalog_era != "schema_name":
         return
-    live = asyncio.run(_timescale_extension_version(staging_url))
+    live = _timescale_extension_version(staging_url)
     try:
         live_tuple = tuple(int(x) for x in live.split(".")[:3]) if live else None
     except ValueError:
