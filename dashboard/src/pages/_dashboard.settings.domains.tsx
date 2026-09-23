@@ -7,7 +7,7 @@ import { Globe2, Plus, RefreshCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSettingsContext } from './_dashboard.settings'
 
-const protocolOptions = ['Xray', 'Reality', 'AmneziaWG', 'Mieru', 'Shadowsocks', 'TUIC', 'Hysteria2', 'NaiveProxy', 'sing-box']
+const protocolOptions = ['Xray', 'Reality', 'AmneziaWG', 'Shadowsocks', 'TUIC', 'Hysteria2', 'NaiveProxy', 'sing-box']
 
 const newId = () => crypto.randomUUID()
 
