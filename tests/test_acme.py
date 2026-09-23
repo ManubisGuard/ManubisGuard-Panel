@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from app.core.acme import (
@@ -113,3 +115,170 @@ async def test_managed_certificate_engine_rejects_cloudflare_until_dns01_is_avai
 
     with pytest.raises(AcmeError, match="Cloudflare DNS-01 is not implemented"):
         await engine.issue(domain)
+
+
+@pytest.mark.asyncio
+async def test_acme_http01_issue_flow_is_atomic_and_cleans_challenge(tmp_path: Path, monkeypatch):
+    certificate_store = CertificateArtifactStore(tmp_path)
+    challenge_store = AcmeHttp01ChallengeStore(tmp_path)
+    client = AcmeCertificateClient(
+        certificate_store=certificate_store,
+        challenge_provider=challenge_store,
+        directory_url="https://acme.test/directory",
+        poll_interval=0,
+        session_factory=lambda **kwargs: FakeAcmeSession(),
+        sleep=lambda _: asyncio.sleep(0),
+    )
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "edge.example.com")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.now(timezone.utc) - timedelta(minutes=1))
+        .not_valid_after(datetime.now(timezone.utc) + timedelta(days=90))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName("edge.example.com")]),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+    certificate_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+
+    monkeypatch.setattr(client, "_build_csr", lambda domain: (key, b"csr"))
+    FakeAcmeSession.certificate_pem = certificate_pem
+
+    result = await client.issue(
+        ManagedDomain(
+            id="domain-1",
+            domain="edge.example.com",
+            certificate_method="letsencrypt",
+            email="admin@example.com",
+        )
+    )
+
+    assert result.provider == "letsencrypt"
+    assert result.certificate.valid is True
+    assert certificate_store.exists("edge.example.com") is True
+    assert challenge_store.get(FakeAcmeSession.challenge_token) is None
+    assert FakeAcmeSession.challenge_presented is True
+
+
+class FakeAcmeResponse:
+    def __init__(self, status: int, body=b"", headers=None):
+        self.status = status
+        self._body = body
+        self.headers = headers or {}
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    async def read(self):
+        return self._body
+
+    async def json(self, content_type=None):
+        return json.loads(self._body)
+
+
+class FakeAcmeSession:
+    challenge_token = "b" * 43
+    challenge_presented = False
+    certificate_pem = ""
+
+    def __init__(self):
+        self.authz_polls = 0
+        self.order_polls = 0
+
+    async def close(self):
+        return None
+
+    def get(self, url):
+        if url == "https://acme.test/directory":
+            return FakeAcmeResponse(
+                200,
+                json.dumps(
+                    {
+                        "newNonce": "https://acme.test/new-nonce",
+                        "newAccount": "https://acme.test/new-account",
+                        "newOrder": "https://acme.test/new-order",
+                    }
+                ).encode(),
+            )
+        if url == "https://acme.test/account/authz":
+            return FakeAcmeResponse(404)
+        raise AssertionError(f"unexpected GET {url}")
+
+    def head(self, url, **kwargs):
+        assert url == "https://acme.test/new-nonce"
+        return FakeAcmeResponse(200, headers={"Replay-Nonce": "nonce-1"})
+
+    def post(self, url, data, headers):
+        assert headers["Content-Type"] == "application/jose+json"
+        if url == "https://acme.test/new-account":
+            return FakeAcmeResponse(
+                201,
+                b"{}",
+                {"Location": "https://acme.test/account/1", "Replay-Nonce": "nonce-2"},
+            )
+        if url == "https://acme.test/new-order":
+            return FakeAcmeResponse(
+                201,
+                json.dumps(
+                    {
+                        "status": "pending",
+                        "authorizations": ["https://acme.test/authz/1"],
+                        "finalize": "https://acme.test/finalize/1",
+                    }
+                ).encode(),
+                {"Location": "https://acme.test/order/1", "Replay-Nonce": "nonce-3"},
+            )
+        if url == "https://acme.test/authz/1":
+            self.authz_polls += 1
+            if self.authz_polls == 1:
+                body = {
+                    "status": "pending",
+                    "challenges": [
+                        {
+                            "type": "http-01",
+                            "token": self.challenge_token,
+                            "url": "https://acme.test/challenge/1",
+                        }
+                    ],
+                }
+            else:
+                body = {"status": "valid"}
+            return FakeAcmeResponse(200, json.dumps(body).encode(), {"Replay-Nonce": "nonce-auth"})
+        if url == "https://acme.test/challenge/1":
+            FakeAcmeSession.challenge_presented = True
+            return FakeAcmeResponse(
+                200,
+                b"{"status":"processing"}",
+                {"Replay-Nonce": "nonce-challenge"},
+            )
+        if url == "https://acme.test/finalize/1":
+            return FakeAcmeResponse(
+                200,
+                json.dumps({"status": "processing"}).encode(),
+                {"Replay-Nonce": "nonce-finalize"},
+            )
+        if url == "https://acme.test/order/1":
+            self.order_polls += 1
+            body = {"status": "valid", "certificate": "https://acme.test/cert/1"}
+            return FakeAcmeResponse(200, json.dumps(body).encode(), {"Replay-Nonce": "nonce-order"})
+        if url == "https://acme.test/cert/1":
+            return FakeAcmeResponse(
+                200,
+                self.certificate_pem.encode(),
+                {"Replay-Nonce": "nonce-cert"},
+            )
+        raise AssertionError(f"unexpected POST {url}")
+
+
+from datetime import datetime, timedelta, timezone
+import asyncio
