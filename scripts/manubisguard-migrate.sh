@@ -281,8 +281,9 @@ apply_runtime_env() {
   cp -- "$CURRENT_ENV" "$ENV_PREVIOUS"
   chmod 600 "$ENV_PREVIOUS"
   if ! install -m 600 "$ENV_CANDIDATE" "$CURRENT_ENV"; then
+    rollback_runtime_env
     rollback_runtime_assets
-    die "Could not apply prepared ManubisGuard .env."
+    return 1
   fi
   log "Legacy runtime settings applied to ManubisGuard .env."
 }
@@ -311,22 +312,24 @@ apply_runtime_assets() {
     rel="${asset#"$RUNTIME_ASSET_STAGE"/}"
     case "$rel" in
       ""|/*|../*|*/../*|*/..|..)
-        die "Unsafe staged runtime asset path: $rel"
+        warn "Unsafe staged runtime asset path: $rel"
+        return 1
         ;;
     esac
     target="$DATA_DIR/$rel"
     case "$target" in
       "$DATA_DIR"/*) ;;
-      *) die "Runtime asset escaped data directory: $rel" ;;
+      *) warn "Runtime asset escaped data directory: $rel"; return 1 ;;
     esac
     local target_parent
     target_parent="$(realpath -m "$(dirname "$target")")"
     case "$target_parent" in
       "$DATA_DIR"/*) ;;
-      *) die "Runtime asset parent escaped data directory: $rel" ;;
+      *) warn "Runtime asset parent escaped data directory: $rel"; return 1 ;;
     esac
     if [ -L "$target" ]; then
-      die "Refusing to overwrite symlinked runtime asset: $target"
+      warn "Refusing to overwrite symlinked runtime asset: $target"
+      return 1
     fi
     if [ -e "$target" ]; then
       backup_target="$RUNTIME_ASSET_PREVIOUS/$rel"
@@ -344,7 +347,7 @@ apply_runtime_assets() {
     mkdir -p "$(dirname "$target")"
     if ! install -m 600 "$asset" "$target"; then
       rollback_runtime_assets
-      die "Could not install staged runtime asset: $rel"
+      return 1
     fi
   done
   log "Referenced legacy runtime SSL assets prepared and applied safely."
@@ -379,6 +382,18 @@ verify_compose_integrity() {
     printf '%s  %s\n' "$current" "$COMPOSE_FILE" >"$WORKDIR/compose-changed.sha256"
     die "CRITICAL: migration attempted to change docker-compose.yml. Production deployment was not trusted."
   fi
+}
+
+compose_integrity_ok() {
+  [ -n "$COMPOSE_SHA256" ] || return 1
+  [ -f "$COMPOSE_FILE" ] || return 1
+  local current
+  current="$(sha256sum "$COMPOSE_FILE" | awk '{print $1}')"
+  if [ "$current" != "$COMPOSE_SHA256" ]; then
+    printf '%s  %s\n' "$current" "$COMPOSE_FILE" >"$WORKDIR/compose-changed.sha256"
+    return 1
+  fi
+  return 0
 }
 
 
@@ -763,12 +778,40 @@ final_cutover() {
     start_panel || true
     die "Production safety backup failed; panel was restarted and cutover was aborted."
   fi
-  apply_runtime_assets
-  apply_runtime_env
+  verify_compose_integrity
+
+  if ! apply_runtime_assets; then
+    rollback_runtime_env
+    rollback_runtime_assets
+    start_panel || true
+    die "Runtime asset application failed; production database was not changed."
+  fi
+
+  if ! apply_runtime_env; then
+    rollback_runtime_env
+    rollback_runtime_assets
+    start_panel || true
+    die "Runtime environment application failed; production database was not changed."
+  fi
+
   verify_compose_integrity
   rename_database
+
+  if ! compose_integrity_ok; then
+    rollback_after_failed_health
+  fi
+
   start_panel
+  if ! compose_integrity_ok; then
+    rollback_after_failed_health
+  fi
+
   health_check || rollback_after_failed_health
+
+  if ! compose_integrity_ok; then
+    rollback_after_failed_health
+  fi
+
   log "Production cutover completed."
   log "Previous production DB: $PREVIOUS_DB"
   log "Safety backup: $WORKDIR/production-safety.dump"
