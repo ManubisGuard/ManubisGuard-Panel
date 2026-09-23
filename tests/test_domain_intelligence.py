@@ -70,6 +70,16 @@ async def test_domain_intelligence_rejects_invalid_domains():
     with pytest.raises(ValueError):
         await inspector.inspect("https://edge.example.com")
 
+    with pytest.raises(ValueError, match="Wildcard domains cannot be inspected directly"):
+        await inspector.inspect("*.example.com")
+
+
+def test_domain_intelligence_request_rejects_wildcards():
+    from app.models.domain_intelligence import DomainIntelligenceRequest
+
+    with pytest.raises(ValueError, match="Wildcard domains cannot be inspected directly"):
+        DomainIntelligenceRequest(domain="*.example.com")
+
 
 def test_is_https_url():
     assert DomainIntelligence.is_https_url("https://example.com") is True
