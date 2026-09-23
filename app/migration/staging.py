@@ -26,6 +26,7 @@ from app.migration.detector import (
 from app.migration.timescale import (
     TIMESCALEDB_CATALOG_SEED_CLEAR_SQL,
 )
+from app.migration.restore_safety import prepare_postgresql_sql_stream
 
 
 class MigrationSafetyError(RuntimeError):
@@ -514,13 +515,35 @@ def restore_backup_into_staging(
                             from app.migration.timescale import prepare_timescale_sql_file
 
                             prepare_timescale_sql_file(
-                                source, prepared, target_pg_major=_postgres_major(staging.staging_url)
+                                source,
+                                prepared,
+                                target_pg_major=_postgres_major(staging.staging_url),
+                                destination_role=_postgres_url(staging.staging_url).username,
                             )
                             _run_psql_restore(
                                 prepared, staging.staging_url, compressed=False, timeout=timeout
                             )
                     else:
-                        _run_psql_restore(source, staging.staging_url, compressed=False, timeout=timeout)
+                        with tempfile.TemporaryDirectory(prefix="manubisguard-role-safe-") as work:
+                            prepared = Path(work) / "filtered.sql"
+                            with source.open("r", encoding="utf-8", errors="replace") as inp, prepared.open(
+                                "w", encoding="utf-8"
+                            ) as out:
+                                removed, suppressed = prepare_postgresql_sql_stream(
+                                    inp,
+                                    out,
+                                    destination_role=_postgres_url(staging.staging_url).username,
+                                )
+                            if removed or suppressed:
+                                # Keep the transformation visible for diagnostics without
+                                # ever logging the archived password value.
+                                _run_psql_restore(
+                                    prepared, staging.staging_url, compressed=False, timeout=timeout
+                                )
+                            else:
+                                _run_psql_restore(
+                                    source, staging.staging_url, compressed=False, timeout=timeout
+                                )
                 elif detection.format == "sql.gz":
                     if uses_timescale:
                         with tempfile.TemporaryDirectory(prefix="manubisguard-ts-sql-") as work:
@@ -528,13 +551,35 @@ def restore_backup_into_staging(
                             from app.migration.timescale import prepare_timescale_sql_gzip
 
                             prepare_timescale_sql_gzip(
-                                source, prepared, target_pg_major=_postgres_major(staging.staging_url)
+                                source,
+                                prepared,
+                                target_pg_major=_postgres_major(staging.staging_url),
+                                destination_role=_postgres_url(staging.staging_url).username,
                             )
                             _run_psql_restore(
                                 prepared, staging.staging_url, compressed=False, timeout=timeout
                             )
                     else:
-                        _run_psql_restore(source, staging.staging_url, compressed=True, timeout=timeout)
+                        with tempfile.TemporaryDirectory(prefix="manubisguard-role-safe-") as work:
+                            prepared = Path(work) / "filtered.sql"
+                            import gzip
+
+                            with gzip.open(source, "rt", encoding="utf-8", errors="replace") as inp, prepared.open(
+                                "w", encoding="utf-8"
+                            ) as out:
+                                removed, suppressed = prepare_postgresql_sql_stream(
+                                    inp,
+                                    out,
+                                    destination_role=_postgres_url(staging.staging_url).username,
+                                )
+                            if removed or suppressed:
+                                _run_psql_restore(
+                                    prepared, staging.staging_url, compressed=False, timeout=timeout
+                                )
+                            else:
+                                _run_psql_restore(
+                                    source, staging.staging_url, compressed=True, timeout=timeout
+                                )
                 elif detection.format == "pg_dump_custom":
                     _run_pg_restore(source, staging.staging_url, timeout, timescale=uses_timescale)
                 else:
