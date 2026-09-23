@@ -132,3 +132,49 @@ def test_domain_intelligence_api_rejects_invalid_domain(access_token):
     )
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_domain_certificate_api_returns_certificate(monkeypatch, access_token):
+    from app.core.certificate_intelligence import DomainCertificateInspector
+    from app.models.domain_intelligence import DomainCertificateResult
+
+    async def fake_inspect(self, domain):
+        assert domain == "edge.example.com"
+        return DomainCertificateResult(
+            domain=domain,
+            checked_at="2026-09-23T00:00:00Z",
+            reachable=True,
+            valid=True,
+            expires_at="2099-12-31T23:59:59Z",
+            days_remaining=26784,
+            subject="edge.example.com",
+            issuer="Test CA",
+            serial_number="01",
+            tls_version="TLSv1.3",
+            san=["edge.example.com"],
+            status="valid",
+        )
+
+    monkeypatch.setattr(DomainCertificateInspector, "inspect", fake_inspect)
+
+    response = client.post(
+        "/api/settings/domains/certificate",
+        headers=auth_headers(access_token),
+        json={"domain": "  Edge.Example.COM  "},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert payload["domain"] == "edge.example.com"
+    assert payload["status"] == "valid"
+    assert payload["tls_version"] == "TLSv1.3"
+
+
+def test_domain_certificate_api_rejects_invalid_domain(access_token):
+    response = client.post(
+        "/api/settings/domains/certificate",
+        headers=auth_headers(access_token),
+        json={"domain": "edge.example.com:443"},
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
