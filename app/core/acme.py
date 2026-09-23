@@ -296,7 +296,7 @@ class AcmeCertificateClient:
 
     async def issue(self, managed_domain: ManagedDomain) -> AcmeIssueResult:
         domain = managed_domain.domain
-        if domain.startswith("*."):
+        if domain.startswith("*.") and self.challenge_provider.challenge_type != "dns-01":
             raise AcmeError("HTTP-01 cannot issue wildcard certificates.")
         account_store = _AcmeAccountStore(self.certificate_store.base_dir, self.directory_url)
         self._account_key = account_store.load_or_create()
