@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends
 
+from app.core.domain_intelligence import DomainIntelligence
 from app.db import AsyncSession, get_db
+from app.models.domain_intelligence import DomainIntelligenceRequest, DomainIntelligenceResult
 from app.models.settings import General, SettingsSchema
 from app.operation import OperatorType
 from app.operation.settings import SettingsOperation
@@ -22,6 +24,14 @@ async def get_general_settings(
     db: AsyncSession = Depends(get_db), _=Depends(require_permission("settings", "read_general"))
 ):
     return await settings_operator.get_general_settings(db)
+
+
+@router.post("/domains/intelligence", response_model=DomainIntelligenceResult)
+async def inspect_domain(
+    request: DomainIntelligenceRequest,
+    _=Depends(require_permission("settings", "read_general")),
+):
+    return await DomainIntelligence().inspect(request.domain)
 
 
 @router.put("", response_model=SettingsSchema)
