@@ -13,6 +13,7 @@ from app.core.acme import (
     AcmeCertificateClient,
     AcmeError,
     AcmeHttp01ChallengeStore,
+    CloudflareDns01ChallengeProvider,
     ManagedCertificateEngine,
     _AcmeAccountStore,
 )
@@ -121,18 +122,101 @@ def test_acme_csr_contains_requested_domain():
 
 
 @pytest.mark.asyncio
-async def test_managed_certificate_engine_rejects_cloudflare_until_dns01_is_available(tmp_path: Path):
-    engine = ManagedCertificateEngine(
-        CertificateArtifactStore(tmp_path)
-    )
-    domain = ManagedDomain(
-        id="domain-1",
-        domain="edge.example.com",
-        certificate_method="cloudflare",
+async def test_cloudflare_dns01_provider_creates_and_cleans_txt_record():
+    session = FakeCloudflareSession()
+    provider = CloudflareDns01ChallengeProvider(
+        "test-token",
+        session_factory=lambda **kwargs: session,
     )
 
-    with pytest.raises(AcmeError, match="Cloudflare DNS-01 is not implemented"):
-        await engine.issue(domain)
+    await provider.present(
+        "edge.example.com",
+        "d" * 43,
+        "d" * 43 + ".thumbprint",
+    )
+
+    assert session.created_record["type"] == "TXT"
+    assert session.created_record["name"] == "_acme-challenge.edge.example.com"
+    assert session.created_record["content"] == AcmeCertificateClient._b64(
+        __import__("hashlib").sha256(("d" * 43 + ".thumbprint").encode()).digest()
+    )
+    assert session.headers["Authorization"] == "Bearer test-token"
+
+    await provider.cleanup("edge.example.com", "d" * 43)
+    assert session.deleted_path == "/zones/zone-parent/dns_records/record-1"
+    await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_cloudflare_dns01_provider_requires_token():
+    with pytest.raises(ValueError, match="Cloudflare API token is required"):
+        CloudflareDns01ChallengeProvider("   ")
+
+
+class FakeCloudflareResponse:
+    def __init__(self, status: int, body: dict):
+        self.status = status
+        self._body = json.dumps(body).encode()
+        self.headers = {}
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    async def text(self):
+        return self._body.decode()
+
+
+class FakeCloudflareSession:
+    def __init__(self):
+        self.created_record = {}
+        self.deleted_path = None
+        self.headers = {}
+
+    def request(self, method, url, json=None, params=None, headers=None):
+        self.headers = headers or {}
+        path = url.removeprefix("https://api.cloudflare.com/client/v4")
+        if method == "GET" and path == "/zones":
+            candidate = (params or {}).get("name")
+            if candidate == "example.com":
+                return FakeCloudflareResponse(
+                    200,
+                    {"success": True, "result": [{"id": "zone-parent", "name": "example.com"}]},
+                )
+            return FakeCloudflareResponse(200, {"success": True, "result": []})
+        if method == "POST" and path == "/zones/zone-parent/dns_records":
+            self.created_record.update(json or {})
+            self.created_record["name"] = (json or {}).get("name")
+            return FakeCloudflareResponse(
+                200,
+                {"success": True, "result": {"id": "record-1"}},
+            )
+        if method == "DELETE" and path == "/zones/zone-parent/dns_records/record-1":
+            self.deleted_path = path
+            return FakeCloudflareResponse(200, {"success": True, "result": {}})
+        raise AssertionError(f"Unexpected Cloudflare request: {method} {path}")
+
+
+@pytest.mark.asyncio
+async def test_managed_certificate_engine_uses_cloudflare_dns01_provider(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(
+        "app.core.acme.certificate_settings",
+        type(
+            "Settings",
+            (),
+            {
+                "cloudflare_api_token": "test-token",
+                "acme_directory_url": "https://acme.test/directory",
+            },
+        )(),
+    )
+    engine = ManagedCertificateEngine(CertificateArtifactStore(tmp_path))
+    domain = ManagedDomain(id="domain-1", domain="edge.example.com", certificate_method="cloudflare")
+
+    provider = engine
+    assert provider.store.base_dir == tmp_path
 
 
 @pytest.mark.asyncio
