@@ -55,7 +55,7 @@ usage() {
   echo "  1) Domain SSL"
   echo "  2) IP SSL (short-lived)"
   echo "  3) Custom certificate + key"
-echo "  4) No SSL"
+  echo "  4) No SSL"
 }
 
 parse_args() {
