@@ -112,7 +112,7 @@ def build_restore_spec(
     pg_major: int,
 ) -> TimescaleRestoreSpec:
     target = choose_timescale_version(compatibility, live_version=live_version)
-    image_tag = f"{target}-pg{pg_major}"
+    image_tag = f"pg{pg_major}-ts{target.rsplit('.', 1)[0]}-all"
     conversion_required = version_tuple(target) != version_tuple(live_version)
     warnings = list(compatibility.warnings)
 
