@@ -209,7 +209,7 @@ def _find_candidate(root: Path) -> tuple[Path, BackupDetection]:
         if (
             detection.is_pasarguard
             and detection.confidence in {"high", "medium"}
-            and detection.format in {"sql", "sql.gz", "pg_dump_custom"}
+            and (detection.format in {"sql", "sql.gz"} or detection.format == "pg_dump_custom")
         ):
             candidates.append((path, detection))
     if not candidates:
@@ -336,17 +336,18 @@ def restore_backup_into_staging(
         raise FileNotFoundError(path)
     source, detection, tmp = _prepare_source(path)
     try:
-        if not detection.is_pasarguard or detection.confidence not in {"high", "medium"}:
+            if detection.format == "pg_dump_custom":
+            inspected = _inspect_pg_dump_custom(source, min(timeout, 120))
+            if not inspected.is_pasarguard or inspected.confidence not in {"high", "medium"}:
+                raise MigrationSafetyError("Custom dump could not be positively identified as PasarGuard.")
+            detection = inspected
+        elif not detection.is_pasarguard or detection.confidence not in {"high", "medium"}:
             raise MigrationSafetyError("Backup is not positively identified as PasarGuard.")
         if detection.format == "sql":
             _run_psql(source, staging.staging_url, timeout, False)
         elif detection.format == "sql.gz":
             _run_psql(source, staging.staging_url, timeout, True)
         elif detection.format == "pg_dump_custom":
-            inspected = _inspect_pg_dump_custom(source, min(timeout, 120))
-            if not inspected.is_pasarguard or inspected.confidence not in {"high", "medium"}:
-                raise MigrationSafetyError("Custom dump could not be positively identified as PasarGuard.")
-            detection = inspected
             _run_pg_restore(source, staging.staging_url, timeout)
         else:
             raise MigrationSafetyError(f"Unsupported database restore format: {detection.format}")
