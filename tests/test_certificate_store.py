@@ -67,3 +67,31 @@ def test_certificate_artifact_store_uses_configured_directory(tmp_path: Path, mo
     monkeypatch.setenv("PASARGUARD_CERTIFICATE_DIR", str(tmp_path))
     store = CertificateArtifactStore()
     assert store.base_dir == tmp_path
+
+
+def test_certificate_artifact_store_rolls_back_on_directory_swap_failure(tmp_path: Path, monkeypatch):
+    certificate_pem, private_key_pem = _make_pair()
+    replacement_certificate_pem, replacement_key_pem = _make_pair()
+
+    store = CertificateArtifactStore(tmp_path)
+    store.save("edge.example.com", certificate_pem, private_key_pem)
+
+    import os
+
+    original_replace = os.replace
+
+    def fail_staging_swap(source, destination):
+        if ".staging-" in str(source):
+            raise OSError("simulated swap failure")
+        return original_replace(source, destination)
+
+    monkeypatch.setattr("app.core.certificate_store.os.replace", fail_staging_swap)
+
+    import pytest
+
+    with pytest.raises(OSError, match="simulated swap failure"):
+        store.save("edge.example.com", replacement_certificate_pem, replacement_key_pem)
+
+    loaded_certificate, loaded_key = store.load("edge.example.com")
+    assert loaded_certificate == certificate_pem
+    assert loaded_key == private_key_pem
