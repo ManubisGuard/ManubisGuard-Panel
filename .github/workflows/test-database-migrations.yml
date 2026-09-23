@@ -5,6 +5,8 @@ on:
         paths:
             - "**.py"
             - ".github/workflows/test-database-migrations.yml"
+            - "scripts/manubisguard-migrate.sh"
+            - "install-manubisguard.sh"
     pull_request:
         paths:
             - "**.py"
@@ -321,3 +323,13 @@ jobs:
               env:
                   ROLE: all-in-one
               run: make test
+
+
+    test-migration-shell:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - name: Validate migration shell scripts
+              run: |
+                  bash -n scripts/manubisguard-migrate.sh
+                  bash -n install-manubisguard.sh
