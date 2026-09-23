@@ -200,7 +200,7 @@ load_database_identity() {
   [[ "$server_num" =~ ^[0-9]+$ ]] || die "Could not determine PostgreSQL server major version."
   PG_MAJOR="$((server_num / 10000))"
 
-  PROD_TS_VERSION="$(docker exec -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER"     psql -X -U "$ADMIN_USER" -d postgres -Atc     "SELECT COALESCE((SELECT extversion FROM pg_extension WHERE extname='timescaledb'), '');"     2>/dev/null || true)"
+  PROD_TS_VERSION="$(docker exec -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER"     psql -X -U "$ADMIN_USER" -d "$DB_NAME" -Atc     "SELECT COALESCE((SELECT extversion FROM pg_extension WHERE extname='timescaledb'), '');"     2>/dev/null || true)"
   if [ -n "$PROD_TS_VERSION" ]; then
     PROD_HAS_TIMESCALE=true
   fi
@@ -289,7 +289,7 @@ start_temp_timescale() {
   done
 
   local live
-  live="$(docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER"     psql -X -U "$DB_USER" -d postgres -Atc     "SELECT COALESCE((SELECT extversion FROM pg_extension WHERE extname='timescaledb'), '');"     2>/dev/null || true)"
+  live="$(docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER"     psql -X -U "$DB_USER" -d postgres -Atc     "SELECT COALESCE((SELECT default_version FROM pg_available_extensions WHERE name='timescaledb'), '');"     2>/dev/null || true)"
   log "Temporary TimescaleDB on localhost:$TEMP_PORT extension=${live:-unknown}"
 }
 
