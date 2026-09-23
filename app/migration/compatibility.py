@@ -99,9 +99,9 @@ def analyze_timescale_sql(sql_text: str) -> TimescaleCompatibility:
     versions = collect_versions(sql_text)
     era = detect_catalog_era(sql_text)
     minimum = detect_catalog_floor(sql_text)
-    if versions:
-        for version in versions:
-            minimum = max_version(minimum, version)
+    # Explicit version strings describe the source environment; they are not
+    # automatically a catalog floor. The catalog fingerprint is authoritative
+    # for the known 2.29 chunk schema break.
     recommended = None
     warnings: list[str] = []
     if era == "schema_name":
