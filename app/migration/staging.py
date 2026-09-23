@@ -207,10 +207,8 @@ def _find_candidate(root: Path) -> tuple[Path, BackupDetection]:
         except (OSError, ValueError, zipfile.BadZipFile, tarfile.TarError):
             continue
         if (
-            detection.is_pasarguard
-            and detection.confidence in {"high", "medium"}
-            and (detection.format in {"sql", "sql.gz"} or detection.format == "pg_dump_custom")
-        ):
+            detection.confidence in {"high", "medium"} and detection.format in {"sql", "sql.gz"}
+        ) or detection.format == "pg_dump_custom":
             candidates.append((path, detection))
     if not candidates:
         raise MigrationSafetyError("Archive contains no valid PasarGuard database backup.")
@@ -336,7 +334,7 @@ def restore_backup_into_staging(
         raise FileNotFoundError(path)
     source, detection, tmp = _prepare_source(path)
     try:
-            if detection.format == "pg_dump_custom":
+        if detection.format == "pg_dump_custom":
             inspected = _inspect_pg_dump_custom(source, min(timeout, 120))
             if not inspected.is_pasarguard or inspected.confidence not in {"high", "medium"}:
                 raise MigrationSafetyError("Custom dump could not be positively identified as PasarGuard.")
