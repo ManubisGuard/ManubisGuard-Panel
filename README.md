@@ -1,23 +1,66 @@
 # ManubisGuard Panel
 
+AmneziaWG-enabled ManubisGuard Panel from the `feature/amnezia-wg` branch.
+
 ## One-command installation
 
-Install the ManubisGuard Panel from the `feature/amnezia-wg` branch with TimescaleDB/PostgreSQL 16:
+Install the Panel with TimescaleDB/PostgreSQL 16:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/arsamnikzaad/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh) install --database timescaledb
 ```
 
-The installer prepares the panel, TimescaleDB, migrations, SSL, and the AmneziaWG-enabled application from this branch.
+The installer uses the prebuilt GHCR image first, so a normal installation does **not** build the Panel on the VPS. If the image is unavailable, it automatically falls back to building the Panel from this repository.
 
-## Temporary admin key\n\nAfter installation, generate a temporary admin key from inside the Panel container:\n\n```bash\ndocker exec manubisguard-panel-pasarguard-1 /code/.venv/bin/python /code/pasarguard-cli.py generate-temp-key\n```\n\nThe command prints the temporary admin key. Use the exact key printed by the command and do not store it in a public document or repository.\n\n## Node installation
+The installation includes:
 
-Install a ManubisGuard Node from the matching `feature/amnezia-wg` branch:
+- TimescaleDB/PostgreSQL 16
+- database migrations
+- AmneziaWG support
+- SSL certificate setup
+- persistent Panel data under `/var/lib/pasarguard`
+- automatic Panel startup through Docker Compose
+
+## Temporary admin key
+
+After installation, generate a temporary admin key:
+
+```bash
+docker exec manubisguard-panel-pasarguard-1 /code/.venv/bin/python /code/pasarguard-cli.py generate-temp-key
+```
+
+Use the exact key printed by the command. Do not publish it in the repository.
+
+## Panel status
+
+```bash
+cd /opt/manubisguard-panel
+docker compose ps
+```
+
+Check the Panel logs:
+
+```bash
+cd /opt/manubisguard-panel
+docker compose logs --tail=100 pasarguard
+```
+
+## Node installation
+
+Install the matching AmneziaWG-enabled Node:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/arsamnikzaad/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh) install
 ```
 
-The Node installer builds the Node image from the forked repository instead of using the upstream `pasarguard/node:latest` image. It generates a persistent API key and TLS certificate, enables host WireGuard routing, builds the bundled AmneziaWG tools, and starts the Node on gRPC port `62050`.
+The Node installer also uses a prebuilt GHCR image first and falls back to a local build only if the image cannot be pulled.
 
-After installation, use the displayed Node address, port, API key, and certificate when registering the node in the Panel.
+## Source
+
+Panel repository:
+
+https://github.com/arsamnikzaad/ManubisGuard-Panel
+
+Branch:
+
+`feature/amnezia-wg`
