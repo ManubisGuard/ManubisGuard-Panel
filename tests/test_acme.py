@@ -351,7 +351,7 @@ class FakeAcmeSession:
     challenge_token = "b" * 43
     challenge_presented = False
     certificate_pem = ""
-    last_headers = {}
+    last_headers: dict[str, str] = {}
 
     def __init__(self):
         self.authz_polls = 0
