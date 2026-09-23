@@ -26924,3 +26924,79 @@ export const useResetUserHwids = <TError = ErrorType<Unauthorized | Forbidden | 
       > => {
       return useMutation(getResetUserHwidsMutationOptions(options), queryClient);
     }
+
+
+export interface DomainIntelligenceRequest {
+  domain: string;
+}
+
+export interface DomainDNSResult {
+  a: string[];
+  aaaa: string[];
+  cname?: string | null;
+  nameservers: string[];
+}
+
+export interface DomainHTTPProbe {
+  url: string;
+  reachable: boolean;
+  status_code?: number | null;
+  final_url?: string | null;
+  redirect_chain: string[];
+  error?: string | null;
+}
+
+export interface DomainIntelligenceResult {
+  domain: string;
+  checked_at: string;
+  dns: DomainDNSResult;
+  http: DomainHTTPProbe;
+  https: DomainHTTPProbe;
+  tls_valid?: boolean | null;
+  service_hints: string[];
+  status: 'unreachable' | 'dns_only' | 'http_only' | 'https' | 'redirected' | 'healthy';
+}
+
+export type inspectDomainIntelligenceResponse = {
+  data: DomainIntelligenceResult;
+  status: 200;
+};
+
+export const inspectDomainIntelligence = async (
+  data: DomainIntelligenceRequest,
+  options?: RequestInit,
+): Promise<inspectDomainIntelligenceResponse> => {
+  return orvalFetcher<inspectDomainIntelligenceResponse>('/api/settings/domains/intelligence', {
+    ...options,
+    method: 'POST',
+    body: data,
+  });
+};
+
+export const useInspectDomainIntelligence = <TError = ErrorType<Forbidden | HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof inspectDomainIntelligence>>,
+      TError,
+      { data: DomainIntelligenceRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof orvalFetcher>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof inspectDomainIntelligence>>,
+  TError,
+  { data: DomainIntelligenceRequest },
+  TContext
+> => {
+  const mutationOptions = options?.mutation;
+  return useMutation(
+    {
+      mutationKey: ['inspectDomainIntelligence'],
+      mutationFn: ({ data }) => inspectDomainIntelligence(data, options?.request),
+      ...mutationOptions,
+    },
+    queryClient,
+  );
+};
