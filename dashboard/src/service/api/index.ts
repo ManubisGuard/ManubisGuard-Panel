@@ -1553,22 +1553,22 @@ export interface Forbidden {
 export interface ManagedDomain {
   id: string;
   domain: string;
-  node_id?: number | null;
-  certificate_method?: string;
-  address_mode?: string;
-  protocols?: string[];
-  email?: string | null;
-  auto_renew?: boolean;
-  status?: string;
-  certificate_expires_at?: string | null;
-  last_checked_at?: string | null;
+  node_id: number | null;
+  certificate_method: 'letsencrypt' | 'cloudflare' | 'existing';
+  address_mode: 'additional' | 'alias' | 'both';
+  protocols: string[];
+  email: string | null;
+  auto_renew: boolean;
+  status: 'pending' | 'active' | 'expiring' | 'failed';
+  certificate_expires_at: string | null;
+  last_checked_at: string | null;
 }
 
 export interface ManagedServerAddress {
   id: string;
-  node_id?: number | null;
+  node_id: number | null;
   address: string;
-  enabled?: boolean;
+  enabled: boolean;
 }
 
 export interface General {
