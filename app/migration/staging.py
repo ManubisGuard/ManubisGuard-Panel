@@ -369,36 +369,32 @@ def _run_psql_restore(source: Path, url: str, *, compressed: bool, timeout: int)
     binary = shutil.which("psql")
     if not binary:
         raise MigrationSafetyError("psql is missing from the ManubisGuard runtime image.")
-    proc = subprocess.Popen(
-        [
-            binary,
-            *_cli_args(url),
-            "--no-psqlrc",
-            "--set",
-            "ON_ERROR_STOP=1",
-        ],
-        env=_cli_env(url),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    assert proc.stdin is not None
-    try:
-        opener = gzip.open if compressed else open
-        with opener(source, "rb") as stream:
-            shutil.copyfileobj(stream, proc.stdin, 1024 * 1024)
-        proc.stdin.close()
-        proc.stdin = None
-        stdout, stderr = proc.communicate(timeout=timeout)
-    except BaseException:
-        if proc.poll() is None:
-            proc.kill()
-        proc.wait(timeout=5)
-        raise
-    if proc.returncode:
-        detail = (stderr or stdout or b"psql restore failed").decode("utf-8", errors="replace")[-5000:]
-        raise MigrationSafetyError(f"psql restore failed in staging: {detail}")
 
+    with tempfile.TemporaryFile(mode="w+b") as log:
+        proc = subprocess.Popen(
+            [binary, *_cli_args(url), "--no-psqlrc", "--set", "ON_ERROR_STOP=1"],
+            env=_cli_env(url),
+            stdin=subprocess.PIPE,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+        )
+        assert proc.stdin is not None
+        try:
+            opener = gzip.open if compressed else open
+            with opener(source, "rb") as stream:
+                shutil.copyfileobj(stream, proc.stdin, 1024 * 1024)
+            proc.stdin.close()
+            proc.stdin = None
+            return_code = proc.wait(timeout=timeout)
+        except BaseException:
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait(timeout=5)
+            raise
+        log.seek(max(0, log.tell() - 5000))
+        detail = log.read().decode("utf-8", errors="replace")
+    if return_code:
+        raise MigrationSafetyError(f"psql restore failed in staging: {detail[-5000:]}")
 
 def _inspect_pg_dump_custom(source: Path, timeout: int) -> BackupDetection:
     binary = shutil.which("pg_restore")
@@ -539,37 +535,55 @@ def restore_backup_into_staging(
             _assert_sql_dump_complete(source)
 
         uses_timescale = _backup_uses_timescaledb(source, detection)
-        post_restore_needed = uses_timescale
+        primary_error: BaseException | None = None
         if uses_timescale:
             _timescale_pre_restore(staging.staging_url)
         try:
-            if detection.format == "sql":
-                if uses_timescale:
-                    with tempfile.TemporaryDirectory(prefix="manubisguard-ts-sql-") as work:
-                        prepared = Path(work) / "filtered.sql"
-                        from app.migration.timescale import prepare_timescale_sql_file
+            try:
+                if detection.format == "sql":
+                    if uses_timescale:
+                        with tempfile.TemporaryDirectory(prefix="manubisguard-ts-sql-") as work:
+                            prepared = Path(work) / "filtered.sql"
+                            from app.migration.timescale import prepare_timescale_sql_file
 
-                        prepare_timescale_sql_file(source, prepared)
-                        _run_psql_restore(prepared, staging.staging_url, compressed=False, timeout=timeout)
-                else:
-                    _run_psql_restore(source, staging.staging_url, compressed=False, timeout=timeout)
-            elif detection.format == "sql.gz":
-                if uses_timescale:
-                    with tempfile.TemporaryDirectory(prefix="manubisguard-ts-sql-") as work:
-                        prepared = Path(work) / "filtered.sql"
-                        from app.migration.timescale import prepare_timescale_sql_gzip
+                            prepare_timescale_sql_file(source, prepared)
+                            _run_psql_restore(
+                                prepared, staging.staging_url, compressed=False, timeout=timeout
+                            )
+                    else:
+                        _run_psql_restore(source, staging.staging_url, compressed=False, timeout=timeout)
+                elif detection.format == "sql.gz":
+                    if uses_timescale:
+                        with tempfile.TemporaryDirectory(prefix="manubisguard-ts-sql-") as work:
+                            prepared = Path(work) / "filtered.sql"
+                            from app.migration.timescale import prepare_timescale_sql_gzip
 
-                        prepare_timescale_sql_gzip(source, prepared)
-                        _run_psql_restore(prepared, staging.staging_url, compressed=False, timeout=timeout)
+                            prepare_timescale_sql_gzip(source, prepared)
+                            _run_psql_restore(
+                                prepared, staging.staging_url, compressed=False, timeout=timeout
+                            )
+                    else:
+                        _run_psql_restore(source, staging.staging_url, compressed=True, timeout=timeout)
+                elif detection.format == "pg_dump_custom":
+                    _run_pg_restore(source, staging.staging_url, timeout, timescale=uses_timescale)
                 else:
-                    _run_psql_restore(source, staging.staging_url, compressed=True, timeout=timeout)
-            elif detection.format == "pg_dump_custom":
-                _run_pg_restore(source, staging.staging_url, timeout, timescale=uses_timescale)
-            else:
-                raise MigrationSafetyError(f"Unsupported database restore format: {detection.format}")
+                    raise MigrationSafetyError(
+                        f"Unsupported database restore format: {detection.format}"
+                    )
+            except BaseException as exc:
+                primary_error = exc
+                raise
         finally:
-            if post_restore_needed:
-                _timescale_post_restore(staging.staging_url)
+            if uses_timescale:
+                try:
+                    _timescale_post_restore(staging.staging_url)
+                except BaseException as post_error:
+                    if primary_error is None:
+                        raise
+                    raise MigrationSafetyError(
+                        f"{primary_error}\nTimescale post-restore cleanup also failed: {post_error}"
+                    ) from primary_error
+
         return detection
     finally:
         if tmp is not None:
