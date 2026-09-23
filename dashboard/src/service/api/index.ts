@@ -27000,3 +27000,64 @@ export const useInspectDomainIntelligence = <TError = ErrorType<Forbidden | HTTP
     queryClient,
   );
 };
+
+
+export interface DomainCertificateResult {
+  domain: string;
+  checked_at: string;
+  reachable: boolean;
+  valid?: boolean | null;
+  expires_at?: string | null;
+  days_remaining?: number | null;
+  subject?: string | null;
+  issuer?: string | null;
+  serial_number?: string | null;
+  tls_version?: string | null;
+  san: string[];
+  error?: string | null;
+  status: 'valid' | 'expiring' | 'expired' | 'invalid' | 'unreachable';
+}
+
+export type inspectDomainCertificateResponse = {
+  data: DomainCertificateResult;
+  status: 200;
+};
+
+export const inspectDomainCertificate = async (
+  data: DomainIntelligenceRequest,
+  options?: RequestInit,
+): Promise<inspectDomainCertificateResponse> => {
+  return orvalFetcher<inspectDomainCertificateResponse>('/api/settings/domains/certificate', {
+    ...options,
+    method: 'POST',
+    body: data,
+  });
+};
+
+export const useInspectDomainCertificate = <TError = ErrorType<Forbidden | HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof inspectDomainCertificate>>,
+      TError,
+      { data: DomainIntelligenceRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof orvalFetcher>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof inspectDomainCertificate>>,
+  TError,
+  { data: DomainIntelligenceRequest },
+  TContext
+> => {
+  const mutationOptions = options?.mutation;
+  return useMutation(
+    {
+      mutationKey: ['inspectDomainCertificate'],
+      mutationFn: ({ data }) => inspectDomainCertificate(data, options?.request),
+      ...mutationOptions,
+    },
+    queryClient,
+  );
+};
