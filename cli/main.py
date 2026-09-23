@@ -82,6 +82,7 @@ def cmd_migrate_inspect(
         },
         "timescale": {
             "versions": list(result.timescale.versions),
+            "source_version": result.timescale.source_version,
             "minimum_version": result.timescale.minimum_version,
             "catalog_era": result.timescale.catalog_era,
             "recommended_version": result.timescale.recommended_version,
