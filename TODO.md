@@ -61,34 +61,51 @@
 
 ## مرحله‌ی بعد
 
-- [ ] تکمیل **Portable Timescale Bridge** برای حالت source Timescale جدیدتر از destination:
-  1. Restore فقط در source-compatible runtime.
-  2. استخراج metadata قابل‌حمل hypertableها، dimensionها، continuous aggregateها، policyها و constraintها.
-  3. عدم اتکا به replay مستقیم `_timescaledb_*` catalog.
-  4. ساخت schema/data قابل‌حمل برای Timescale مقصد.
-  5. بازسازی hypertable/dimension با API رسمی Timescale.
-  6. انتقال داده به‌صورت کنترل‌شده و قابل‌اعتبارسنجی.
-  7. بازسازی post-data indexes/constraints و objectهای Timescale قابل‌حمل.
-  8. بازسازی continuous aggregate/policy در صورت وجود.
-  9. ANALYZE و اجرای validation کامل قبل از cutover.
+- [x] پیاده‌سازی هسته و orchestration اولیه‌ی **Portable Timescale Bridge** برای حالت source Timescale جدیدتر از destination:
+  - planner و metadata extraction از informational views
+  - جداسازی pre-data / data / post-data
+  - بازسازی hypertable/dimension با API عمومی
+  - بازسازی CAGG با refresh کامل
+  - بازسازی policyهای پشتیبانی‌شده
+  - جلوگیری از replay کاتالوگ داخلی
+  - fail-closed برای metadata/policyهای ناشناخته
+  - اتصال مسیر newer→older در `scripts/manubisguard-migrate.sh`
+  1. [x] Restore فقط در source-compatible runtime.
+  2. [x] استخراج metadata قابل‌حمل hypertableها، dimensionها، continuous aggregateها و policyها.
+  3. [x] عدم اتکا به replay مستقیم `_timescaledb_*` catalog.
+  4. [x] ساخت schema/data قابل‌حمل برای Timescale مقصد.
+  5. [x] بازسازی hypertable/dimension با API رسمی Timescale.
+  6. [x] انتقال داده به‌صورت کنترل‌شده و قابل‌اعتبارسنجی در cutover isolated DB.
+  7. [x] بازسازی post-data indexes/constraints و objectهای relational.
+  8. [x] بازسازی continuous aggregate/policyهای public و پشتیبانی‌شده؛ موارد ناشناخته fail-closed هستند.
+  9. [x] ANALYZE در artifactهای bridge.
 - [ ] قبل از هر implementation جدید، مستندات رسمی PostgreSQL و TimescaleDB و source مربوط به نسخه هدف بررسی شود؛ implementation بدون منبع معتبر اضافه نشود.
-- [ ] تست‌های unit/integration مربوط به Bridge اضافه شود، مخصوصاً PostgreSQL 17 → 16 و اختلاف نسخه Timescale.
-- [ ] orchestration واقعی `scripts/manubisguard-migrate.sh` با Python migration engine دوباره audit شود تا هیچ mismatch بین planner و shell path باقی نماند.
+- [x] تست‌های unit مربوط به Bridge اضافه شد، مخصوصاً version direction، hypertable/dimension، CAGG، policy، dump exclusions و artifact generation.
+- [ ] integration واقعی PostgreSQL 17 → 16 و اختلاف نسخه Timescale هنوز باید در محیط Docker/Railway مناسب اجرا شود.
+- [x] orchestration `scripts/manubisguard-migrate.sh` برای مسیر newer→older به Portable Bridge متصل شد.
+- [ ] یک اجرای end-to-end واقعی روی backup واقعی هنوز باقی است.
 - [ ] تمام failure/rollback pathها یک دور دوم review شوند.
-- [ ] GitHub Actions آخرین commit بررسی و خطاهای واقعی، در صورت وجود، قبل از ادامه‌ی فاز بعدی رفع شوند.
+- [ ] GitHub Actions برای head فعلی از connector موجود نتیجه‌ی run قابل‌استناد برنگرداند؛ بنابراین CI را سبز اعلام نمی‌کنیم.
+- [ ] Railway تست شد، اما ابزار deployment با وجود branch درخواستی deployment را روی `main` ثبت کرد؛ نتیجه‌ی آن برای branch فعلی معتبر نیست.
 - [ ] پس از پایان هر مرحله، همین فایل `TODO.md` با وضعیت واقعی همان commit به‌روزرسانی شود.
 
 ## مشکلات و نکات
 
 - [ ] **Cross-major PostgreSQL:** source backup می‌تواند PostgreSQL 17 باشد ولی deployment مقصد PostgreSQL 16 است؛ dump تولیدشده توسط PG17 الزاماً بدون ویرایش روی PG16 قابل replay نیست. فیلتر compatibility باید محدود و explicit باقی بماند.
-- [ ] **Timescale newer → older:** downgrade مستقیم TimescaleDB تصمیم معماری مجاز نیست؛ برای این حالت Portable Schema/Data Bridge یا ارتقای مقصد لازم است.
+- [x] **Timescale newer → older:** downgrade مستقیم TimescaleDB انجام نمی‌شود؛ Portable Schema/Data Bridge مسیر اختصاصی آن است.
 - [ ] **Timescale catalog era:** sourceهای pre-2.29 از catalog layout قدیمی `schema_name` استفاده می‌کنند و sourceهای جدیدتر ممکن است layout متفاوت داشته باشند؛ نباید catalog داخلی Timescale به‌صورت blind replay شود.
 - [ ] **Credentials:** role passwordهای داخل backup داده‌ی source هستند و نباید password/identity مقصد را overwrite کنند.
 - [ ] **Deployment identity:** `.env`، Docker Compose، image/container settings و DB identity بکاپ authoritative نیستند و نباید جایگزین deployment مقصد شوند.
 - [ ] **Runtime assets:** certificate/key فقط بعد از validation و safety backup باید وارد cutover شوند و در failure باید rollback شوند.
 - [ ] **Production safety:** هیچ restore یا migration واقعی روی Production نباید قبل از عبور از staging و validation کامل انجام شود.
 - [ ] **CI status:** وضعیت سبز فقط وقتی ثبت می‌شود که GitHub Actions اجرای completed/successful گزارش کرده باشد؛ queued یا نبودن run، green محسوب نمی‌شود.
-- [ ] **End-to-end validation:** تا وقتی مسیر کامل source backup → isolated runtime → cutover DB → validation → production rollback در محیط واقعی اجرا نشده، migration را production-ready قطعی تلقی نمی‌کنیم.
+- [ ] **End-to-end validation:** مسیر Bridge هنوز روی backup واقعی در PostgreSQL/Timescale runtime اجرا نشده؛ تا آن زمان migration را production-ready قطعی تلقی نمی‌کنیم.
 - [ ] **AmneziaWG:** داده‌ی legacy مربوط به AmneziaWG نباید در migration به‌صورت fabricated ساخته شود؛ هر mapping باید بر اساس schema/source واقعی انجام شود.
 - [ ] **Backup safety:** backup واقعی production نباید compose، image، Dockerfile یا deployment identity مقصد را overwrite کند.
 - [ ] **مرجع‌پذیری:** هر کد جدید در migration باید قبل از commit بر اساس مستندات رسمی یا source معتبر پروژه‌های مرجع پیاده‌سازی و سپس با test پوشش داده شود.
+
+### آخرین مرحله ثبت‌شده
+
+- Portable Bridge commits: `335e431d1d5279f44bfcfa04414ef17523cdd6eb` تا `e132e12054610e700ef4c33dd073d13256adca85`
+- CI syntax check برای `scripts/manubisguard-migrate.sh` اضافه شد.
+- PR آزمایشی #1 برای فعال‌کردن CI ساخته شد و merge نشده است.
