@@ -77,34 +77,29 @@ def choose_timescale_version(
     if source is None and len(compatibility.versions) == 1:
         source = compatibility.versions[0]
 
-    if compatibility.catalog_era == "schema_name":
-        # The pre-2.29 catalog requires restoring with the exact source
-        # extension version before any upgrade. A catalog fingerprint alone
-        # cannot distinguish 2.27.x from 2.28.x, so guessing is forbidden.
-        if source is None:
-            raise ValueError(
-                "Pre-2.29 TimescaleDB catalog detected but the exact source "
-                "extension version is unknown. Provide source-version metadata "
-                "or --source-timescale explicitly."
-            )
-        if version_tuple(source) and version_tuple(source) >= TIMESCALE_FIRST_RELID:
-            raise ValueError(
-                f"TimescaleDB source version {source} conflicts with the pre-2.29 catalog fingerprint."
-            )
-    elif compatibility.catalog_era == "relid":
-        # relid is the post-2.29 catalog. A claim of a pre-2.29 source version
-        # is internally inconsistent and must not be guessed around.
-        if source and version_tuple(source) and version_tuple(source) < TIMESCALE_FIRST_RELID:
-            raise ValueError(
-                f"Backup reports TimescaleDB {source} but contains the 2.29+ relid catalog."
-            )
-        source = source or "2.29.0"
+    # A TimescaleDB dump is tied to its extension catalog layout. Era detection
+    # is only a boundary check; it is not precise enough to manufacture a source
+    # version. Exact source-version metadata is therefore mandatory.
+    if source is None:
+        raise ValueError(
+            "Exact TimescaleDB source version is unknown. Provide backup sidecar/"
+            "manifest metadata or --source-timescale explicitly."
+        )
 
-    minimum = compatibility.minimum_version
-    if minimum and (not source or (version_tuple(source) or ()) < (version_tuple(minimum) or ())):
-        source = minimum
+    source_tuple = version_tuple(source)
+    if source_tuple is None:
+        raise ValueError(f"Invalid TimescaleDB source version: {source!r}")
 
-    if source and version_tuple(source) and version_tuple(source) > live:
+    if compatibility.catalog_era == "schema_name" and source_tuple >= TIMESCALE_FIRST_RELID:
+        raise ValueError(
+            f"TimescaleDB source version {source} conflicts with the pre-2.29 catalog fingerprint."
+        )
+    if compatibility.catalog_era == "relid" and source_tuple < TIMESCALE_FIRST_RELID:
+        raise ValueError(
+            f"Backup reports TimescaleDB {source} but contains the 2.29+ relid catalog."
+        )
+
+    if source_tuple > live:
         raise ValueError(
             f"Backup TimescaleDB {source} is newer than destination {live_version}. "
             "Production TimescaleDB must be upgraded before this migration."
