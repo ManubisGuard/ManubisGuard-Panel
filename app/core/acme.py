@@ -50,6 +50,8 @@ class AcmeChallengeProvider(Protocol):
 class AcmeHttp01ChallengeStore:
     """Persist HTTP-01 challenge responses in a shared filesystem."""
 
+    challenge_type = "http-01"
+
     def __init__(self, base_dir: str | Path | None = None):
         configured = base_dir if base_dir is not None else certificate_settings.artifact_directory
         self.base_dir = Path(configured) if configured else Path("/var/lib/PasarGuard/certs")
