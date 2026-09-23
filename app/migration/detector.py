@@ -3,6 +3,8 @@ from __future__ import annotations
 import gzip
 import json
 import re
+import shutil
+import subprocess
 import tarfile
 import zipfile
 from dataclasses import dataclass, field
@@ -188,3 +190,82 @@ def detect_backup(path: str | Path) -> BackupDetection:
     with p.open("rb") as fh:
         raw = fh.read(5_000_000)
     return _detect_text(p, raw.decode("utf-8", errors="replace"))
+
+
+def inspect_pg_dump_custom(path: str | Path, timeout: int = 120) -> BackupDetection:
+    """Inspect a PostgreSQL custom dump with pg_restore --list, without restoring it."""
+    p = Path(path).expanduser()
+    if not p.is_file():
+        raise FileNotFoundError(p)
+
+    binary = shutil.which("pg_restore")
+    if not binary:
+        return BackupDetection(
+            path=str(p),
+            format="pg_dump_custom",
+            source_product="unknown",
+            confidence="low",
+            evidence=("PostgreSQL custom dump signature PGDMP",),
+            warnings=("pg_restore is required to positively identify this custom dump.",),
+        )
+
+    result = subprocess.run(
+        [binary, "--list", str(p)],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+    if result.returncode:
+        detail = (result.stderr or result.stdout or "pg_restore --list failed")[-2000:]
+        return BackupDetection(
+            path=str(p),
+            format="pg_dump_custom",
+            source_product="unknown",
+            confidence="low",
+            evidence=(
+                "PostgreSQL custom dump signature PGDMP",
+                "pg_restore --list failed",
+            ),
+            warnings=(f"Read-only custom dump inspection failed: {detail}",),
+        )
+
+    sample = (result.stdout or "").lower()
+    evidence = ["PostgreSQL custom dump signature PGDMP", "pg_restore TOC inspection completed"]
+    marker_hits = [marker for marker in PASARGUARD_MARKERS if marker in sample]
+    if marker_hits:
+        product = "pasarguard"
+        confidence = "high"
+        evidence.extend(f"legacy marker in dump TOC: {marker}" for marker in marker_hits)
+    elif all(table in sample for table in ("core_configs", "nodes", "alembic_version")):
+        product = "pasarguard"
+        confidence = "medium"
+        evidence.append("schema markers found in pg_restore TOC")
+    else:
+        product = "unknown"
+        confidence = "low"
+
+    if "timescaledb" in sample or "_timescaledb_catalog" in sample:
+        evidence.append("TimescaleDB objects found in pg_restore TOC")
+
+    revision = None
+    match = re.search(
+        r"alembic_version.*?([0-9a-z]{8,32})",
+        sample,
+        flags=re.DOTALL,
+    )
+    if match:
+        revision = match.group(1)
+        evidence.append(f"detected alembic revision: {revision}")
+
+    return BackupDetection(
+        path=str(p),
+        format="pg_dump_custom",
+        source_product=product,
+        confidence=confidence,
+        evidence=tuple(dict.fromkeys(evidence)),
+        schema_revision=revision,
+        warnings=(
+            "Custom PostgreSQL dump was positively identified from a read-only TOC inspection.",
+        ),
+    )
