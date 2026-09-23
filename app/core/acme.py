@@ -266,6 +266,7 @@ class AcmeCertificateClient:
         max_polls: int = 30,
         session_factory=None,
         sleep=asyncio.sleep,
+        provider_name: str = "letsencrypt",
     ):
         self.certificate_store = certificate_store
         self.challenge_provider = challenge_provider
@@ -273,6 +274,7 @@ class AcmeCertificateClient:
         self.timeout = timeout
         self.poll_interval = poll_interval
         self.max_polls = max_polls
+        self.provider_name = provider_name
         self._session_factory = session_factory
         self._sleep = sleep
         self._nonce: str | None = None
@@ -338,7 +340,7 @@ class AcmeCertificateClient:
 
                 return AcmeIssueResult(
                     domain=domain,
-                    provider="letsencrypt",
+                    provider=self.provider_name,
                     order_url=order_url,
                     certificate=validation,
                 )
@@ -586,6 +588,7 @@ class ManagedCertificateEngine:
                 certificate_store=self.store,
                 challenge_provider=provider,
                 directory_url=certificate_settings.acme_directory_url,
+                provider_name="cloudflare",
             )
             return await client.issue(managed_domain)
         raise AcmeError("Existing certificates must be installed with certificate artifacts.")
