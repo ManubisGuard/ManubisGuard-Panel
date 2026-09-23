@@ -49,7 +49,7 @@ def test_build_restore_spec_marks_version_alignment():
     )
     spec = build_restore_spec(compatibility, live_version="2.29.0", pg_major=16)
     assert spec.target_version == "2.28.2"
-    assert spec.image_tag == "pg16-ts2.28-all"
+    assert spec.image_tag == "timescale/timescaledb:2.28.2-pg16-oss"
     assert spec.conversion_required is True
 
 
