@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -8,6 +7,8 @@ from sqlalchemy import inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
+
+from app.migration.async_utils import run_async
 
 
 def _async_url(database_url: str) -> tuple[str, dict[str, Any]]:
@@ -60,11 +61,7 @@ def _inspect_sync(connection) -> SchemaSnapshot:
         for table in tables
     }
     row_counts = {
-        table: int(
-            connection.execute(
-                text(f"SELECT COUNT(*) FROM public.{_quote(table)}")
-            ).scalar_one()
-        )
+        table: int(connection.execute(text(f'SELECT COUNT(*) FROM public.{_quote(table)}')).scalar_one())
         for table in tables
     }
 
@@ -96,7 +93,7 @@ def _inspect_sync(connection) -> SchemaSnapshot:
     )
     if "settings" in tables and all(field in columns["settings"] for field in settings_fields):
         conditions = " OR ".join(
-            f"{_quote(field)} IS NULL OR json_typeof({_quote(field)}) <> 'object'"
+            f'{_quote(field)} IS NULL OR json_typeof({_quote(field)}) <> \'object\''
             for field in settings_fields
         )
         settings_invalid = int(
@@ -143,4 +140,4 @@ async def _inspect_async(database_url: str) -> SchemaSnapshot:
 
 
 def inspect_database(database_url: str) -> SchemaSnapshot:
-    return asyncio.run(_inspect_async(database_url))
+    return run_async(_inspect_async(database_url))
