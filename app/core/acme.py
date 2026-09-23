@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Protocol
 
 import aiohttp
+
+from app.utils.logger import get_logger
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, utils
@@ -24,6 +26,8 @@ from config import certificate_settings
 
 LETSENCRYPT_PRODUCTION_DIRECTORY = "https://acme-v02.api.letsencrypt.org/directory"
 _ACME_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
+
+logger = get_logger("acme")
 
 
 class AcmeError(RuntimeError):
@@ -210,13 +214,7 @@ class _AcmeAccountStore:
 
     def load_or_create(self) -> ec.EllipticCurvePrivateKey:
         if self.key_path.is_file():
-            key = serialization.load_pem_private_key(
-                self.key_path.read_bytes(),
-                password=None,
-            )
-            if not isinstance(key, ec.EllipticCurvePrivateKey) or not isinstance(key.curve, ec.SECP256R1):
-                raise AcmeError("Stored ACME account key is not an ES256 P-256 private key.")
-            return key
+            return self._load_existing()
 
         self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         os.chmod(self.directory, 0o700)
@@ -227,20 +225,35 @@ class _AcmeAccountStore:
             serialization.PrivateFormat.PKCS8,
             serialization.NoEncryption(),
         )
-
-        fd, temporary = tempfile.mkstemp(prefix=".account.", dir=self.directory)
-        temporary_path = Path(temporary)
         try:
-            os.fchmod(fd, 0o600)
+            fd = os.open(self.key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            return self._load_existing()
+
+        try:
             with os.fdopen(fd, "wb") as handle:
                 handle.write(encoded)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(temporary_path, self.key_path)
             os.chmod(self.key_path, 0o600)
-        finally:
-            if temporary_path.exists():
-                temporary_path.unlink()
+        except Exception:
+            try:
+                self.key_path.unlink()
+            except FileNotFoundError:
+                pass
+            raise
+        return key
+
+    def _load_existing(self) -> ec.EllipticCurvePrivateKey:
+        try:
+            key = serialization.load_pem_private_key(
+                self.key_path.read_bytes(),
+                password=None,
+            )
+        except (TypeError, ValueError) as exc:
+            raise AcmeError("Stored ACME account key is invalid.") from exc
+        if not isinstance(key, ec.EllipticCurvePrivateKey) or not isinstance(key.curve, ec.SECP256R1):
+            raise AcmeError("Stored ACME account key is not an ES256 P-256 private key.")
         return key
 
 
@@ -348,8 +361,18 @@ class AcmeCertificateClient:
                     certificate=validation,
                 )
             finally:
+                cleanup_errors: list[str] = []
                 for identifier, token in challenges:
-                    await self.challenge_provider.cleanup(identifier, token)
+                    try:
+                        await self.challenge_provider.cleanup(identifier, token)
+                    except Exception as exc:
+                        cleanup_errors.append(type(exc).__name__)
+                if cleanup_errors:
+                    logger.warning(
+                        "ACME challenge cleanup had %d error(s): %s",
+                        len(cleanup_errors),
+                        ", ".join(cleanup_errors),
+                    )
         finally:
             await session.close()
             await self.challenge_provider.close()
