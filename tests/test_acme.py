@@ -7,8 +7,7 @@ from pathlib import Path
 import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
 from app.core.acme import (
     AcmeCertificateClient,
@@ -196,6 +195,7 @@ class FakeAcmeSession:
     def __init__(self):
         self.authz_polls = 0
         self.order_polls = 0
+        type(self).challenge_presented = False
 
     async def close(self):
         return None
@@ -260,7 +260,7 @@ class FakeAcmeSession:
             FakeAcmeSession.challenge_presented = True
             return FakeAcmeResponse(
                 200,
-                b"{"status":"processing"}",
+                b'{"status":"processing"}',
                 {"Replay-Nonce": "nonce-challenge"},
             )
         if url == "https://acme.test/finalize/1":
