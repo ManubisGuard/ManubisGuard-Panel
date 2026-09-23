@@ -530,6 +530,13 @@ wait_for_timescaledb() {
   die "Existing TimescaleDB/PostgreSQL on 127.0.0.1:5432 is not ready. Existing database was not modified."
 }
 
+install_migration_helper() {
+  local helper="$INSTALL_DIR/scripts/manubisguard-migrate.sh"
+  [ -s "$helper" ] || die "Migration helper not found in source tree: $helper"
+  install -m 0755 "$helper" /usr/local/bin/manubisguard-migrate
+  log "Installed migration helper: /usr/local/bin/manubisguard-migrate"
+}
+
 install_panel() {
   export POSTGRES_PASSWORD
   docker compose config >/dev/null
