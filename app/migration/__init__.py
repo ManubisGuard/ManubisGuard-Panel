@@ -11,6 +11,13 @@ from app.migration.compatibility import (
 )
 from app.migration.detector import BackupDetection, detect_backup
 from app.migration.inspector import SchemaSnapshot, inspect_database
+from app.migration.runner import (
+    BackupAnalysis,
+    MigrationRunResult,
+    analyze_backup,
+    migrate_pasarguard_staging,
+    resolve_staging_timescale_version,
+)
 from app.migration.staging import (
     MigrationSafetyError,
     StagingDatabase,
@@ -23,7 +30,9 @@ from app.migration.staging import (
 from app.migration.validator import ValidationResult, validate_migrated_database
 
 __all__ = [
+    "BackupAnalysis",
     "BackupDetection",
+    "MigrationRunResult",
     "TimescaleCompatibility",
     "analyze_timescale_sql",
     "classify_restore_error",
@@ -33,10 +42,13 @@ __all__ = [
     "ValidationResult",
     "assert_staging_target",
     "create_staging_database",
+    "analyze_backup",
     "detect_backup",
     "drop_staging_database",
+    "migrate_pasarguard_staging",
     "inspect_database",
     "restore_backup_into_staging",
     "upgrade_staging_database",
+    "resolve_staging_timescale_version",
     "validate_migrated_database",
 ]
