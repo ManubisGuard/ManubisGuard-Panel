@@ -59,10 +59,12 @@ def cmd_migrate_check(backup: Path) -> None:
 def cmd_migrate_inspect(
     backup: Path,
     live_timescale: str | None = typer.Option(None, "--live-timescale"),
+    source_timescale: str | None = typer.Option(None, "--source-timescale"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Analyze a PasarGuard backup without touching any database."""
-    result = analyze_backup(backup)
+    source_timescale = _env_or(source_timescale, "MANUBISGUARD_MIGRATION_SOURCE_TIMESCALE")
+    result = analyze_backup(backup, source_timescale_version=source_timescale)
     payload = {
         "detection": {
             "path": result.detection.path,
@@ -110,12 +112,14 @@ def cmd_migrate_staging(
     staging_url: str | None = typer.Option(None, "--staging-url"),
     production_url: str | None = typer.Option(None, "--production-url"),
     external_staging: bool = typer.Option(False, "--external-staging"),
+    source_timescale: str | None = typer.Option(None, "--source-timescale"),
     timeout: int = typer.Option(900, "--timeout", min=60, max=7200),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Restore a PasarGuard backup into isolated staging, upgrade, normalize and validate."""
     staging_url = _env_or(staging_url, "MANUBISGUARD_MIGRATION_STAGING_URL")
     production_url = _env_or(production_url, "MANUBISGUARD_MIGRATION_PRODUCTION_URL")
+    source_timescale = _env_or(source_timescale, "MANUBISGUARD_MIGRATION_SOURCE_TIMESCALE")
     if not staging_url or not production_url:
         raise typer.BadParameter(
             "staging and production URLs must be supplied by option or environment"
@@ -134,6 +138,7 @@ def cmd_migrate_staging(
         production_url=production_url,
         timeout=timeout,
         allow_external_staging=external_staging,
+        source_timescale_version=source_timescale,
     )
     payload = result.as_jsonable()
     if json_output:
