@@ -285,8 +285,6 @@ class AcmeCertificateClient:
         domain = managed_domain.domain
         if domain.startswith("*."):
             raise AcmeError("HTTP-01 cannot issue wildcard certificates.")
-        challenge_type = self.challenge_provider.challenge_type
-
         account_store = _AcmeAccountStore(self.certificate_store.base_dir, self.directory_url)
         self._account_key = account_store.load_or_create()
         timeout = aiohttp.ClientTimeout(total=self.timeout)
@@ -327,7 +325,12 @@ class AcmeCertificateClient:
                 if not certificate_url:
                     raise AcmeError("ACME order is valid but returned no certificate URL.")
 
-                certificate_pem = await self._post_jws_text(session, certificate_url, "")
+                certificate_pem = await self._post_jws_text(
+                    session,
+                    certificate_url,
+                    "",
+                    accept="application/pem-certificate-chain",
+                )
                 key_pem = csr_key.private_bytes(
                     serialization.Encoding.PEM,
                     serialization.PrivateFormat.PKCS8,
@@ -415,11 +418,26 @@ class AcmeCertificateClient:
         except (TypeError, ValueError) as exc:
             raise AcmeError("ACME server returned invalid JSON.") from exc
 
-    async def _post_jws_text(self, session, url: str, payload: str) -> str:
-        response = await self._post_jws_response(session, url, payload)
+    async def _post_jws_text(
+        self,
+        session,
+        url: str,
+        payload: str,
+        *,
+        accept: str = "application/json",
+    ) -> str:
+        response = await self._post_jws_response(session, url, payload, accept=accept)
         return await response.text()
 
-    async def _post_jws_response(self, session, url: str, payload, *, use_jwk: bool = False):
+    async def _post_jws_response(
+        self,
+        session,
+        url: str,
+        payload,
+        *,
+        use_jwk: bool = False,
+        accept: str = "application/json",
+    ):
         if not self._account_key:
             raise AcmeError("ACME account key is not initialized.")
         if not use_jwk and not self._account_url:
@@ -434,7 +452,7 @@ class AcmeCertificateClient:
             async with session.post(
                 url,
                 data=encoded_body,
-                headers={"Content-Type": "application/jose+json", "Accept": "application/json"},
+                headers={"Content-Type": "application/jose+json", "Accept": accept},
             ) as response:
                 body_bytes = await response.read()
                 self._nonce = response.headers.get("Replay-Nonce", self._nonce)
