@@ -24,6 +24,7 @@ _TS_MISSING_COLUMN = re.compile(
 @dataclass(frozen=True)
 class TimescaleCompatibility:
     versions: tuple[str, ...] = ()
+    source_version: str | None = None
     minimum_version: str | None = None
     catalog_era: str | None = None
     recommended_version: str | None = None
@@ -95,8 +96,18 @@ def collect_versions(sql_text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(v.strip() for v in found if v.strip()))
 
 
-def analyze_timescale_sql(sql_text: str) -> TimescaleCompatibility:
+def analyze_timescale_sql(
+    sql_text: str,
+    *,
+    source_version: str | None = None,
+) -> TimescaleCompatibility:
     versions = collect_versions(sql_text)
+    explicit = source_version.strip() if source_version else None
+    if explicit and explicit not in versions:
+        versions = (explicit, *versions)
+    if explicit is None and len(versions) == 1:
+        explicit = versions[0]
+
     era = detect_catalog_era(sql_text)
     minimum = detect_catalog_floor(sql_text)
     # Explicit version strings describe the source environment; they are not
@@ -104,6 +115,11 @@ def analyze_timescale_sql(sql_text: str) -> TimescaleCompatibility:
     # for the known 2.29 chunk schema break.
     recommended = None
     warnings: list[str] = []
+    if len(versions) > 1 and explicit is None:
+        warnings.append(
+            "Multiple TimescaleDB version strings were found; an exact source "
+            "version could not be selected automatically."
+        )
     if era == "schema_name":
         recommended = TIMESCALE_LAST_SCHEMA_NAME
         warnings.append(
@@ -116,6 +132,7 @@ def analyze_timescale_sql(sql_text: str) -> TimescaleCompatibility:
         recommended = minimum
     return TimescaleCompatibility(
         versions=versions,
+        source_version=explicit,
         minimum_version=minimum,
         catalog_era=era,
         recommended_version=recommended,
