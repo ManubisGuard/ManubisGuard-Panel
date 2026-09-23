@@ -12,6 +12,7 @@ from app.core.acme import (
     ManagedCertificateEngine,
     _AcmeAccountStore,
 )
+from app.core.certificate_store import CertificateArtifactStore
 from app.models.settings import ManagedDomain
 
 
@@ -53,7 +54,7 @@ def test_acme_account_store_reuses_persistent_es256_key(tmp_path: Path):
 def test_acme_jws_uses_jwk_before_account_creation(tmp_path: Path):
     store = _AcmeAccountStore(tmp_path, "https://acme.test/directory")
     client = AcmeCertificateClient(
-        certificate_store=__import__("app.core.certificate_store", fromlist=["CertificateArtifactStore"]).CertificateArtifactStore(tmp_path),
+        certificate_store=CertificateArtifactStore(tmp_path),
         challenge_provider=AcmeHttp01ChallengeStore(tmp_path),
         directory_url="https://acme.test/directory",
     )
@@ -103,7 +104,7 @@ def test_acme_csr_contains_requested_domain():
 @pytest.mark.asyncio
 async def test_managed_certificate_engine_rejects_cloudflare_until_dns01_is_available(tmp_path: Path):
     engine = ManagedCertificateEngine(
-        __import__("app.core.certificate_store", fromlist=["CertificateArtifactStore"]).CertificateArtifactStore(tmp_path)
+        CertificateArtifactStore(tmp_path)
     )
     domain = ManagedDomain(
         id="domain-1",
