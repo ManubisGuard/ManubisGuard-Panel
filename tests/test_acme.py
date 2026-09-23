@@ -4,6 +4,7 @@ import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 from cryptography import x509
@@ -351,7 +352,7 @@ class FakeAcmeSession:
     challenge_token = "b" * 43
     challenge_presented = False
     certificate_pem = ""
-    last_headers: dict[str, str] = {}
+    last_headers: ClassVar[dict[str, str]] = {}
 
     def __init__(self):
         self.authz_polls = 0
