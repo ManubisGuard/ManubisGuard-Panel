@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import tempfile
@@ -10,6 +11,9 @@ from app.core.certificate_intelligence import ExistingCertificateValidator
 from app.models.domain_intelligence import ExistingCertificateValidation
 from app.models.settings import ManagedDomain
 from config import certificate_settings
+
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_CERTIFICATE_DIR = Path("/var/lib/PasarGuard/certs")
@@ -73,12 +77,26 @@ class CertificateArtifactStore:
                 raise
 
             if had_previous and backup_dir.exists():
-                shutil.rmtree(backup_dir)
+                try:
+                    shutil.rmtree(backup_dir)
+                except OSError:
+                    logger.warning(
+                        "Certificate backup cleanup failed for %s; retaining backup for recovery.",
+                        normalized,
+                        exc_info=True,
+                    )
         finally:
             if staging_dir.exists():
                 shutil.rmtree(staging_dir)
             if committed and backup_dir.exists():
-                shutil.rmtree(backup_dir)
+                try:
+                    shutil.rmtree(backup_dir)
+                except OSError:
+                    logger.warning(
+                        "Certificate backup cleanup failed during finalization for %s; retaining backup for recovery.",
+                        normalized,
+                        exc_info=True,
+                    )
 
         return result
 
