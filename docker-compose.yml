@@ -18,6 +18,9 @@ services:
 
   pasarguard:
     image: ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     env_file: .env
     network_mode: host
