@@ -16,7 +16,7 @@ jobs:
           python-version: "3.14"
       - run: uv sync --dev
       - run: uv run ruff check app tests
-      - run: uv run pytest tests/test_amneziawg.py -q
+      - run: uv run pytest tests/test_amneziawg.py tests/test_managed_domains.py tests/test_reality_sni_pool.py -q
 
   dashboard:
     runs-on: ubuntu-latest
