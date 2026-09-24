@@ -47,15 +47,34 @@ verify_databases() {
 }
 
 seed_source() {
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN CREATE EXTENSION timescaledb; END IF; END \$\$;"
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CREATE TABLE public.devices (id integer PRIMARY KEY, name text NOT NULL)"
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CREATE TABLE public.usage (time timestamptz NOT NULL, device_id integer NOT NULL REFERENCES public.devices(id), bytes bigint NOT NULL)"
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "SELECT create_hypertable('public.usage', by_range('time', INTERVAL '1 day'))"
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "INSERT INTO public.devices SELECT g, 'device-' || g FROM generate_series(1,3) g"
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "INSERT INTO public.usage SELECT TIMESTAMPTZ '2026-01-01' + g * INTERVAL '1 day', ((g-1)%3)+1, g*100 FROM generate_series(1,48) g"
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CREATE MATERIALIZED VIEW public.daily_usage WITH (timescaledb.continuous) AS SELECT time_bucket('1 day',time) bucket,min(device_id) device_id,sum(bytes) bytes FROM public.usage GROUP BY bucket WITH NO DATA"
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CALL refresh_continuous_aggregate('public.daily_usage',NULL,NULL)"
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "ANALYZE"
+  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+CREATE TABLE public.devices (id integer PRIMARY KEY, name text NOT NULL);
+CREATE TABLE public.usage (
+  time timestamptz NOT NULL,
+  device_id integer NOT NULL REFERENCES public.devices(id),
+  bytes bigint NOT NULL
+);
+SELECT create_hypertable('public.usage', by_range('time', INTERVAL '1 day'));
+INSERT INTO public.devices
+SELECT g, 'device-' || g FROM generate_series(1, 3) g;
+INSERT INTO public.usage
+SELECT TIMESTAMPTZ '2026-01-01' + g * INTERVAL '1 day', ((g - 1) % 3) + 1, g * 100
+FROM generate_series(1, 48) g;
+CREATE MATERIALIZED VIEW public.daily_usage
+WITH (timescaledb.continuous) AS
+SELECT
+  time_bucket('1 day', time) bucket,
+  min(device_id) device_id,
+  sum(bytes) bytes
+FROM public.usage
+GROUP BY bucket
+WITH NO DATA;
+CALL refresh_continuous_aggregate('public.daily_usage', NULL, NULL);
+ANALYZE;
+COMMIT;
+SQL
 }
 
 verify_seed() {
