@@ -48,7 +48,6 @@ async def fetch_counts(
             """
             SELECT hypertable_schema, hypertable_name
             FROM timescaledb_information.hypertables
-            WHERE is_distributed = false
             ORDER BY hypertable_schema, hypertable_name
             """
         )
