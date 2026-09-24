@@ -188,7 +188,7 @@ def main() -> int:
     parser.add_argument("backup")
     parser.add_argument("current_env")
     parser.add_argument("candidate_env")
-    parser.add_argument("--runtime-root", default="/var/lib/pasarguard")
+    parser.add_argument("--runtime-root", default="/var/lib/manubisguard")
     parser.add_argument(
         "--asset-stage-root",
         default="",
