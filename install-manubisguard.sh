@@ -1,631 +1,257 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-REPO="https://github.com/arsamnikzaad/ManubisGuard-Panel.git"
-BRANCH="${PASARGUARD_PANEL_BRANCH:-feature/amnezia-wg}"
-INSTALL_DIR="${PASARGUARD_PANEL_DIR:-/opt/manubisguard-panel}"
-DATA_DIR="/var/lib/pasarguard"
+REPO="${MANUBISGUARD_REPO:-https://github.com/ManubisGuard/ManubisGuard-Panel.git}"
+BRANCH="${MANUBISGUARD_BRANCH:-feature/amnezia-wg}"
+INSTALL_DIR="${MANUBISGUARD_INSTALL_DIR:-/opt/manubisguard-panel}"
+DATA_DIR="${MANUBISGUARD_DATA_DIR:-/var/lib/manubisguard}"
 ENV_FILE="$INSTALL_DIR/.env"
-DATABASE="sqlite"
+DATABASE="timescaledb"
 ASSUME_YES=false
 OVERRIDE=false
-SSL_MODE="none"
-SSL_IDENTIFIER=""
-SSL_EMAIL=""
-SSL_CA_TYPE="public"
-SSL_CERTFILE=""
-SSL_KEYFILE=""
-EXISTING_DB_CONTAINER=""
-REUSE_EXISTING_DB=false
+MIN_FREE_MB="${MANUBISGUARD_MIN_FREE_MB:-6144}"
 
-[[ "$EUID" -eq 0 ]] || { echo "ERROR: run this installer as root."; exit 1; }
+log() { printf '[manubisguard-install] %s\n' "$*"; }
+die() { printf '[manubisguard-install] ERROR: %s\n' "$*" >&2; exit 1; }
 
-log() { echo "[ManubisGuard] $*"; }
-die() { echo "ERROR: $*" >&2; exit 1; }
-
-ask_yes_no() {
-  local prompt="$1" default="${2:-N}" answer
-  if [[ "$ASSUME_YES" == true ]]; then return 0; fi
-  while true; do
-    if [[ "$default" == "Y" ]]; then
-      read -r -p "$prompt [Y/n]: " answer || true
-      answer="${answer:-Y}"
-    else
-      read -r -p "$prompt [y/N]: " answer || true
-      answer="${answer:-N}"
-    fi
-    case "${answer,,}" in
-      y|yes) return 0 ;;
-      n|no) return 1 ;;
-      *) echo "Please answer yes or no." ;;
-    esac
-  done
-}
+[ "$EUID" -eq 0 ] || die "run this installer as root"
 
 usage() {
-  echo "Usage: $0 install [--database sqlite|timescaledb] [--yes] [--override]"
-  echo
-  echo "Database:"
-  echo "  sqlite       SQLite (default)"
-  echo "  timescaledb  TimescaleDB/PostgreSQL 16"
-  echo
-  echo "Options:"
-  echo "  --yes        Accept safe reuse choices automatically; never deletes data"
-  echo "  --override   Explicitly allow replacement/update of an existing PasarGuard installation"
-  echo
-  echo "SSL is selected interactively during installation:"
-  echo "  1) Domain SSL"
-  echo "  2) IP SSL (short-lived)"
-  echo "  3) Custom certificate + key"
-  echo "  4) No SSL"
+  cat <<'EOF'
+ManubisGuard installer
+
+Usage:
+  install-manubisguard.sh install [--database sqlite|timescaledb] [--yes] [--override]
+
+Defaults:
+  database: timescaledb
+  branch:   feature/amnezia-wg
+  install:  /opt/manubisguard-panel
+  data:     /var/lib/manubisguard
+
+Options:
+  --database sqlite|timescaledb
+  --yes|-y      non-interactive safe defaults
+  --override    replace the checked-out source with the selected branch; persistent
+                database credentials/data are preserved
+EOF
 }
 
 parse_args() {
-  [[ "${1:-}" == "@" ]] && shift
-  COMMAND="${1:-}"
-  [[ -n "$COMMAND" ]] && shift || true
+  [ "${1:-}" = "@" ] && shift || true
+  local command="${1:-install}"
+  if [ $# -gt 0 ]; then shift; fi
 
-  case "$COMMAND" in
+  case "$command" in
     install) ;;
-    -h|--help|"") usage; exit 0 ;;
-    *) die "unknown command: $COMMAND" ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "unknown command: $command" ;;
   esac
 
-  while [[ $# -gt 0 ]]; do
+  while [ $# -gt 0 ]; do
     case "$1" in
-      --database)
-        [[ $# -ge 2 ]] || die "--database requires a value"
-        DATABASE="$2"
-        shift 2
-        ;;
-      --database=*)
-        DATABASE="${1#*=}"
-        shift
-        ;;
-      --yes|-y)
-        ASSUME_YES=true
-        shift
-        ;;
-      --override)
-        OVERRIDE=true
-        shift
-        ;;
-      -h|--help)
-        usage
-        exit 0
-        ;;
+      --database) [ $# -ge 2 ] || die "--database requires a value"; DATABASE="$2"; shift 2 ;;
+      --database=*) DATABASE="${1#*=}"; shift ;;
+      --yes|-y) ASSUME_YES=true; shift ;;
+      --override) OVERRIDE=true; shift ;;
+      -h|--help) usage; exit 0 ;;
       *) die "unknown option: $1" ;;
     esac
   done
 
   case "$DATABASE" in
     sqlite|timescaledb) ;;
-    *) die "unsupported database '$DATABASE'. Use sqlite or timescaledb." ;;
+    *) die "unsupported database '$DATABASE' (use sqlite or timescaledb)" ;;
   esac
 }
 
-detect_environment() {
-  echo
-  echo "========== Environment detection =========="
-  if command -v docker >/dev/null 2>&1; then
-    DOCKER_VERSION="$(docker --version 2>/dev/null || true)"
-    if docker compose version >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-      log "Docker detected and healthy: $DOCKER_VERSION"
-      log "Compose: $(docker compose version 2>/dev/null)"
-    elif docker compose version >/dev/null 2>&1; then
-      systemctl enable --now docker >/dev/null 2>&1 || true
-      docker info >/dev/null 2>&1 || die "Docker cannot be started."
-    else
-      ask_yes_no "Docker exists but Compose v2 is missing. Install the plugin?" || die "Docker Compose v2 is required."
-      apt-get update && apt-get install -y docker-compose-plugin
-    fi
-  else
-    ask_yes_no "Docker is not installed. Install it now?" || die "Docker is required."
-    install_docker
-  fi
-
-  EXISTING_PANEL=false
-  EXISTING_DB="none"
-  [[ -f "$INSTALL_DIR/.env" || -f "$INSTALL_DIR/docker-compose.yml" || -d "$INSTALL_DIR/.git" ]] && EXISTING_PANEL=true
-  docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Eq '(^|/|_)pasarguard($|_)|pasarguard-panel' && EXISTING_PANEL=true || true
-  [[ -s "$DATA_DIR/db.sqlite3" ]] && EXISTING_DB="sqlite" && log "SQLite detected: $DATA_DIR/db.sqlite3"
-  if [[ -d "$DATA_DIR/timescaledb" ]] && find "$DATA_DIR/timescaledb" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
-    EXISTING_DB="timescaledb"
-    log "TimescaleDB data detected: $DATA_DIR/timescaledb"
-  fi
-  EXISTING_DB_CONTAINER="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E 'timescaledb|postgres' | head -n1 || true)"
-  if [[ -n "$EXISTING_DB_CONTAINER" ]]; then
-    log "Existing PostgreSQL/TimescaleDB container detected: $EXISTING_DB_CONTAINER"
-    EXISTING_DB="timescaledb"
-  fi
-  if ss -lnt 2>/dev/null | grep -qE '127\.0\.0\.1:5432|0\.0\.0\.0:5432|\*:5432'; then
-    log "Port 5432 is already in use."
-    EXISTING_DB="timescaledb"
-  fi
-
-  if [[ "$EXISTING_PANEL" == true ]]; then
-    echo
-    echo "Existing PasarGuard installation detected: $INSTALL_DIR"
-    echo "Detected database: $EXISTING_DB"
-    echo "  1) Reuse/update existing installation (preserve data)"
-    echo "  2) Override application source/config (preserve database)"
-    echo "  3) Cancel"
-    if [[ "$ASSUME_YES" == true ]]; then
-      EXISTING_ACTION="reuse"
-    else
-      read -r -p "Select [1-3]: " EXISTING_ACTION
-      case "$EXISTING_ACTION" in
-        1) EXISTING_ACTION="reuse" ;;
-        2) EXISTING_ACTION="override"; OVERRIDE=true ;;
-        3|"") die "Installation cancelled. Existing data was not modified." ;;
-        *) die "Invalid selection." ;;
-      esac
-    fi
-  fi
-  echo "==========================================="
-}
-
-install_docker() {
-  export DEBIAN_FRONTEND=noninteractive
+ensure_base_tools() {
   local missing=()
-  for cmd in curl git openssl python3; do
-    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
-  done
-  if [[ ${#missing[@]} -gt 0 ]]; then
+  command -v git >/dev/null 2>&1 || missing+=(git)
+  command -v curl >/dev/null 2>&1 || missing+=(curl)
+  command -v openssl >/dev/null 2>&1 || missing+=(openssl)
+
+  if [ "${#missing[@]}" -gt 0 ]; then
+    export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y ca-certificates curl git openssl python3
+    apt-get install -y ca-certificates "${missing[@]}"
   fi
 
-  apt-mark unhold docker.io docker-compose docker-compose-v2 containerd runc >/dev/null 2>&1 || true
-  apt-get remove -y docker.io docker-compose docker-compose-v2 containerd runc >/dev/null 2>&1 || true
-  curl -fsSL https://get.docker.com | sh
-  systemctl enable --now docker
-  docker compose version >/dev/null 2>&1 || die "Docker Compose v2 installation failed."
-}
+  command -v docker >/dev/null 2>&1 || curl -fsSL https://get.docker.com | sh
 
-install_base() {
-  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    log "Using existing Docker/Compose installation; no Docker package changes."
-  else
-    install_docker
+  if ! docker compose version >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    if apt-get install -y docker-compose-plugin >/dev/null 2>&1; then
+      :
+    elif apt-get install -y docker-compose-v2 >/dev/null 2>&1; then
+      :
+    else
+      die "Docker Compose v2 plugin could not be installed automatically."
+    fi
   fi
-
-  command -v curl >/dev/null 2>&1 || { apt-get update; apt-get install -y curl; }
-  command -v git >/dev/null 2>&1 || { apt-get update; apt-get install -y git; }
-  command -v openssl >/dev/null 2>&1 || { apt-get update; apt-get install -y openssl; }
 
   systemctl enable --now docker >/dev/null 2>&1 || true
-  docker info >/dev/null 2>&1 || die "Docker is not running."
-  docker compose version >/dev/null 2>&1 || die "Docker Compose v2 is not available."
+  docker info >/dev/null 2>&1 || die "Docker daemon is not available."
 }
 
-confirm_database() {
-  local sqlite_exists=false timescale_exists=false port5432=false
-  [[ -s "$DATA_DIR/db.sqlite3" ]] && sqlite_exists=true
-  [[ "$EXISTING_DB" == "timescaledb" ]] && timescale_exists=true
-  ss -lnt 2>/dev/null | grep -qE '127\.0\.0\.1:5432|0\.0\.0\.0:5432|\*:5432' && port5432=true || true
+ensure_disk_space() {
+  local available
+  available="$(df -Pm / | awk 'NR==2 {print $4}')"
+  [[ "$available" =~ ^[0-9]+$ ]] || die "could not determine free disk space"
 
-  if [[ "$DATABASE" == "sqlite" ]]; then
-    if $timescale_exists || $port5432; then
-      log "Existing TimescaleDB detected; it will be preserved."
-      ask_yes_no "Continue with SQLite?" || die "Installation cancelled."
-    fi
-    if $sqlite_exists; then
-      ask_yes_no "Use the existing SQLite database?" || die "Installation cancelled."
-    fi
-    return
+  if [ "$available" -lt "$MIN_FREE_MB" ]; then
+    log "Low disk space (${available}MB); cleaning package and unused build caches only."
+    apt-get clean >/dev/null 2>&1 || true
+    docker builder prune -af >/dev/null 2>&1 || true
+    available="$(df -Pm / | awk 'NR==2 {print $4}')"
   fi
 
-  if $sqlite_exists; then
-    log "Existing SQLite database detected."
-    log "No automatic SQLite -> TimescaleDB migration is performed."
-    ask_yes_no "Continue with TimescaleDB and preserve the SQLite file?" || die "Installation cancelled."
-  fi
-
-  if $timescale_exists || $port5432; then
-    log "Existing PostgreSQL/TimescaleDB resources detected."
-    $timescale_exists && log "  Data directory: $DATA_DIR/timescaledb"
-    $port5432 && log "  Port 5432: already in use"
-    if [[ "$OVERRIDE" == true ]]; then
-      log "Override selected. Existing database will NOT be purged."
-    else
-      ask_yes_no "Reuse the existing TimescaleDB/PostgreSQL environment?" || die "Installation cancelled. Database was not modified."
-    fi
-    REUSE_EXISTING_DB=true
-  fi
-}
-
-select_ssl() {
-  echo
-  echo "========== SSL configuration =========="
-  echo "1) Let's Encrypt Domain certificate"
-  echo "2) Let's Encrypt IP certificate (short-lived)"
-  echo "3) Custom certificate + key paths"
-  echo "4) No SSL"
-  echo "Port 80 must be reachable for Let's Encrypt."
-  if [[ "$ASSUME_YES" == true ]]; then SSL_MODE="none"; return; fi
-
-  while true; do
-    read -r -p "Select SSL option [1-4] (default: 1): " choice
-    choice="${choice// /}"
-    [[ -z "$choice" ]] && choice="1"
-    case "$choice" in
-      1)
-        SSL_MODE="domain"
-        while true; do
-          read -r -p "Enter domain for SSL certificate (example: panel.example.com): " SSL_IDENTIFIER
-          SSL_IDENTIFIER="${SSL_IDENTIFIER// /}"
-          [[ -n "$SSL_IDENTIFIER" && "$SSL_IDENTIFIER" =~ ^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$ ]] && break
-          echo "Invalid domain format."
-        done
-        break ;;
-      2)
-        SSL_MODE="ip"
-        SERVER_PUBLIC_IP="$(curl -4fsS --max-time 10 https://api4.ipify.org || true)"
-        [[ -n "$SERVER_PUBLIC_IP" ]] || SERVER_PUBLIC_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-        read -r -p "Enter IPv4 for SSL certificate (default: $SERVER_PUBLIC_IP): " SSL_IDENTIFIER
-        SSL_IDENTIFIER="${SSL_IDENTIFIER:-$SERVER_PUBLIC_IP}"
-        python3 - "$SSL_IDENTIFIER" <<'PY' || { echo "Invalid IPv4."; continue; }
-import ipaddress,sys
-try:
-    x=ipaddress.ip_address(sys.argv[1])
-    assert x.version == 4
-except Exception:
-    raise SystemExit(1)
-PY
-        break ;;
-      3)
-        SSL_MODE="custom"
-        read -r -p "Enter full path to certificate file: " SSL_CERTFILE
-        read -r -p "Enter full path to private key file: " SSL_KEYFILE
-        [[ -s "$SSL_CERTFILE" && -r "$SSL_CERTFILE" ]] || { echo "Certificate file not found/readable."; continue; }
-        [[ -s "$SSL_KEYFILE" && -r "$SSL_KEYFILE" ]] || { echo "Private key file not found/readable."; continue; }
-        read -r -p "Is this certificate from a public CA? [Y/n]: " SSL_CA_CHOICE
-        if [[ -n "$SSL_CA_CHOICE" && ! "$SSL_CA_CHOICE" =~ ^[Yy]$ ]]; then SSL_CA_TYPE="private"; else SSL_CA_TYPE="public"; fi
-        break ;;
-      4) SSL_MODE="none"; break ;;
-      *) echo "Invalid selection." ;;
-    esac
-  done
-  echo "SSL mode: $SSL_MODE"
-}
-
-is_domain() {
-  [[ "$1" =~ ^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$ ]]
-}
-
-is_ipv4() {
-  python3 - "$1" <<'PY'
-import ipaddress,sys
-try:
-    raise SystemExit(0 if ipaddress.ip_address(sys.argv[1]).version == 4 else 1)
-except Exception:
-    raise SystemExit(1)
-PY
-}
-
-is_port_in_use() {
-  ss -lnt 2>/dev/null | awk -v p=":$1$" '$4 ~ p {found=1} END {exit found ? 0 : 1}'
-}
-
-ensure_acme() {
-  command -v socat >/dev/null 2>&1 || apt-get install -y socat
-  command -v openssl >/dev/null 2>&1 || apt-get install -y openssl
-  command -v crontab >/dev/null 2>&1 || apt-get install -y cron
-  export HOME="/root"
-  if [[ -x "/root/.acme.sh/acme.sh" ]]; then return 0; fi
-  if [[ -n "$SSL_EMAIL" ]]; then
-    curl -fsSL https://get.acme.sh | sh -s email="$SSL_EMAIL"
-  else
-    curl -fsSL https://get.acme.sh | sh
-  fi
-  [[ -x "/root/.acme.sh/acme.sh" ]] || die "acme.sh installation failed."
-}
-
-setup_domain_ssl() {
-  local domain="$1"
-  local acme="/root/.acme.sh/acme.sh"
-  ensure_acme
-  is_port_in_use 80 && die "Port 80 is already in use. Free it before Let's Encrypt validation."
-  mkdir -p "$DATA_DIR/certs/$domain"
-  SSL_CERTFILE="$DATA_DIR/certs/$domain/fullchain.pem"
-  SSL_KEYFILE="$DATA_DIR/certs/$domain/privkey.pem"
-  "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
-  if [[ ! -s "$SSL_CERTFILE" || ! -s "$SSL_KEYFILE" ]]; then
-    # If acme.sh already knows this domain, do not blindly call --issue:
-    # acme.sh may refuse because the certificate is still within its renewal
-    # window. Let the installer explicitly ask whether to reuse it or renew it.
-    if "$acme" --list 2>/dev/null | awk -v d="$domain" 'NR > 1 && $1 == d {found=1} END {exit !found}'; then
-      echo
-      echo "Existing SSL certificate detected for: $domain"
-      echo "1) Use the existing certificate (recommended)"
-      echo "2) Force renew the certificate now"
-      echo "3) Cancel SSL setup"
-      local ssl_choice
-      while true; do
-        read -r -p "Select [1-3] (default: 1): " ssl_choice || true
-        ssl_choice="${ssl_choice:-1}"
-        case "${ssl_choice// /}" in
-          1)
-            log "Using existing SSL certificate for $domain."
-            "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install existing SSL certificate for $domain."
-            break
-            ;;
-          2)
-            log "Force renewing SSL certificate for $domain..."
-            "$acme" --renew -d "$domain" --force --server letsencrypt || die "Failed to renew SSL certificate for $domain."
-            "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install renewed SSL certificate for $domain."
-            break
-            ;;
-          3)
-            die "SSL setup cancelled."
-            ;;
-          *)
-            echo "Invalid selection. Choose 1, 2, or 3."
-            ;;
-        esac
-      done
-    else
-      log "No existing acme.sh certificate found for $domain; issuing a new certificate."
-      "$acme" --issue --standalone -d "$domain" --server letsencrypt || die "Failed to issue SSL certificate for $domain."
-      "$acme" --install-cert -d "$domain" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install SSL certificate for $domain."
-    fi
-  else
-    log "Existing installed certificate found for $domain; reusing it."
-  fi
-  "$acme" --upgrade --auto-upgrade >/dev/null 2>&1 || true
-  "$acme" --install-cronjob >/dev/null 2>&1 || true
-  chmod 644 "$SSL_CERTFILE"
-  chmod 600 "$SSL_KEYFILE"
-}
-
-setup_ip_ssl() {
-  local ipv4="$1"
-  local acme="/root/.acme.sh/acme.sh"
-  ensure_acme
-  is_port_in_use 80 && die "Port 80 is already in use. Free it before Let's Encrypt validation."
-  mkdir -p "$DATA_DIR/certs/ip"
-  SSL_CERTFILE="$DATA_DIR/certs/ip/fullchain.pem"
-  SSL_KEYFILE="$DATA_DIR/certs/ip/privkey.pem"
-  "$acme" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
-  if [[ ! -s "$SSL_CERTFILE" || ! -s "$SSL_KEYFILE" ]]; then
-    "$acme" --issue --standalone -d "$ipv4" --server letsencrypt --certificate-profile shortlived --days 6 || die "Failed to issue IP SSL certificate."
-    "$acme" --install-cert -d "$ipv4" --fullchain-file "$SSL_CERTFILE" --key-file "$SSL_KEYFILE" || die "Failed to install IP SSL certificate."
-  else
-    log "Existing IP certificate found for $ipv4; reusing it."
-  fi
-  "$acme" --upgrade --auto-upgrade >/dev/null 2>&1 || true
-  "$acme" --install-cronjob >/dev/null 2>&1 || true
-  chmod 644 "$SSL_CERTFILE"
-  chmod 600 "$SSL_KEYFILE"
-}
-
-issue_ssl_certificate() {
-  case "$SSL_MODE" in
-    domain)
-      SERVER_PUBLIC_IP="$(curl -4fsS --max-time 10 https://api4.ipify.org || true)"
-      RESOLVED_IPS="$(getent ahostsv4 "$SSL_IDENTIFIER" 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ')"
-      [[ -n "$RESOLVED_IPS" ]] || die "Domain $SSL_IDENTIFIER does not resolve."
-      if [[ -n "$SERVER_PUBLIC_IP" && " $RESOLVED_IPS " != *" $SERVER_PUBLIC_IP "* ]]; then
-        echo "WARNING: $SSL_IDENTIFIER resolves to $RESOLVED_IPS but this server is $SERVER_PUBLIC_IP."
-        ask_yes_no "Continue anyway?" || die "Fix DNS before requesting SSL."
-      fi
-      setup_domain_ssl "$SSL_IDENTIFIER" ;;
-    ip)
-      setup_ip_ssl "$SSL_IDENTIFIER" ;;
-    custom)
-      [[ -s "$SSL_CERTFILE" && -s "$SSL_KEYFILE" ]] || die "Custom SSL files are invalid."
-      ;;
-    none)
-      SSL_CERTFILE=""
-      SSL_KEYFILE=""
-      ;;
-  esac
+  [ "$available" -ge "$MIN_FREE_MB" ] || die "At least ${MIN_FREE_MB}MB free space is required; available=${available}MB."
 }
 
 prepare_source() {
-  if [[ -d "$INSTALL_DIR/.git" ]]; then
-    if git -C "$INSTALL_DIR" status --porcelain 2>/dev/null | grep -q . && [[ "$ASSUME_YES" != true ]]; then
-      log "The existing source directory contains local changes."
-      if ! ask_yes_no "Replace local source changes with branch $BRANCH?"; then
-        die "Installation cancelled to protect local source changes."
-      fi
-    fi
+  mkdir -p "$(dirname "$INSTALL_DIR")"
+
+  if [ -d "$INSTALL_DIR/.git" ]; then
     log "Updating source from $BRANCH..."
+    git -C "$INSTALL_DIR" remote set-url origin "$REPO" >/dev/null 2>&1 || true
     git -C "$INSTALL_DIR" fetch --depth 1 origin "$BRANCH"
     git -C "$INSTALL_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
     git -C "$INSTALL_DIR" reset --hard "origin/$BRANCH"
-    git -C "$INSTALL_DIR" clean -fd
-  else
-    git clone --depth 1 --branch "$BRANCH" "$REPO" "$INSTALL_DIR"
+    return 0
   fi
 
-  cd "$INSTALL_DIR"
-  [[ -f docker-compose.yml ]] || die "docker-compose.yml not found."
-  [[ -f Dockerfile ]] || die "Dockerfile not found."
-  [[ -f .env.example ]] || die ".env.example not found."
+  log "Cloning $BRANCH..."
+  git clone --depth 1 --branch "$BRANCH" --single-branch "$REPO" "$INSTALL_DIR"
 }
 
-prepare_passwords() {
-  mkdir -p "$DATA_DIR"
-  chmod 700 "$DATA_DIR"
-
-  if [[ -s "$DATA_DIR/.postgres_password" ]]; then
-    POSTGRES_PASSWORD="$(cat "$DATA_DIR/.postgres_password")"
-  else
-    POSTGRES_PASSWORD="$(openssl rand -hex 32)"
-    printf '%s' "$POSTGRES_PASSWORD" > "$DATA_DIR/.postgres_password"
-    chmod 600 "$DATA_DIR/.postgres_password"
-  fi
-
-  if [[ -s "$DATA_DIR/.admin_password" ]]; then
-    ADMIN_PASSWORD="$(cat "$DATA_DIR/.admin_password")"
-  else
-    ADMIN_PASSWORD="$(openssl rand -hex 18)"
-    printf '%s' "$ADMIN_PASSWORD" > "$DATA_DIR/.admin_password"
-    chmod 600 "$DATA_DIR/.admin_password"
-  fi
+ensure_secret() {
+  local file="$1" bytes="$2"
+  if [ -s "$file" ]; then return 0; fi
+  openssl rand -hex "$bytes" >"$file"
+  chmod 600 "$file"
 }
 
-write_env() {
-  if [[ "$DATABASE" == "timescaledb" ]]; then
-    DATABASE_URL="postgresql+asyncpg://pasarguard:$POSTGRES_PASSWORD@127.0.0.1:5432/pasarguard"
-    mkdir -p "$DATA_DIR/timescaledb"
-  else
-    DATABASE_URL="sqlite+aiosqlite:////var/lib/pasarguard/db.sqlite3"
-  fi
-
-  UVICORN_PORT=8000
-  local uvicorn_host="0.0.0.0"
-  [[ "$SSL_MODE" == "none" ]] && uvicorn_host="127.0.0.1"
-
-  cat > "$ENV_FILE" <<EOF
-UVICORN_HOST=$uvicorn_host
-UVICORN_PORT=$UVICORN_PORT
-PASARGUARD_SSL_ENABLED=$([[ "$SSL_MODE" == "none" ]] && echo False || echo True)
-PASARGUARD_SSL_MODE=$SSL_MODE
-PASARGUARD_SSL_IDENTIFIER=$SSL_IDENTIFIER
-PASARGUARD_SSL_CERTFILE=$SSL_CERTFILE
-PASARGUARD_SSL_KEYFILE=$SSL_KEYFILE
-ROLE=all-in-one
-SQLALCHEMY_DATABASE_URL=$DATABASE_URL
-SQLALCHEMY_POOL_SIZE=5
-SQLALCHEMY_MAX_OVERFLOW=5
-SQLALCHEMY_POOL_RECYCLE=300
-SQLALCHEMY_POOL_TIMEOUT=5
-SQLALCHEMY_CONNECT_TIMEOUT=5
-SUDO_USERNAME=admin
-SUDO_PASSWORD=$ADMIN_PASSWORD
-DISABLE_RECORDING_NODE_USAGE=$([[ "$DATABASE" == "timescaledb" ]] && echo False || echo True)
-ENABLE_RECORDING_NODES_STATS=$([[ "$DATABASE" == "timescaledb" ]] && echo True || echo False)
-EOF
-
-  if [[ "$SSL_MODE" != "none" ]]; then
-    cat >> "$ENV_FILE" <<EOF
-UVICORN_SSL_CERTFILE=$SSL_CERTFILE
-UVICORN_SSL_KEYFILE=$SSL_KEYFILE
-UVICORN_SSL_CA_TYPE=$SSL_CA_TYPE
-EOF
-  fi
-
+upsert_env() {
+  local key="$1" value="$2"
+  touch "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+  local tmp
+  tmp="$(mktemp)"
+  awk -v k="$key" -v v="$value" '
+    BEGIN { done=0 }
+    {
+      if ($0 ~ "^[[:space:]]*" k "[[:space:]]*=") {
+        if (!done) { print k "=" v; done=1 }
+        next
+      }
+      print
+    }
+    END { if (!done) print k "=" v }
+  ' "$ENV_FILE" >"$tmp"
+  mv "$tmp" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
 }
 
-wait_for_timescaledb() {
-  log "Checking existing TimescaleDB/PostgreSQL..."
-  for i in {1..60}; do
-    if [[ -n "$EXISTING_DB_CONTAINER" ]] && docker exec "$EXISTING_DB_CONTAINER" pg_isready -U pasarguard -d pasarguard >/dev/null 2>&1; then
-      return 0
-    fi
-    if ss -lnt 2>/dev/null | grep -qE '127\.0\.0\.1:5432|0\.0\.0\.0:5432|\*:5432'; then
-      if command -v pg_isready >/dev/null 2>&1 && pg_isready -h 127.0.0.1 -p 5432 -U pasarguard -d pasarguard >/dev/null 2>&1; then
-        return 0
-      fi
-      if [[ -z "$EXISTING_DB_CONTAINER" ]]; then
-        return 0
-      fi
-    fi
-    sleep 2
-  done
-  die "Existing TimescaleDB/PostgreSQL on 127.0.0.1:5432 is not ready. Existing database was not modified."
-}
+prepare_env() {
+  mkdir -p "$DATA_DIR"
+  chmod 700 "$DATA_DIR"
+  ensure_secret "$DATA_DIR/.postgres_password" 32
+  ensure_secret "$DATA_DIR/.admin_password" 18
 
-install_migration_helper() {
-  local helper="$INSTALL_DIR/scripts/manubisguard-migrate.sh"
-  [ -s "$helper" ] || die "Migration helper not found in source tree: $helper"
-  install -m 0755 "$helper" /usr/local/bin/manubisguard-migrate
-  log "Installed migration helper: /usr/local/bin/manubisguard-migrate"
-}
+  local db_password admin_password
+  db_password="$(cat "$DATA_DIR/.postgres_password")"
+  admin_password="$(cat "$DATA_DIR/.admin_password")"
 
-install_panel() {
-  export POSTGRES_PASSWORD
-  docker compose config >/dev/null
-
-  if [[ "$DATABASE" == "timescaledb" ]]; then
-    if [[ "$REUSE_EXISTING_DB" == true ]]; then
-      log "Reusing existing TimescaleDB/PostgreSQL on 127.0.0.1:5432."
-      log "No new TimescaleDB container will be started."
-      wait_for_timescaledb
-    else
-      log "Starting TimescaleDB..."
-      docker compose up -d timescaledb
-      wait_for_timescaledb
-    fi
+  if [ "$DATABASE" = "timescaledb" ]; then
+    upsert_env POSTGRES_DB manubisguard
+    upsert_env POSTGRES_USER manubisguard
+    upsert_env POSTGRES_PASSWORD "$db_password"
+    upsert_env SQLALCHEMY_DATABASE_URL "postgresql+asyncpg://manubisguard:${db_password}@127.0.0.1:5432/manubisguard"
+    mkdir -p "$DATA_DIR/timescaledb" "$DATA_DIR/migration"
   else
-    log "SQLite selected; TimescaleDB container will not be started."
-    docker compose stop timescaledb >/dev/null 2>&1 || true
+    upsert_env SQLALCHEMY_DATABASE_URL "sqlite+aiosqlite:////var/lib/manubisguard/db.sqlite3"
   fi
 
-  log "Pulling prebuilt ManubisGuard + AmneziaWG image..."
-  if ! docker compose pull pasarguard; then
-    log "Prebuilt image unavailable; building locally from the Fork..."
-    docker compose build --pull pasarguard
-  fi
+  upsert_env UVICORN_HOST 0.0.0.0
+  upsert_env UVICORN_PORT 8000
+  upsert_env ROLE all-in-one
+  upsert_env SUDO_USERNAME admin
+  upsert_env SUDO_PASSWORD "$admin_password"
+  upsert_env MANUBISGUARD_COMPOSE_SERVICE manubisguard
+  upsert_env MANUBISGUARD_DB_SERVICE timescaledb
+  upsert_env MANUBISGUARD_DATA_DIR "$DATA_DIR"
+  upsert_env PASARGUARD_SSL_ENABLED False
+  upsert_env PASARGUARD_SSL_MODE none
+}
 
-  log "Starting ManubisGuard..."
-  docker compose up -d pasarguard
+validate_compose() {
+  cd "$INSTALL_DIR"
+  docker compose -f docker-compose.yml config -q
+}
 
-  log "Waiting for ManubisGuard..."
-  local health_url="http://127.0.0.1:8000/health"
-  [[ "$SSL_MODE" != "none" ]] && health_url="https://127.0.0.1:8000/health"
-  for i in {1..90}; do
-    curl -kfsS --max-time 3 "$health_url" >/dev/null 2>&1 && return 0
-    sleep 2
-  done
+start_stack() {
+  cd "$INSTALL_DIR"
+  log "Pulling database image..."
+  docker compose -f docker-compose.yml pull timescaledb
+  log "Building latest Panel source from $BRANCH..."
+  docker compose -f docker-compose.yml build --pull manubisguard
+  log "Starting ManubisGuard + TimescaleDB..."
+  docker compose -f docker-compose.yml up -d --remove-orphans --wait --wait-timeout 180
+}
 
-  docker compose logs --tail=160 pasarguard || true
-  die "ManubisGuard health check failed."
+verify_stack() {
+  cd "$INSTALL_DIR"
+  local container
+  container="$(docker compose -f docker-compose.yml ps -q manubisguard)"
+  [ -n "$container" ] || die "ManubisGuard container was not created."
+  docker inspect -f '{{.State.Status}}' "$container" | grep -qx running || die "ManubisGuard container is not running."
+  docker exec "$container" python -c 'import app; print("IMPORT_OK")' | grep -qx IMPORT_OK || die "Python import check failed."
+  curl -fsS --max-time 10 http://127.0.0.1:8000/health >/dev/null || die "Panel health check failed."
+}
+
+install_helper() {
+  install -m 0755 "$INSTALL_DIR/scripts/manubisguard-migrate.sh" /usr/local/bin/manubisguard-migrate
+}
+
+show_result() {
+  cd "$INSTALL_DIR"
+  local admin_password
+  admin_password="$(cat "$DATA_DIR/.admin_password")"
+  echo "=============================================="
+  echo " ManubisGuard installation"
+  echo "=============================================="
+  echo "Repository:  $REPO"
+  echo "Branch:      $BRANCH"
+  echo "Install:     $INSTALL_DIR"
+  echo "Data:        $DATA_DIR"
+  echo "Database:    $DATABASE"
+  echo "Panel:       http://SERVER-IP:8000"
+  echo "Username:    admin"
+  echo "Password:    $admin_password"
+  docker compose -f docker-compose.yml ps
+  echo "=============================================="
 }
 
 main() {
   parse_args "$@"
-  detect_environment
-  install_base
-  confirm_database
-  select_ssl
-  prepare_source
-  issue_ssl_certificate
-  prepare_passwords
-  write_env
-  install_panel
-  install_migration_helper
+  ensure_base_tools
+  ensure_disk_space
 
-  echo
-  echo "=============================================="
-  echo " ManubisGuard + AmneziaWG installation complete"
-  echo "=============================================="
-  echo "Panel:       http://SERVER-IP:8000"
-  echo "Username:    admin"
-  echo "Password:    $ADMIN_PASSWORD"
-  if [[ "$DATABASE" == "timescaledb" ]]; then
-    echo "Database:    TimescaleDB/PostgreSQL 16"
-    echo "DB name:     pasarguard"
-    echo "DB user:     pasarguard"
-    echo "DB port:     127.0.0.1:5432"
-  else
-    echo "Database:    SQLite"
-    echo "DB file:     $DATA_DIR/db.sqlite3"
-  fi
-  echo "Source:      $REPO"
-  echo "Branch:      $BRANCH"
-  echo "Data:        $DATA_DIR"
-  echo "Compose:     $INSTALL_DIR/docker-compose.yml"
-  if [[ "$SSL_MODE" != "none" ]]; then
-    echo "SSL mode:    $SSL_MODE"
-    echo "SSL host:    $SSL_IDENTIFIER"
-    echo "SSL cert:    $SSL_CERTFILE"
-    echo "SSL key:     $SSL_KEYFILE"
-    if [[ "$SSL_MODE" == "custom" ]]; then
-      echo "URL:         https://SERVER-IP:8000"
-    else
-      echo "URL:         https://$SSL_IDENTIFIER:8000"
+  if [ -d "$INSTALL_DIR/.git" ] && [ "$OVERRIDE" = false ] && [ "$ASSUME_YES" != true ]; then
+    if git -C "$INSTALL_DIR" status --porcelain 2>/dev/null | grep -q .; then
+      die "Existing checkout has local changes; use --override to replace them."
     fi
-  else
-    echo "SSL:         disabled"
-    echo "URL:         http://127.0.0.1:8000 (localhost only)"
   fi
-  echo "=============================================="
-  docker compose ps
+
+  prepare_source
+  prepare_env
+  validate_compose
+  start_stack
+  verify_stack
+  install_helper
+  show_result
 }
 
 main "$@"
