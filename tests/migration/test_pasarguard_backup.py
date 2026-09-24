@@ -85,6 +85,22 @@ def test_read_manifest_from_zip(tmp_path):
     assert manifest.databases[0].timescale_version == "2.28.2"
 
 
+def test_read_nested_manifest_from_zip(tmp_path):
+    archive_path = tmp_path / "pasarguard.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(
+            "pg_dump/manifest.tsv",
+            "appdb\tappuser\t1\tdb-001.sql\t2.30.0\n",
+        )
+        archive.writestr("pg_dump/db-001.sql", "-- PostgreSQL dump\n")
+
+    manifest, errors = read_manifest_from_archive(archive_path)
+    assert errors == ()
+    assert manifest is not None
+    assert manifest.databases[0].name == "appdb"
+    assert manifest.databases[0].dump_file == "db-001.sql"
+
+
 def test_read_manifest_from_tar(tmp_path):
     archive_path = tmp_path / "pasarguard.tar"
     with tarfile.open(archive_path, "w") as archive:
@@ -102,6 +118,17 @@ def test_read_manifest_from_tar(tmp_path):
     assert errors == ()
     assert parsed is not None
     assert parsed.databases[0].name == "appdb"
+
+
+def test_read_manifest_rejects_multiple_nested_manifests(tmp_path):
+    archive_path = tmp_path / "pasarguard.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("one/manifest.tsv", "appdb\tappuser\t0\tdb-001.sql\n")
+        archive.writestr("two/manifest.tsv", "other\totheruser\t0\tdb-002.sql\n")
+
+    manifest, errors = read_manifest_from_archive(archive_path)
+    assert manifest is None
+    assert errors == ("Archive contains multiple manifest.tsv files.",)
 
 
 def test_read_manifest_rejects_unsafe_dump_path(tmp_path):
