@@ -17,7 +17,6 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-
 # Runtime settings that are meaningful across PasarGuard/ManubisGuard.
 # DB identity is deliberately excluded and restored separately by the caller.
 DENY_KEYS = {
@@ -110,7 +109,7 @@ def merge_env(current: str, legacy: str) -> tuple[str, list[str]]:
 
 def safe_member(name: str) -> str | None:
     name = name.replace("\\", "/")
-    if name.startswith("/") or name.startswith("\\") or ":" in name.split("/")[0]:
+    if name.startswith(("/", "\\")) or ":" in name.split("/")[0]:
         return None
     normalized = posixpath.normpath(name)
     if normalized in (".", "") or normalized == ".." or normalized.startswith("../"):

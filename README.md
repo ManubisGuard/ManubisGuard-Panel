@@ -18,7 +18,7 @@ The installation includes:
 - database migrations
 - AmneziaWG support
 - SSL certificate setup
-- persistent Panel data under `/var/lib/pasarguard`
+- persistent Panel data under `/var/lib/manubisguard`
 - automatic Panel startup through Docker Compose
 
 ## Temporary admin key

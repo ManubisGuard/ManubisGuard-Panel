@@ -12,11 +12,10 @@ from app.models.domain_intelligence import ExistingCertificateValidation
 from app.models.settings import ManagedDomain
 from config import certificate_settings
 
-
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_CERTIFICATE_DIR = Path("/var/lib/PasarGuard/certs")
+DEFAULT_CERTIFICATE_DIR = Path("/var/lib/manubisguard/certs")
 
 
 class CertificateArtifactStore:

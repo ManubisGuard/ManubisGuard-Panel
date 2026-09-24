@@ -5,6 +5,7 @@ REPO="${MANUBISGUARD_REPO:-https://github.com/ManubisGuard/ManubisGuard-Panel.gi
 BRANCH="${MANUBISGUARD_BRANCH:-feature/amnezia-wg}"
 INSTALL_DIR="${MANUBISGUARD_INSTALL_DIR:-/opt/manubisguard-panel}"
 DATA_DIR="${MANUBISGUARD_DATA_DIR:-/var/lib/manubisguard}"
+BACKUP_DIR="/opt/manubisguard/backup"
 ENV_FILE="$INSTALL_DIR/.env"
 DATABASE="timescaledb"
 ASSUME_YES=false
@@ -155,8 +156,8 @@ upsert_env() {
 }
 
 prepare_env() {
-  mkdir -p "$DATA_DIR"
-  chmod 700 "$DATA_DIR"
+  mkdir -p "$DATA_DIR" "$BACKUP_DIR"
+  chmod 700 "$DATA_DIR" "$BACKUP_DIR"
   ensure_secret "$DATA_DIR/.postgres_password" 32
   ensure_secret "$DATA_DIR/.admin_password" 18
 

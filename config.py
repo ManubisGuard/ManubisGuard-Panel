@@ -217,7 +217,7 @@ class JobSettings(EnvSettings):
 
 class CertificateSettings(EnvSettings):
     artifact_directory: str = Field(
-        default="/var/lib/PasarGuard/certs",
+        default="/var/lib/manubisguard/certs",
         validation_alias="PASARGUARD_CERTIFICATE_DIR",
     )
     acme_directory_url: str = Field(

@@ -173,7 +173,7 @@ def cmd_migrate_validate(
         )
     result = validate_migrated_database(database_url)
     payload = validation_jsonable(result)
-    print_json(payload) if json_output else print_json(payload)
+    print_json(payload)
     if not result.valid:
         raise typer.Exit(code=1)
 
