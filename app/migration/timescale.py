@@ -4,8 +4,13 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.migration.compatibility import TIMESCALE_FIRST_RELID, TimescaleCompatibility, version_tuple
+from app.migration.compatibility import (
+    TIMESCALE_FIRST_RELID,
+    TimescaleCompatibility,
+    version_tuple,
+)
 from app.migration.restore_safety import sanitize_role_password_line
+
 
 TIMESCALEDB_CATALOG_SEED_CLEAR_SQL = """\
 DO $manubisguard_ts_seed$
