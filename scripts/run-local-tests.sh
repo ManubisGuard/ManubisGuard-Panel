@@ -21,7 +21,7 @@ export PROJECT COMPOSE_FILE
 SOURCE_CONTAINER="timescaledb-source"
 DESTINATION_CONTAINER="timescaledb-destination"
 stage "Resolve source and destination containers" bash -c 'set -e -o pipefail; test -n "$1"; test -n "$2"' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
-stage "Create source and destination databases" bash -c 'set -e -o pipefail; PGPASSWORD=integration docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T "$1" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='\''source_db'\''" | grep -qx 1; PGPASSWORD=integration docker exec "$2" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='\''destination_db'\''" | grep -qx 1' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
+stage "Create source and destination databases" bash -c 'set -e -o pipefail; PGPASSWORD=integration docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T "$1" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='\''source_db'\''" | grep -qx 1; PGPASSWORD=integration docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T "$2" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='\''destination_db'\''" | grep -qx 1' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
 stage "Verify PostgreSQL readiness before seed" bash -c 'set -e -o pipefail; docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T "$1" pg_isready -U postgres -d source_db' _ "$SOURCE_CONTAINER"
 stage "Seed source database" bash -c 'set -e -o pipefail
 docker compose -p "$PROJECT" -f "$COMPOSE_FILE" exec -T "$1" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS timescaledb"
