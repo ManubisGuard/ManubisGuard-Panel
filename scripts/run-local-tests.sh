@@ -46,14 +46,22 @@ wait_for_timescaledb_extension() {
   local service="$1"
   local database="$2"
   local attempt
-  for attempt in $(seq 1 30); do
+  for attempt in $(seq 1 60); do
     if PGPASSWORD=integration compose_exec "$service" psql -U postgres -d "$database" -Atc \
-      "SELECT 1 FROM pg_extension WHERE extname='timescaledb'" | grep -qx 1; then
-      return 0
+      "SELECT 1 FROM pg_extension WHERE extname='timescaledb'" 2>/dev/null | grep -qx 1; then
+      # The image can briefly restart PostgreSQL after the preinstalled
+      # extension becomes visible. Require a second stable readiness check
+      # before allowing the seed transaction to start.
+      if wait_for_postgres "$service" "$database"; then
+        sleep 2
+        if wait_for_postgres "$service" "$database"; then
+          return 0
+        fi
+      fi
     fi
     sleep 1
   done
-  echo "TimescaleDB extension is not installed in $database" >&2
+  echo "TimescaleDB extension is not stably available in $database" >&2
   return 1
 }
 
@@ -63,7 +71,9 @@ verify_databases() {
 }
 
 seed_source() {
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 <<'SQL'
+  local attempt
+  for attempt in $(seq 1 5); do
+    if compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
 CREATE TABLE public.devices (id integer PRIMARY KEY, name text NOT NULL);
 CREATE TABLE public.usage (
@@ -89,9 +99,17 @@ WITH NO DATA;
 ANALYZE;
 COMMIT;
 SQL
-
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c \
-    "CALL refresh_continuous_aggregate('public.daily_usage', NULL, NULL);"
+    then
+      if compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c \
+        "CALL refresh_continuous_aggregate('public.daily_usage', NULL, NULL);"; then
+        return 0
+      fi
+    fi
+    echo "Seed attempt $attempt failed; waiting for PostgreSQL to stabilize..." >&2
+    wait_for_postgres "$SOURCE_SERVICE" source_db || true
+    sleep 2
+  done
+  return 1
 }
 
 verify_seed() {
