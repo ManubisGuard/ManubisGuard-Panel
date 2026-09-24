@@ -148,6 +148,19 @@ def detect_backup(path: str | Path) -> BackupDetection:
                 result = _detect_json(p, payload)
             else:
                 result = _detect_text(p, names)
+                for member in archive.infolist():
+                    member_name = member.filename.lower()
+                    if not member_name.endswith((".sql", ".sql.gz", ".dump")):
+                        continue
+                    try:
+                        with archive.open(member) as fh:
+                            raw = fh.read(5_000_000)
+                        candidate = _detect_text(p, raw.decode("utf-8", errors="replace"))
+                    except (OSError, RuntimeError, zipfile.BadZipFile, UnicodeDecodeError):
+                        continue
+                    if candidate.source_product == "pasarguard" or candidate.evidence:
+                        result = candidate
+                        break
             return BackupDetection(
                 path=result.path,
                 format="zip",
@@ -228,14 +241,14 @@ def validate_archive_integrity(path: str | Path) -> tuple[str, ...]:
                         continue
                     if name in seen:
                         errors.append(
-                            f"Archive contains duplicate normalized path: {name!r} "
+                            f"Archive contains duplicate path after normalization: {name!r} "
                             f"({seen[name]!r}, {info.filename!r})"
                         )
                         continue
                     seen[name] = info.filename
                     mode = (info.external_attr >> 16) & 0o170000
                     if mode == 0o120000 or (mode and mode != 0o100000):
-                        errors.append(f"Archive contains a link or special file: {info.filename!r}")
+                        errors.append(f"Archive contains a link/special file: {info.filename!r}")
                 bad_name = archive.testzip()
                 if bad_name is not None:
                     errors.append(f"Archive CRC validation failed for: {bad_name!r}")

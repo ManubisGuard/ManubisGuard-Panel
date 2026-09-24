@@ -17,8 +17,8 @@ fi
 echo "OK: Validate compose configuration"
 
 stage "Start isolated Timescale services" docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --wait
-SOURCE_CONTAINER="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q source)"
-DESTINATION_CONTAINER="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q destination)"
+SOURCE_CONTAINER="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q timescaledb-source)"
+DESTINATION_CONTAINER="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q timescaledb-destination)"
 stage "Resolve source and destination containers" bash -c 'set -e; test -n "$1"; test -n "$2"' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
 stage "Create source and destination databases" bash -c 'set -e; PGPASSWORD=integration docker exec "$1" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='''source_db'''" | grep -qx 1; PGPASSWORD=integration docker exec "$2" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='''destination_db'''" | grep -qx 1' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
 stage "Seed source database" bash -c 'set -e; PGPASSWORD=integration docker exec -i "$1" psql -U postgres -d source_db -v ON_ERROR_STOP=1 <<'''SQL'''

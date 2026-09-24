@@ -149,7 +149,11 @@ def classify_restore_error(output: str) -> str | None:
     )):
         return "authentication"
     if (
-        ("timescaledb" in low or "_timescaledb_catalog" in low)
+        (
+            "timescaledb" in low
+            or "_timescaledb_catalog" in low
+            or 'relation "chunk"' in low
+        )
         and (
             "catalog version mismatch" in low
             or "does not exist" in low
