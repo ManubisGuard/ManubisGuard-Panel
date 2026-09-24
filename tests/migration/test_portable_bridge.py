@@ -2,6 +2,7 @@ import pytest
 
 from app.migration.portable_bridge import (
     ContinuousAggregateMetadata,
+    DIMENSIONS_QUERY,
     HypertableDimension,
     HypertableMetadata,
     TimescalePolicyMetadata,
@@ -15,6 +16,12 @@ from app.migration.portable_bridge import (
     render_post_data_sql,
     render_recreate_sql,
 )
+
+
+def test_dimensions_query_excludes_continuous_aggregate_materialization_hypertables():
+    assert "materialization_hypertable_schema" in DIMENSIONS_QUERY
+    assert "materialization_hypertable_name" in DIMENSIONS_QUERY
+    assert "NOT EXISTS" in DIMENSIONS_QUERY
 
 
 def test_hypertable_recreation_uses_public_metadata_only():
