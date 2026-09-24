@@ -120,3 +120,68 @@
 
 ## Reports
 - `docs/reports/2026-09-24-runtime-healthcheck.md` — real-server healthcheck incident, root cause, fix, validation and final green state.
+
+
+## AI Handoff Checkpoint — 2026-09-24 18:35 UTC
+این بخش مرجع ادامه کار است؛ مراحل علامت‌خورده را دوباره اجرا نکنید مگر اینکه تغییر کد/کانفیگ یا regression جدیدی ایجاد شده باشد.
+
+### آخرین وضعیت واقعی روی سرور
+- [x] Stack با image فعلی `ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg` بالا آمده است.
+- [x] `manubisguard-panel-timescaledb-1` قبل از Panel به وضعیت Healthy رسیده است.
+- [x] `manubisguard-panel-manubisguard-1` پس از اصلاح healthcheck از `starting` به `healthy` رسیده است.
+- [x] Uvicorn واقعی روی `https://0.0.0.0:8000` اجرا شده است.
+- [x] `/health` از طریق HTTPS روی localhost با پاسخ `{"status":"ok"}` PASS شده است.
+- [x] `/code/healthcheck.sh` داخل کانتینر PASS شده است.
+- [x] Healthcheck Compose به `/code/healthcheck.sh` تغییر کرده و دوباره stack recreate شده است.
+- [x] health log نهایی شامل `0 | {"status":"ok"}` است.
+- [x] Frontend build کامل شده و PWA generation موفق بوده است.
+- [x] هشدار chunkهای بزرگ Vite/Rolldown فقط warning است و blocker نیست.
+- [x] علت دقیق unhealthy شدن ثبت شده: healthcheck قبلی HTTP بود ولی runtime با HTTPS روی همان port 8000 سرو می‌کرد.
+- [ ] تست root روی HTTPS (`/`) در اجرای فعلی timeout شد؛ این مورد به‌تنهایی health/API failure محسوب نمی‌شود چون `/health` PASS است، ولی در smoke test نهایی باید علت رفتار root بررسی شود.
+- [ ] certificate validity/renewal و flow نهایی production SSL هنوز gate باز است.
+
+### وضعیت Restore / Backup — نقطه ادامه
+آخرین backup واقعی شناخته‌شده:
+- `/root/backup_20260923210118.zip`
+- Source PostgreSQL: 17.10
+- Source TimescaleDB: 2.28.2
+- Source-compatible image قبلاً روی سرور با موفقیت بررسی شده: `timescale/timescaledb:2.28.2-pg17-oss`
+
+گیت‌های Restore/Migration:
+- [x] Architecture و migration implementation gates قبلی.
+- [x] Synthetic E2E.
+- [x] Real backup file detection.
+- [x] Current Panel runtime/import/startup/health baseline.
+- [ ] اجرای واقعی backup `--check` با command دقیق خود پروژه — **اول command را از source/installer استخراج کن؛ حدس نزن.**
+- [ ] Real staging restore از همان backup.
+- [ ] Schema/table/row validation.
+- [ ] Hypertable validation.
+- [ ] Continuous Aggregate validation.
+- [ ] Foreign-key validation.
+- [ ] Identity/sequence validation.
+- [ ] Timescale bridge/upgrade E2E.
+- [ ] Staging dump validation.
+- [ ] Real rollback.
+- [ ] Production cutover.
+
+### ترتیب دقیق ادامه
+1. Command واقعی backup `--check` را از repository/installer/source پیدا و اجرا کن.
+2. اگر backup check PASS شد، همان backup را در staging restore کن؛ production data نباید حذف/overwrite شود.
+3. بعد از restore، schema/table/row/hypertable/CAGG/FK/identity را validate کن.
+4. سپس Timescale bridge/upgrade E2E و staging dump را اجرا کن.
+5. سپس rollback واقعی را تست کن.
+6. فقط بعد از سبز شدن همه gateها، cutover بررسی شود.
+7. بعد از Restore/Migration سراغ Domain/SSL Intelligence باقی‌مانده برو.
+
+### دستورالعمل مهم برای هوش مصنوعی بعدی
+- Repository: `ManubisGuard/ManubisGuard-Panel`
+- Branch: `feature/amnezia-wg`
+- Server project root: `/opt/manubisguard-panel`
+- Do not repeat the already-PASSed runtime healthcheck investigation.
+- Do not revert `/code/healthcheck.sh` based healthcheck to hard-coded HTTP.
+- Do not invent backup/restore commands. Read the current installer/source first.
+- Do not introduce Nginx/Caddy/reverse proxy for SSL unless current source explicitly requires it.
+- Do not invent `MANUBISGUARD_SSL_*` or `MANUBISGUARD_DOMAIN` environment variables.
+- Do not claim PASS without real execution evidence.
+- Do not delete production data during restore/migration E2E.
+- Before modifying TODO again, preserve this checkpoint and append only new verified facts/results.
