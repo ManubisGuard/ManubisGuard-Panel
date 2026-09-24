@@ -16,6 +16,7 @@ stage() {
   "$@" && echo "OK: $name" || {
     echo "FAILED: $name"
     RESULT=1
+    return 1
   }
 }
 
@@ -71,10 +72,12 @@ SELECT
 FROM public.usage
 GROUP BY bucket
 WITH NO DATA;
-CALL refresh_continuous_aggregate('public.daily_usage', NULL, NULL);
 ANALYZE;
 COMMIT;
 SQL
+
+  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c \
+    "CALL refresh_continuous_aggregate('public.daily_usage', NULL, NULL);"
 }
 
 verify_seed() {
@@ -123,23 +126,19 @@ if ! docker compose -p "$PROJECT" -f "$COMPOSE_FILE" config -q; then
 fi
 echo "OK: Validate compose configuration"
 
-stage "Start isolated Timescale services" docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --wait
-stage "Verify source and destination databases" verify_databases
-stage "Verify PostgreSQL readiness before seed" wait_for_postgres "$SOURCE_SERVICE" source_db
-stage "Seed source database" seed_source
-stage "Verify seeded data and 48-row continuous aggregate" verify_seed
-stage "Build portable bridge artifacts" build_bridge
-stage "Dump pre-data, data, and post-data from source service" dump_source
-stage "Restore source schema and data on destination" restore_destination
-stage "Verify migration counts" uv run python scripts/verify-migration-counts.py --source-url "$SOURCE_URL" --destination-url "$DESTINATION_URL"
-stage "Verify migrated continuous aggregate has 48 rows" verify_cagg
-stage "Ruff lint (feature scope)" uv run ruff check app/core/domain_intelligence.py app/migration/portable_bridge.py app/migration/timescale.py tests/migration/test_portable_bridge.py --no-fix
-stage "Ruff format check (feature scope)" uv run ruff format --check app/core/domain_intelligence.py app/migration/portable_bridge.py app/migration/timescale.py tests/migration/test_portable_bridge.py
-stage "Migration unit tests" uv run pytest tests/migration -q
+stage "Start isolated Timescale services" docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --wait || exit "$RESULT"
+stage "Verify source and destination databases" verify_databases || exit "$RESULT"
+stage "Verify PostgreSQL readiness before seed" wait_for_postgres "$SOURCE_SERVICE" source_db || exit "$RESULT"
+stage "Seed source database" seed_source || exit "$RESULT"
+stage "Verify seeded data and 48-row continuous aggregate" verify_seed || exit "$RESULT"
+stage "Build portable bridge artifacts" build_bridge || exit "$RESULT"
+stage "Dump pre-data, data, and post-data from source service" dump_source || exit "$RESULT"
+stage "Restore source schema and data on destination" restore_destination || exit "$RESULT"
+stage "Verify migration counts" uv run python scripts/verify-migration-counts.py --source-url "$SOURCE_URL" --destination-url "$DESTINATION_URL" || exit "$RESULT"
+stage "Verify migrated continuous aggregate has 48 rows" verify_cagg || exit "$RESULT"
+stage "Ruff lint (feature scope)" uv run ruff check app/core/domain_intelligence.py app/migration/portable_bridge.py app/migration/timescale.py tests/migration/test_portable_bridge.py --no-fix || exit "$RESULT"
+stage "Ruff format check (feature scope)" uv run ruff format --check app/core/domain_intelligence.py app/migration/portable_bridge.py app/migration/timescale.py tests/migration/test_portable_bridge.py || exit "$RESULT"
+stage "Migration unit tests" uv run pytest tests/migration -q || exit "$RESULT"
 
-if [ "$RESULT" -eq 0 ]; then
-  echo "ALL TESTS PASSED"
-else
-  echo "TESTS FAILED"
-fi
-exit "$RESULT"
+echo "ALL TESTS PASSED"
+exit 0
