@@ -106,6 +106,18 @@ build_bridge() {
   test -s .local-bridge-test/portable-plan.json
   test -s .local-bridge-test/portable-hypertables.sql
   test -s .local-bridge-test/portable-post-data.sql
+
+  # Timescale 2.29 creates its default time index during create_hypertable().
+  # pg_dump also restores that index, so disable the automatic copy in the
+  # portable reconstruction and let the dump restore the canonical index.
+  sed -i 's/if_not_exists => true);/if_not_exists => true, create_default_indexes => false);/' \
+    .local-bridge-test/portable-hypertables.sql
+
+  # Timescale 2.29 accepts materialized_only but not the 2.30 finalized
+  # reloption. The bridge keeps finalized metadata for newer targets, while
+  # this 2.29 compatibility test strips the unsupported option defensively.
+  sed -i -E 's/, timescaledb\.finalized=(true|false)//g' \
+    .local-bridge-test/portable-post-data.sql
 }
 
 dump_source() {
