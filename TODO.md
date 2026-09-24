@@ -35,6 +35,8 @@
 - [x] بازسازی Continuous Aggregate و refresh خارج از transaction.
 - [x] verifier برای مقایسه row count جدول‌ها و hypertableها.
 - [x] workflow مستقل GitHub Actions برای integration.
+- [x] تست robust برای preinstalled TimescaleDB extension در local migration seed.
+- [x] رفع replay ناسازگار `ONLY` روی hypertable و refresh syntax در restore path.
 
 ## Restore / Migration — تست‌شده در سرور واقعی
 - [x] Synthetic E2E: PostgreSQL 17 / TimescaleDB 2.30.0 → PostgreSQL 16 / TimescaleDB 2.29.2.
@@ -44,7 +46,7 @@
 - [x] Migration unit tests: 65/65 passed.
 - [x] Ruff lint: passed.
 - [x] Ruff format: passed.
-- [x] `bash scripts/run-local-tests.sh`: **ALL TESTS PASSED**.
+- [x] `bash scripts/run-local-tests.sh`: **ALL TESTS PASSED** در سرور واقعی.
 - [ ] `--check` روی backup واقعی PasarGuard.
 - [ ] restore روی staging/isolated database از backup واقعی.
 - [ ] validation schema/table/hypertable/CAGG و count comparison روی backup واقعی.
@@ -125,9 +127,9 @@
 - Ruff lint/format هر دو passed.
 - `scripts/run-local-tests.sh` اکنون سناریوی preinstalled TimescaleDB، hypertable data transfer و CAGG refresh را پوشش می‌دهد.
 
-## مرحله بعدی
-### PasarGuard Backup Compatibility Matrix
+## مرحله بعدی — PasarGuard Backup Compatibility Matrix
 - [ ] پیدا کردن/ثبت فرمت دقیق backup واقعی PasarGuard در repository و tooling.
+- [ ] پیدا کردن مسیر تولید backup و manifest/metadata آن در source و test fixtures.
 - [ ] ساخت detector برای engine/version/backup metadata.
 - [ ] اجرای `--check` روی backup واقعی بدون تغییر مقصد.
 - [ ] اجرای restore در isolated staging.
@@ -135,3 +137,8 @@
 - [ ] تست credential/deployment identity isolation.
 - [ ] تست rollback.
 - [ ] ثبت هر ترکیب واقعی در compatibility matrix.
+
+### آخرین تغییر TODO
+- وضعیت synthetic Timescale migration E2E به‌طور رسمی ثبت شد: **PASSED on real server**.
+- قانون به‌روزرسانی `TODO.md` بعد از هر تغییر/تست مهم فعال و ثبت شد.
+- مرحله بعد بدون توقف: **شناسایی فرمت و tooling بکاپ واقعی PasarGuard و آماده‌سازی E2E واقعی**.
