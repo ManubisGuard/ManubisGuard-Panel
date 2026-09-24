@@ -5,6 +5,7 @@ import json
 import posixpath
 import re
 import shutil
+import stat
 import subprocess
 import tarfile
 import zipfile
@@ -246,8 +247,14 @@ def validate_archive_integrity(path: str | Path) -> tuple[str, ...]:
                         )
                         continue
                     seen[name] = info.filename
-                    mode = (info.external_attr >> 16) & 0o170000
-                    if mode == 0o120000 or (mode and mode != 0o100000):
+
+                    # ZIP archives commonly contain explicit directory entries.
+                    # A directory is safe to traverse and must not be classified
+                    # as a link/special file merely because its Unix mode is 040xxx.
+                    mode = stat.S_IFMT((info.external_attr >> 16) & 0o170000)
+                    if info.is_dir() or mode == stat.S_IFDIR:
+                        continue
+                    if mode not in {0, stat.S_IFREG}:
                         errors.append(f"Archive contains a link/special file: {info.filename!r}")
                 bad_name = archive.testzip()
                 if bad_name is not None:
