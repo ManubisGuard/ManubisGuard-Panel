@@ -1,4 +1,4 @@
-version: '3.8'
+name: manubisguard-staging
 
 services:
   timescaledb:
@@ -10,9 +10,9 @@ services:
       POSTGRES_PASSWORD: __STAGING__
       POSTGRES_INITDB_ARGS: "-c shared_preload_libraries=timescaledb"
     volumes:
-      - manubisguard-staging-db:/var/lib/postgresql/data
+      - /tmp/manubisguard-staging-db:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U manubisguard -d manubisguard"]
       interval: 5s
@@ -21,8 +21,35 @@ services:
     networks:
       - manubisguard-staging
 
-volumes:
-  manubisguard-staging-db:
+  manubisguard-panel:
+    image: ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg
+    pull_policy: always
+    container_name: manubisguard-staging-panel
+    environment:
+      UVICORN_HOST: 0.0.0.0
+      UVICORN_PORT: 8000
+      POSTGRES_DB: manubisguard
+      POSTGRES_USER: manubisguard
+      POSTGRES_PASSWORD: __STAGING__
+      SQLALCHEMY_DATABASE_URL: postgresql+asyncpg://manubisguard:__STAGING__@timescaledb:5432/manubisguard
+      MANUBISGUARD_COMPOSE_SERVICE: manubisguard-panel
+      MANUBISGUARD_DB_SERVICE: timescaledb
+      MANUBISGUARD_DATA_DIR: /var/lib/manubisguard
+    volumes:
+      - /tmp/manubisguard-staging-data:/var/lib/manubisguard
+    ports:
+      - "127.0.0.1:18000:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks:
+      - manubisguard-staging
 
 networks:
   manubisguard-staging:
