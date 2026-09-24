@@ -12,7 +12,6 @@ from app.models.domain_intelligence import (
 )
 from app.models.settings import ManagedDomain
 
-
 DNS_QUERY_TYPES = ("A", "AAAA", "CNAME", "NS")
 _DNS_TYPE_CODES = {"A": 1, "NS": 2, "CNAME": 5, "AAAA": 28}
 _DOH_URL = "https://cloudflare-dns.com/dns-query"
@@ -81,7 +80,7 @@ class DomainIntelligence:
                         value = str(answer.get("data", "")).rstrip(".")
                         if value and value not in values[query_type]:
                             values[query_type].append(value)
-            except (TimeoutError, aiohttp.ClientError, ValueError):
+            except TimeoutError, aiohttp.ClientError, ValueError:
                 return
 
         await asyncio.gather(*(query(query_type) for query_type in DNS_QUERY_TYPES))
