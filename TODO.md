@@ -194,3 +194,9 @@
 - [x] PASS condition in source: `pasarguard-cli migrate-inspect ... --json` must succeed and report `.preflight.ok=true`; an empty `.staging_timescale_error` is also required.
 - [ ] Real execution of `manubisguard-migrate --check /root/backup_20260923210118.zip` is pending because this ChatGPT session currently has no connected remote terminal/SSH execution capability. No PASS is claimed.
 - [ ] Do not proceed to staging restore until the real check has executed and passed.
+
+## Continuation — 2026-09-24 19:24 UTC
+- [x] Re-confirmed the current gate remains Real Backup Check; no previously-PASSed runtime checks were repeated.
+- [x] Confirmed the exact remote execution requirement: the real `manubisguard-migrate --check /root/backup_20260923210118.zip` must execute on the target server before any staging restore.
+- [ ] Remote terminal execution remains blocked in this session because no connected remote-server terminal is available. Therefore no backup-check PASS, staging restore, or downstream validation is claimed.
+- [ ] Remote terminal access is required to continue with execution evidence. After connection, continue from this checkpoint and record each gate immediately after execution.
