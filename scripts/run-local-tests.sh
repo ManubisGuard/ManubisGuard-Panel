@@ -47,7 +47,7 @@ verify_databases() {
 }
 
 seed_source() {
-  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS timescaledb"
+  compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN CREATE EXTENSION timescaledb; END IF; END \$\$;"
   compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CREATE TABLE public.devices (id integer PRIMARY KEY, name text NOT NULL)"
   compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CREATE TABLE public.usage (time timestamptz NOT NULL, device_id integer NOT NULL REFERENCES public.devices(id), bytes bigint NOT NULL)"
   compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "SELECT create_hypertable('public.usage', by_range('time', INTERVAL '1 day'))"
