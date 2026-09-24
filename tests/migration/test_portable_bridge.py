@@ -1,8 +1,8 @@
 import pytest
 
 from app.migration.portable_bridge import (
-    ContinuousAggregateMetadata,
     DIMENSIONS_QUERY,
+    ContinuousAggregateMetadata,
     HypertableDimension,
     HypertableMetadata,
     TimescalePolicyMetadata,
