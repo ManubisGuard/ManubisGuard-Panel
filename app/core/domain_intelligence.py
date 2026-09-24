@@ -81,7 +81,7 @@ class DomainIntelligence:
                         value = str(answer.get("data", "")).rstrip(".")
                         if value and value not in values[query_type]:
                             values[query_type].append(value)
-            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            except (TimeoutError, aiohttp.ClientError, ValueError):
                 return
 
         await asyncio.gather(*(query(query_type) for query_type in DNS_QUERY_TYPES))
