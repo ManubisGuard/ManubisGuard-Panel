@@ -11,7 +11,6 @@ from app.migration.compatibility import (
 )
 from app.migration.restore_safety import sanitize_role_password_line
 
-
 TIMESCALEDB_CATALOG_SEED_CLEAR_SQL = """\
 DO $manubisguard_ts_seed$
 DECLARE
