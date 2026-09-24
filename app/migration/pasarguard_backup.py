@@ -98,14 +98,20 @@ def _normalize_member_name(name: str) -> str:
 def validate_manifest_members(
     manifest: PasarGuardManifest,
     members: set[str],
+    *,
+    manifest_path: str = "manifest.tsv",
 ) -> tuple[str, ...]:
     """Validate manifest dump paths against archive members without extracting files."""
     normalized_members = {_normalize_member_name(member) for member in members}
+    normalized_manifest_path = _normalize_member_name(manifest_path)
+    manifest_dir = posixpath.dirname(normalized_manifest_path)
     errors: list[str] = []
     seen_paths: set[str] = set()
     for entry in manifest.databases:
         try:
             dump_path = _normalize_member_name(entry.dump_file)
+            if manifest_dir and "/" not in entry.dump_file.replace("\\", "/").lstrip("/"):
+                dump_path = _normalize_member_name(posixpath.join(manifest_dir, dump_path))
         except ValueError as exc:
             errors.append(str(exc))
             continue
@@ -157,4 +163,8 @@ def read_manifest_from_archive(path: str | Path) -> tuple[PasarGuardManifest | N
         manifest = parse_manifest_tsv(manifest_text)
     except (UnicodeDecodeError, ValueError) as exc:
         return None, (f"Invalid PasarGuard manifest.tsv: {exc}",)
-    return manifest, validate_manifest_members(manifest, members)
+    return manifest, validate_manifest_members(
+        manifest,
+        members,
+        manifest_path=manifest_names[0],
+    )
