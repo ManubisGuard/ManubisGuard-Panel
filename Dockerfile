@@ -28,6 +28,8 @@ RUN cd /build/dashboard && bun install --frozen-lockfile
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
+# Pre-build the dashboard so production containers do not perform a Vite build at startup.
+RUN cd /build/dashboard && bun run build --outDir build --assetsDir statics && test -s build/index.html
 
 FROM python:${PYTHON_VERSION}-slim-trixie
 
