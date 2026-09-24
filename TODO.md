@@ -154,18 +154,18 @@
 - [x] validation جدید برای duplicate database name و dump path اضافه شد.
 - [x] parser به preflight برای ZIP/TAR متصل شد؛ manifest malformed یا dump missing قبل از staging به‌عنوان blocking error ثبت می‌شود.
 - [x] نبودن manifest در archive blocking نیست و به‌صورت warning ثبت می‌شود تا backupهای قدیمی/دستی بدون metadata نیز بدون حدس‌زدن compatibility بررسی شوند.
+- [x] پشتیبانی از `manifest.tsv` تو در تو در archive اضافه شد؛ ساختار رسمی چند-database PasarGuard که manifest را زیر `pg_dump/` قرار می‌دهد اکنون در reader قابل شناسایی است.
+- [x] تست nested manifest، multiple nested manifests و مسیرهای dump مربوط به manifest اضافه شد.
 - [ ] اجرای تست‌های parser/preflight روی سرور واقعی و ثبت نتیجه.
 - [ ] `--check` روی backup واقعی PasarGuard بدون تغییر مقصد.
 - [ ] restore در isolated staging از backup واقعی.
 - [ ] مقایسه schema، table counts، hypertable counts و CAGG counts.
 - [ ] تست credential/deployment identity isolation.
 - [ ] تست rollback.
-- [ ] ثبت هر ترکیب واقعی در compatibility matrix.
 
 ### آخرین تغییر TODO
-- Commit `7d329c2`: archive manifest reader و validation برای dump paths اضافه شد.
-- Commit `8e92792`: تست‌های parser/archive ZIP/TAR و validation اضافه شد.
-- Commit `460c769`: `manifest.tsv` به Preflight وصل شد و `PreflightResult` metadata manifest را نگه می‌دارد.
-- Commit `3720923`: تست‌های preflight برای manifest معتبر، malformed و absent اضافه شد.
-- این تغییرات هنوز **روی سرور واقعی اجرا نشده‌اند**؛ بنابراین هیچ supported/pass جدیدی ثبت نشده است.
-- مرحله بعدی: **روی سرور واقعی `feature/amnezia-wg` pull بگیر، تست migration را اجرا کن، نتیجه را ثبت کن و سپس `--check` را به مسیر اجرایی متصل/تست کن.**
+- Commit `01cde793`: reader رسمی PasarGuard اصلاح شد تا `manifest.tsv` را در ریشه یا مسیرهای تو در تو مانند `pg_dump/manifest.tsv` پیدا کند و وجود چند manifest را blocking کند.
+- Commit `055ac073`: regression test برای nested manifest و multiple nested manifests اضافه شد.
+- منبع رسمی PasarGuard scripts تأیید می‌کند backup چند-database از `pg_dump/globals.sql`، `pg_dump/db-<NNN>.sql` و `pg_dump/manifest.tsv` استفاده می‌کند.
+- **این تغییر جدید هنوز روی سرور واقعی اجرا نشده است.** بنابراین هیچ pass جدیدی برای server-side ثبت نشده.
+- مرحله بعدی مستقیم: روی سرور `feature/amnezia-wg` را pull کن و `bash scripts/run-local-tests.sh` را اجرا کن؛ بعد از سبز شدن، `--check` را روی یک backup واقعی PasarGuard اجرا می‌کنیم و بدون دست‌زدن به production وارد staging restore می‌شویم.
