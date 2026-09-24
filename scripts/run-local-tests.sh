@@ -21,6 +21,7 @@ SOURCE_CONTAINER="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q timesc
 DESTINATION_CONTAINER="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q timescaledb-destination)"
 stage "Resolve source and destination containers" bash -c 'set -e; test -n "$1"; test -n "$2"' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
 stage "Create source and destination databases" bash -c 'set -e; PGPASSWORD=integration docker exec "$1" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='\''source_db'\''" | grep -qx 1; PGPASSWORD=integration docker exec "$2" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='\''destination_db'\''" | grep -qx 1' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
+stage "Verify PostgreSQL readiness before seed" bash -c 'set -e; docker exec "$1" pg_isready -U postgres -d source_db' _ "$SOURCE_CONTAINER"
 stage "Seed source database" bash -c 'set -e
 docker exec "$1" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS timescaledb"
 docker exec "$1" psql -U postgres -d source_db -v ON_ERROR_STOP=1 -c "CREATE TABLE public.devices (id integer PRIMARY KEY, name text NOT NULL)"
@@ -38,10 +39,10 @@ stage "Dump pre-data, data, and post-data from source container" bash -c 'set -e
 rm -rf .local-migration-dumps
 mkdir -p .local-migration-dumps
 for section in pre-data data post-data; do
-  docker exec -e PGPASSWORD=integration "$1" pg_dump -U postgres -d source_db --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces --section="$section" --exclude-extension=timescaledb --exclude-schema=_timescaledb_internal --exclude-schema=_timescaledb_catalog --exclude-schema=_timescaledb_config --exclude-table=public.daily_usage > ".local-migration-dumps/$section.sql"
+  docker exec -e PGPASSWORD=integration "$1" pg_dump -U postgres -d source_db --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces --section="$section" --exclude-extension=timescaledb --exclude-schema=_timescaledb_internal --exclude-schema=_timescaledb_catalog --exclude-schema=_timescaledb_config --exclude-table=public.daily_usage > ".local-migration-dumps/\$section.sql"
   test -s ".local-migration-dumps/$section.sql"
-  uv run python -c "from pathlib import Path; from app.migration.timescale import prepare_timescale_sql_file; p=Path('.local-migration-dumps/$section.sql'); prepare_timescale_sql_file(p, p.with_suffix('.prepared.sql'), target_pg_major=16)"
-  test -s ".local-migration-dumps/$section.prepared.sql"
+  uv run python -c "from pathlib import Path; from app.migration.timescale import prepare_timescale_sql_file; p=Path('.local-migration-dumps/\$section.sql'); prepare_timescale_sql_file(p, p.with_suffix('.prepared.sql'), target_pg_major=16)"
+  test -s ".local-migration-dumps/\$section.prepared.sql"
 done
 ' _ "$SOURCE_CONTAINER"
 stage "Restore source schema and data on destination" bash -c 'set -e; PGPASSWORD=integration docker exec "$1" psql -U postgres -d destination_db -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS timescaledb"; cat .local-migration-dumps/pre-data.prepared.sql | PGPASSWORD=integration docker exec -i "$1" psql -U postgres -d destination_db -v ON_ERROR_STOP=1; cat .local-bridge-test/portable-hypertables.sql | PGPASSWORD=integration docker exec -i "$1" psql -U postgres -d destination_db -v ON_ERROR_STOP=1; cat .local-migration-dumps/data.prepared.sql | PGPASSWORD=integration docker exec -i "$1" psql -U postgres -d destination_db -v ON_ERROR_STOP=1; cat .local-migration-dumps/post-data.prepared.sql | PGPASSWORD=integration docker exec -i "$1" psql -U postgres -d destination_db -v ON_ERROR_STOP=1; cat .local-bridge-test/portable-post-data.sql | PGPASSWORD=integration docker exec -i "$1" psql -U postgres -d destination_db -v ON_ERROR_STOP=1' _ "$DESTINATION_CONTAINER"
