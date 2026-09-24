@@ -185,3 +185,12 @@
 - Do not claim PASS without real execution evidence.
 - Do not delete production data during restore/migration E2E.
 - Before modifying TODO again, preserve this checkpoint and append only new verified facts/results.
+
+## Restore / Backup Gate — 2026-09-24 19:21 UTC
+- [x] Source inspection completed on `feature/amnezia-wg`: the real backup-check entrypoint is `scripts/manubisguard-migrate.sh`.
+- [x] Exact check syntax extracted from source: `manubisguard-migrate --check BACKUP` (the script's `--check` path requires exactly one backup path).
+- [x] Source behavior verified: the script requires root, Docker, python3, curl, the active compose file, a running panel/database service, and reads the live DB identity before analyzing the backup.
+- [x] Backup is copied into an isolated migration workspace before panel-side analysis; check-only mode explicitly stops before staging restore and reports that production/staging databases are not modified.
+- [x] PASS condition in source: `pasarguard-cli migrate-inspect ... --json` must succeed and report `.preflight.ok=true`; an empty `.staging_timescale_error` is also required.
+- [ ] Real execution of `manubisguard-migrate --check /root/backup_20260923210118.zip` is pending because this ChatGPT session currently has no connected remote terminal/SSH execution capability. No PASS is claimed.
+- [ ] Do not proceed to staging restore until the real check has executed and passed.
