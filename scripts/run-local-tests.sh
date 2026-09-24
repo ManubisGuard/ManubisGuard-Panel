@@ -1,26 +1,35 @@
 #!/usr/bin/env bash
 set -u -o pipefail
 PROJECT="manubisguard-test"
-COMPOSE_FILE="\${COMPOSE_FILE:-docker-compose.test.yml}"
-SOURCE_URL="\${MANUBISGUARD_BRIDGE_SOURCE_URL:-postgresql://postgres:integration@127.0.0.1:55432/source_db}"
-DESTINATION_URL="\${MANUBISGUARD_BRIDGE_DESTINATION_URL:-postgresql://postgres:integration@127.0.0.1:55433/destination_db}"
-SOURCE_CONTAINER="\${PROJECT}-timescaledb-source-1"
-DESTINATION_CONTAINER="\${PROJECT}-timescaledb-destination-1"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.test.yml}"
+SOURCE_URL="${MANUBISGUARD_BRIDGE_SOURCE_URL:-postgresql://postgres:integration@127.0.0.1:55432/source_db}"
+DESTINATION_URL="${MANUBISGUARD_BRIDGE_DESTINATION_URL:-postgresql://postgres:integration@127.0.0.1:55433/destination_db}"
 RESULT=0
 stage() { local name="$1"; echo "==> $name"; shift; "$@" && echo "OK: $name" || { echo "FAILED: $name"; RESULT=1; }; }
 cleanup() { docker compose -p "$PROJECT" -f "$COMPOSE_FILE" down -v --remove-orphans --rmi local >/dev/null 2>&1 || true; }
 trap cleanup EXIT
+
+echo "==> Validate compose configuration"
+if ! docker compose -p "$PROJECT" -f "$COMPOSE_FILE" config -q; then
+  echo "FAILED: Validate compose configuration"
+  exit 1
+fi
+echo "OK: Validate compose configuration"
+
 stage "Start isolated Timescale services" docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --wait
-stage "Create source and destination databases" bash -c 'set -e; PGPASSWORD=integration docker exec "$1" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='\''source_db'\''" | grep -qx 1; PGPASSWORD=integration docker exec "$2" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='\''destination_db'\''" | grep -qx 1' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
-stage "Seed source database" bash -c 'set -e; PGPASSWORD=integration docker exec -i "$1" psql -U postgres -d source_db -v ON_ERROR_STOP=1 <<'\''SQL'\''
+SOURCE_CONTAINER="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q source)"
+DESTINATION_CONTAINER="$(docker compose -p "$PROJECT" -f "$COMPOSE_FILE" ps -q destination)"
+stage "Resolve source and destination containers" bash -c 'set -e; test -n "$1"; test -n "$2"' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
+stage "Create source and destination databases" bash -c 'set -e; PGPASSWORD=integration docker exec "$1" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='''source_db'''" | grep -qx 1; PGPASSWORD=integration docker exec "$2" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='''destination_db'''" | grep -qx 1' _ "$SOURCE_CONTAINER" "$DESTINATION_CONTAINER"
+stage "Seed source database" bash -c 'set -e; PGPASSWORD=integration docker exec -i "$1" psql -U postgres -d source_db -v ON_ERROR_STOP=1 <<'''SQL'''
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 CREATE TABLE public.devices (id integer PRIMARY KEY, name text NOT NULL);
 CREATE TABLE public.usage (time timestamptz NOT NULL, device_id integer NOT NULL REFERENCES public.devices(id), bytes bigint NOT NULL);
-SELECT create_hypertable('\''public.usage'\'', by_range('\''time'\'', INTERVAL '\''1 day'\''));
-INSERT INTO public.devices SELECT g, '\''device-'\'' || g FROM generate_series(1,3) g;
-INSERT INTO public.usage SELECT TIMESTAMPTZ '\''2026-01-01'\'' + g * INTERVAL '\''1 day'\'', ((g-1)%3)+1, g*100 FROM generate_series(1,48) g;
-CREATE MATERIALIZED VIEW public.daily_usage WITH (timescaledb.continuous) AS SELECT time_bucket('\''1 day'\'',time) bucket,min(device_id) device_id,sum(bytes) bytes FROM public.usage GROUP BY bucket WITH NO DATA;
-CALL refresh_continuous_aggregate('\''public.daily_usage'\'',NULL,NULL);
+SELECT create_hypertable('''public.usage''', by_range('''time''', INTERVAL '''1 day'''));
+INSERT INTO public.devices SELECT g, '''device-''' || g FROM generate_series(1,3) g;
+INSERT INTO public.usage SELECT TIMESTAMPTZ '''2026-01-01''' + g * INTERVAL '''1 day''', ((g-1)%3)+1, g*100 FROM generate_series(1,48) g;
+CREATE MATERIALIZED VIEW public.daily_usage WITH (timescaledb.continuous) AS SELECT time_bucket('''1 day''',time) bucket,min(device_id) device_id,sum(bytes) bytes FROM public.usage GROUP BY bucket WITH NO DATA;
+CALL refresh_continuous_aggregate('''public.daily_usage''',NULL,NULL);
 ANALYZE;
 SQL
 ' _ "$SOURCE_CONTAINER"
