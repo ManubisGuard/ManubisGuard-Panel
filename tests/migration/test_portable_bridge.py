@@ -131,9 +131,7 @@ def test_portable_plan_tracks_cagg_exclusions():
     plan = build_portable_plan(
         source_version="2.30.0",
         target_version="2.29.0",
-        hypertable_rows=[
-            {"hypertable_schema": "public", "hypertable_name": "usage"}
-        ],
+        hypertable_rows=[{"hypertable_schema": "public", "hypertable_name": "usage"}],
         dimension_rows=[
             {
                 "hypertable_schema": "public",
@@ -196,16 +194,18 @@ def test_bridge_artifacts_are_written_from_source_metadata(monkeypatch, tmp_path
     async def fake_read(_url):
         return (
             [{"hypertable_schema": "public", "hypertable_name": "usage"}],
-            [{
-                "hypertable_schema": "public",
-                "hypertable_name": "usage",
-                "dimension_number": 1,
-                "column_name": "time",
-                "dimension_type": "Time",
-                "time_interval": "1 day",
-                "integer_interval": None,
-                "num_partitions": None,
-            }],
+            [
+                {
+                    "hypertable_schema": "public",
+                    "hypertable_name": "usage",
+                    "dimension_number": 1,
+                    "column_name": "time",
+                    "dimension_type": "Time",
+                    "time_interval": "1 day",
+                    "integer_interval": None,
+                    "num_partitions": None,
+                }
+            ],
             [],
             [],
         )
@@ -228,16 +228,18 @@ def test_bridge_recreation_is_ordered_around_data():
         source_version="2.30.0",
         target_version="2.29.0",
         hypertable_rows=[{"hypertable_schema": "public", "hypertable_name": "usage"}],
-        dimension_rows=[{
-            "hypertable_schema": "public",
-            "hypertable_name": "usage",
-            "dimension_number": 1,
-            "column_name": "time",
-            "dimension_type": "Time",
-            "time_interval": "1 day",
-            "integer_interval": None,
-            "num_partitions": None,
-        }],
+        dimension_rows=[
+            {
+                "hypertable_schema": "public",
+                "hypertable_name": "usage",
+                "dimension_number": 1,
+                "column_name": "time",
+                "dimension_type": "Time",
+                "time_interval": "1 day",
+                "integer_interval": None,
+                "num_partitions": None,
+            }
+        ],
         continuous_aggregate_rows=[],
         policy_rows=[],
     )
