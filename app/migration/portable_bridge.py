@@ -249,7 +249,7 @@ def build_hypertable_sql(hypertable: HypertableMetadata) -> tuple[str, ...]:
                     f"Space dimension has invalid partition count: "
                     f"{hypertable.schema}.{hypertable.name}.{dimension.column_name}"
                 )
-            builder = f"by_hash({_sql_string(dimension.column_name)}, {dimension.num_partitions})
+            builder = f"by_hash({_sql_string(dimension.column_name)}, {dimension.num_partitions})"
         elif dimension.dimension_type.lower() == "time":
             args = [_sql_string(dimension.column_name)]
             if dimension.time_interval is not None:
