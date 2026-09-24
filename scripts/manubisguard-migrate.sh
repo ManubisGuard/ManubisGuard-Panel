@@ -26,7 +26,7 @@ BACKUP_SOURCE=""
 MANUBISGUARD_SOURCE_TIMESCALE="${MANUBISGUARD_MIGRATION_SOURCE_TIMESCALE:-}"
 PANEL_CONTAINER=""
 DB_CONTAINER=""
-COMPOSE_SERVICE="pasarguard"
+COMPOSE_SERVICE=""
 DB_SERVICE="timescaledb"
 
 PROD_URL=""
@@ -161,15 +161,40 @@ PY
 }
 
 find_services() {
-  local services
+  local services candidates service
   services="$(docker compose -f "$COMPOSE_FILE" config --services 2>/dev/null || true)"
-  printf '%s\n' "$services" | grep -qx 'pasarguard' && COMPOSE_SERVICE="pasarguard"
-  if ! printf '%s\n' "$services" | grep -qx "$COMPOSE_SERVICE"; then
-    printf '%s\n' "$services" | grep -qx 'panel' && COMPOSE_SERVICE="panel"
-  fi
-  printf '%s\n' "$services" | grep -qx "$COMPOSE_SERVICE" || die "Panel service not found in compose."
+  [ -n "$services" ] || die "No services found in compose."
 
-  if printf '%s\n' "$services" | grep -qx 'timescaledb'; then
+  if [ -n "${MANUBISGUARD_COMPOSE_SERVICE:-}" ]; then
+    COMPOSE_SERVICE="$MANUBISGUARD_COMPOSE_SERVICE"
+    printf '%s\n' "$services" | grep -qx "$COMPOSE_SERVICE" ||
+      die "Configured ManubisGuard panel service not found in compose: $COMPOSE_SERVICE"
+  else
+    candidates=""
+    for service in manubisguard panel pasarguard; do
+      if printf '%s\n' "$services" | grep -qx "$service"; then
+        candidates="${candidates:+$candidates\n}$service"
+      fi
+    done
+
+    case "$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)" in
+      0)
+        die "No ManubisGuard panel service candidate found in compose (expected one of: manubisguard, panel, pasarguard)."
+        ;;
+      1)
+        COMPOSE_SERVICE="$candidates"
+        ;;
+      *)
+        die "Multiple ManubisGuard panel service candidates found in compose: $(printf '%s' "$candidates" | paste -sd ', ' -). Set MANUBISGUARD_COMPOSE_SERVICE explicitly."
+        ;;
+    esac
+  fi
+
+  if [ -n "${MANUBISGUARD_DB_SERVICE:-}" ]; then
+    DB_SERVICE="$MANUBISGUARD_DB_SERVICE"
+    printf '%s\n' "$services" | grep -qx "$DB_SERVICE" ||
+      die "Configured database service not found in compose: $DB_SERVICE"
+  elif printf '%s\n' "$services" | grep -qx 'timescaledb'; then
     DB_SERVICE="timescaledb"
   elif printf '%s\n' "$services" | grep -qx 'postgresql'; then
     DB_SERVICE="postgresql"
@@ -517,7 +542,7 @@ import sys
 from urllib.parse import quote
 user, password, port, db = sys.argv[1:]
 print("postgresql+asyncpg://%s:%s@127.0.0.1:%s/%s" % (
-    quote(user, safe=""), quote(password, safe=""), port, db
+    quote(user, safe=""), quote(password, safe=""), port, quote(db, safe="")
 ))
 PY
 )"
