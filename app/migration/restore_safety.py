@@ -135,7 +135,7 @@ def prepare_postgresql_sql(
         emit("\n".join(pending))
 
     text = "\n".join(output)
-    if source_text.endswith(("\n", "\r")):
+    if output and source_text.endswith(("\n", "\r")):
         text += "\n"
     return text, passwords_removed, destination_role_statements
 
