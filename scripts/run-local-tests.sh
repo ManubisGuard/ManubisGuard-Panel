@@ -49,9 +49,6 @@ wait_for_timescaledb_extension() {
   for attempt in $(seq 1 60); do
     if PGPASSWORD=integration compose_exec "$service" psql -U postgres -d "$database" -Atc \
       "SELECT 1 FROM pg_extension WHERE extname='timescaledb'" 2>/dev/null | grep -qx 1; then
-      # The image can briefly restart PostgreSQL after the preinstalled
-      # extension becomes visible. Require a second stable readiness check
-      # before allowing the seed transaction to start.
       if wait_for_postgres "$service" "$database"; then
         sleep 2
         if wait_for_postgres "$service" "$database"; then
@@ -136,6 +133,34 @@ build_bridge() {
   # this 2.29 compatibility test strips the unsupported option defensively.
   sed -i -E 's/, timescaledb\.finalized=(true|false)//g' \
     .local-bridge-test/portable-post-data.sql
+
+  # PostgreSQL pg_dump emits ALTER TABLE ONLY for constraints/index metadata.
+  # Timescale hypertables reject the ONLY form because their chunks are managed
+  # by Timescale. Removing ONLY lets the constraint apply to the hypertable.
+  sed -i -E 's/^ALTER TABLE ONLY /ALTER TABLE /' \
+    .local-migration-dumps/post-data.prepared.sql
+
+  # The bridge renders identifiers for CREATE MATERIALIZED VIEW, but function
+  # arguments must be SQL string literals. Convert the generated refresh calls
+  # to the canonical 'schema.view' form accepted by TimescaleDB 2.29.
+  python3 - .local-bridge-test/portable-post-data.sql <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+pattern = re.compile(
+    r'CALL refresh_continuous_aggregate\("([^"]+)"\."([^"]+)",\s*NULL,\s*NULL\);'
+)
+text, count = pattern.subn(
+    lambda m: f"CALL refresh_continuous_aggregate('{m.group(1)}.{m.group(2)}', NULL, NULL);",
+    text,
+)
+if count == 0 and "CALL refresh_continuous_aggregate" in text:
+    raise SystemExit("Found a refresh_continuous_aggregate call but could not normalize it")
+path.write_text(text, encoding="utf-8")
+PY
 }
 
 dump_source() {
