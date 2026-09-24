@@ -89,13 +89,9 @@ def choose_timescale_version(
         raise ValueError(f"Invalid TimescaleDB source version: {source!r}")
 
     if compatibility.catalog_era == "schema_name" and source_tuple >= TIMESCALE_FIRST_RELID:
-        raise ValueError(
-            f"TimescaleDB source version {source} conflicts with the pre-2.29 catalog fingerprint."
-        )
+        raise ValueError(f"TimescaleDB source version {source} conflicts with the pre-2.29 catalog fingerprint.")
     if compatibility.catalog_era == "relid" and source_tuple < TIMESCALE_FIRST_RELID:
-        raise ValueError(
-            f"Backup reports TimescaleDB {source} but contains the 2.29+ relid catalog."
-        )
+        raise ValueError(f"Backup reports TimescaleDB {source} but contains the 2.29+ relid catalog.")
 
     if source_tuple > live:
         raise ValueError(
@@ -118,9 +114,7 @@ def build_restore_spec(
     warnings = list(compatibility.warnings)
 
     if compatibility.catalog_era == "schema_name" and version_tuple(target) >= TIMESCALE_FIRST_RELID:
-        raise ValueError(
-            "Internal safety error: pre-2.29 catalog was paired with a 2.29+ staging image."
-        )
+        raise ValueError("Internal safety error: pre-2.29 catalog was paired with a 2.29+ staging image.")
 
     if conversion_required:
         warnings.append(
