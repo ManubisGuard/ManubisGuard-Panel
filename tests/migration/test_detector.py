@@ -65,8 +65,8 @@ def test_zip_duplicate_normalized_path_is_blocked(tmp_path: Path):
 
     backup = tmp_path / "backup.zip"
     with zipfile.ZipFile(backup, "w") as zf:
-        zf.writestr("db_backup.sql", "CREATE TABLE users (id integer);")
-        zf.writestr("./db_backup.sql", "CREATE TABLE users (id integer);")
+        zf.writestr("db_backup.sql", "CREATE TABLE users (id integer);\n")
+        zf.writestr("./db_backup.sql", "CREATE TABLE users (id integer);\n")
 
     result = preflight_backup(backup)
 
@@ -132,3 +132,19 @@ def test_detects_source_postgres_major_from_dump_header(tmp_path: Path):
     result = detect_backup(backup)
 
     assert result.source_postgres_major == 17
+
+
+def test_globals_only_dump_is_not_a_database_candidate(tmp_path: Path):
+    backup = tmp_path / "globals.sql"
+    backup.write_text(
+        "-- PostgreSQL database cluster dump\n"
+        "CREATE ROLE pasarguard;\n"
+        "GRANT CONNECT ON DATABASE pasarguard TO pasarguard;\n",
+        encoding="utf-8",
+    )
+
+    result = detect_backup(backup)
+
+    assert result.source_product == "unknown"
+    assert result.confidence == "low"
+    assert "globals-only" in result.evidence[0]
