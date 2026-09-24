@@ -134,15 +134,14 @@ build_bridge() {
   sed -i -E 's/, timescaledb\.finalized=(true|false)//g' \
     .local-bridge-test/portable-post-data.sql
 
-  # PostgreSQL pg_dump emits ALTER TABLE ONLY for constraints/index metadata.
+  # PostgreSQL 17 pg_dump emits ALTER TABLE ONLY for constraints/index metadata.
   # Timescale hypertables reject the ONLY form because their chunks are managed
   # by Timescale. Removing ONLY lets the constraint apply to the hypertable.
   sed -i -E 's/^ALTER TABLE ONLY /ALTER TABLE /' \
     .local-migration-dumps/post-data.prepared.sql
 
   # The bridge renders identifiers for CREATE MATERIALIZED VIEW, but function
-  # arguments must be SQL string literals. Convert the generated refresh calls
-  # to the canonical 'schema.view' form accepted by TimescaleDB 2.29.
+  # arguments must be SQL string literals. Convert generated refresh calls.
   python3 - .local-bridge-test/portable-post-data.sql <<'PY'
 from pathlib import Path
 import re
@@ -165,7 +164,7 @@ PY
 
 dump_source() {
   rm -rf .local-migration-dumps
-  mkdir -p .local-migration-dumps
+  mkdir -p .local-migration-dumps .local-hypertable-data
   local section
   for section in pre-data data post-data; do
     compose_exec -e PGPASSWORD=integration "$SOURCE_SERVICE" pg_dump -U postgres -d source_db --format=plain --quote-all-identifiers --no-owner --no-privileges --no-tablespaces --section="$section" --exclude-extension=timescaledb --exclude-schema=_timescaledb_internal --exclude-schema=_timescaledb_catalog --exclude-schema=_timescaledb_config --exclude-table=public.daily_usage > ".local-migration-dumps/$section.sql"
@@ -173,6 +172,34 @@ dump_source() {
     uv run python -c "from pathlib import Path; from app.migration.timescale import prepare_timescale_sql_file; p=Path('.local-migration-dumps/$section.sql'); prepare_timescale_sql_file(p, p.with_suffix('.prepared.sql'), target_pg_major=16)"
     test -s ".local-migration-dumps/$section.prepared.sql"
   done
+
+  # pg_dump intentionally emits COPY 0 for hypertables because the actual rows
+  # live in Timescale chunks. Export the logical hypertable rows explicitly and
+  # restore them after the destination hypertable has been recreated. This is
+  # the supported Timescale migration pattern for portable hypertable moves.
+  rm -f .local-hypertable-data/*
+  uv run python - .local-bridge-test/portable-plan.json <<'PY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+plan = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for item in plan.get("hypertables", []):
+    schema = item["schema"]
+    name = item["name"]
+    path = Path(".local-hypertable-data") / f"{schema}__{name}.csv"
+    qualified = f'"{schema.replace(chr(34), chr(34) * 2)}"."{name.replace(chr(34), chr(34) * 2)}"'
+    sql = f'\\copy (SELECT * FROM {qualified}) TO STDOUT WITH (FORMAT csv, HEADER true)'
+    with path.open("wb") as out:
+        subprocess.run(
+            ["docker", "compose", "-p", "manubisguard-test", "-f", "docker-compose.test.yml", "exec", "-T", "-e", "PGPASSWORD=integration", "timescaledb-source", "psql", "-U", "postgres", "-d", "source_db", "-c", sql],
+            stdout=out,
+            check=True,
+        )
+    if path.stat().st_size == 0:
+        raise SystemExit(f"Hypertable export is empty: {schema}.{name}")
+PY
 }
 
 restore_destination() {
@@ -180,6 +207,18 @@ restore_destination() {
   cat .local-migration-dumps/pre-data.prepared.sql | PGPASSWORD=integration compose_exec "$DESTINATION_SERVICE" psql -U postgres -d destination_db -v ON_ERROR_STOP=1
   cat .local-bridge-test/portable-hypertables.sql | PGPASSWORD=integration compose_exec "$DESTINATION_SERVICE" psql -U postgres -d destination_db -v ON_ERROR_STOP=1
   cat .local-migration-dumps/data.prepared.sql | PGPASSWORD=integration compose_exec "$DESTINATION_SERVICE" psql -U postgres -d destination_db -v ON_ERROR_STOP=1
+
+  # Restore hypertable rows explicitly because pg_dump cannot serialize the
+  # chunk-backed data through COPY on the logical hypertable relation.
+  for csv in .local-hypertable-data/*.csv; do
+    [ -e "$csv" ] || continue
+    name="$(basename "$csv" .csv)"
+    schema="${name%%__*}"
+    table="${name#*__}"
+    qualified="\"${schema//\"/\"\"}\".\"${table//\"/\"\"}\""
+    cat "$csv" | PGPASSWORD=integration compose_exec "$DESTINATION_SERVICE" psql -U postgres -d destination_db -v ON_ERROR_STOP=1 -c "\\copy $qualified FROM STDIN WITH (FORMAT csv, HEADER true)"
+  done
+
   cat .local-migration-dumps/post-data.prepared.sql | PGPASSWORD=integration compose_exec "$DESTINATION_SERVICE" psql -U postgres -d destination_db -v ON_ERROR_STOP=1
   cat .local-bridge-test/portable-post-data.sql | PGPASSWORD=integration compose_exec "$DESTINATION_SERVICE" psql -U postgres -d destination_db -v ON_ERROR_STOP=1
 }
