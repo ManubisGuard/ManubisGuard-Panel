@@ -4,7 +4,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.migration.compatibility import TIMESCALE_FIRST_RELID, TimescaleCompatibility, version_tuple
+from app.migration.compatibility import (
+    TIMESCALE_FIRST_RELID,
+    TimescaleCompatibility,
+    version_tuple,
+)
 from app.migration.restore_safety import sanitize_role_password_line
 
 
@@ -213,4 +217,3 @@ def prepare_timescale_sql_gzip(
             out.write(line)
             out.write("\n")
     return dest
-
