@@ -67,10 +67,16 @@ ORDER BY hypertable_schema, hypertable_name
 """
 
 DIMENSIONS_QUERY = """
-SELECT hypertable_schema, hypertable_name, dimension_number, column_name,
-       dimension_type, time_interval, integer_interval, num_partitions
-FROM timescaledb_information.dimensions
-ORDER BY hypertable_schema, hypertable_name, dimension_number
+SELECT d.hypertable_schema, d.hypertable_name, d.dimension_number, d.column_name,
+       d.dimension_type, d.time_interval, d.integer_interval, d.num_partitions
+FROM timescaledb_information.dimensions AS d
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM timescaledb_information.continuous_aggregates AS cagg
+    WHERE cagg.materialization_hypertable_schema = d.hypertable_schema
+      AND cagg.materialization_hypertable_name = d.hypertable_name
+)
+ORDER BY d.hypertable_schema, d.hypertable_name, d.dimension_number
 """
 
 CONTINUOUS_AGGREGATES_QUERY = """
