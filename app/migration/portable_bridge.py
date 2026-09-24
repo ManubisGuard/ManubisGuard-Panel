@@ -151,10 +151,7 @@ def collect_hypertables(
     dimension_rows: Sequence[Mapping[str, Any]],
 ) -> tuple[HypertableMetadata, ...]:
     grouped: dict[tuple[str, str], list[tuple[int, HypertableDimension]]] = {}
-    known = {
-        (str(row["hypertable_schema"]), str(row["hypertable_name"]))
-        for row in hypertable_rows
-    }
+    known = {(str(row["hypertable_schema"]), str(row["hypertable_name"])) for row in hypertable_rows}
     for row in dimension_rows:
         key = (str(row["hypertable_schema"]), str(row["hypertable_name"]))
         if key not in known:
@@ -165,31 +162,16 @@ def collect_hypertables(
                 HypertableDimension(
                     column_name=str(row["column_name"]),
                     dimension_type=str(row["dimension_type"]),
-                    time_interval=(
-                        str(row["time_interval"])
-                        if row.get("time_interval") is not None
-                        else None
-                    ),
-                    integer_interval=(
-                        int(row["integer_interval"])
-                        if row.get("integer_interval") is not None
-                        else None
-                    ),
-                    num_partitions=(
-                        int(row["num_partitions"])
-                        if row.get("num_partitions") is not None
-                        else None
-                    ),
+                    time_interval=(str(row["time_interval"]) if row.get("time_interval") is not None else None),
+                    integer_interval=(int(row["integer_interval"]) if row.get("integer_interval") is not None else None),
+                    num_partitions=(int(row["num_partitions"]) if row.get("num_partitions") is not None else None),
                 ),
             )
         )
 
     result: list[HypertableMetadata] = []
     for schema, name in sorted(known):
-        dimensions = tuple(
-            item
-            for _, item in sorted(grouped.get((schema, name), ()), key=lambda pair: pair[0])
-        )
+        dimensions = tuple(item for _, item in sorted(grouped.get((schema, name), ()), key=lambda pair: pair[0]))
         if not dimensions:
             raise ValueError(f"Hypertable has no portable dimension metadata: {schema}.{name}")
         result.append(HypertableMetadata(schema, name, dimensions))
@@ -204,8 +186,7 @@ def collect_continuous_aggregates(
         definition = str(row.get("view_definition") or "").strip()
         if not definition:
             raise ValueError(
-                f"Continuous aggregate has no view definition: "
-                f"{row.get('view_schema')}.{row.get('view_name')}"
+                f"Continuous aggregate has no view definition: {row.get('view_schema')}.{row.get('view_name')}"
             )
         result.append(
             ContinuousAggregateMetadata(
@@ -232,11 +213,7 @@ def collect_policies(
                 relation_schema=str(row["hypertable_schema"]),
                 relation_name=str(row["hypertable_name"]),
                 proc_name=proc_name,
-                schedule_interval=(
-                    str(row["schedule_interval"])
-                    if row.get("schedule_interval") is not None
-                    else None
-                ),
+                schedule_interval=(str(row["schedule_interval"]) if row.get("schedule_interval") is not None else None),
                 config=_parse_config(row.get("config")),
             )
         )
@@ -249,10 +226,7 @@ def build_hypertable_sql(hypertable: HypertableMetadata) -> tuple[str, ...]:
         raise ValueError(f"Hypertable has no dimensions: {hypertable.schema}.{hypertable.name}")
     primary = dimensions[0]
     if primary.dimension_type.lower() != "time":
-        raise ValueError(
-            f"Primary hypertable dimension must be time based: "
-            f"{hypertable.schema}.{hypertable.name}"
-        )
+        raise ValueError(f"Primary hypertable dimension must be time based: {hypertable.schema}.{hypertable.name}")
 
     primary_args = [_sql_string(primary.column_name)]
     if primary.time_interval is not None:
@@ -275,10 +249,7 @@ def build_hypertable_sql(hypertable: HypertableMetadata) -> tuple[str, ...]:
                     f"Space dimension has invalid partition count: "
                     f"{hypertable.schema}.{hypertable.name}.{dimension.column_name}"
                 )
-            builder = (
-                f"by_hash({_sql_string(dimension.column_name)}, "
-                f"{dimension.num_partitions})"
-            )
+            builder = f"by_hash({_sql_string(dimension.column_name)}, {dimension.num_partitions})
         elif dimension.dimension_type.lower() == "time":
             args = [_sql_string(dimension.column_name)]
             if dimension.time_interval is not None:
@@ -287,9 +258,7 @@ def build_hypertable_sql(hypertable: HypertableMetadata) -> tuple[str, ...]:
                 args.append(str(dimension.integer_interval))
             builder = f"by_range({', '.join(args)})"
         else:
-            raise ValueError(
-                f"Unsupported Timescale dimension type: {dimension.dimension_type}"
-            )
+            raise ValueError(f"Unsupported Timescale dimension type: {dimension.dimension_type}")
         statements.append(
             f"SELECT add_dimension({_sql_string(f'{hypertable.schema}.{hypertable.name}')}, "
             f"{builder}, if_not_exists => true);"
@@ -306,10 +275,7 @@ def build_continuous_aggregate_sql(cagg: ContinuousAggregateMetadata) -> tuple[s
     view = _qualified(cagg.schema, cagg.name)
     definition = cagg.view_definition.strip().rstrip(";")
     return (
-        (
-            f"CREATE MATERIALIZED VIEW {view} WITH ({', '.join(options)}) "
-            f"AS {definition} WITH NO DATA;"
-        ),
+        (f"CREATE MATERIALIZED VIEW {view} WITH ({', '.join(options)}) AS {definition} WITH NO DATA;"),
         f"CALL refresh_continuous_aggregate({view}, NULL, NULL);",
     )
 
@@ -366,10 +332,7 @@ def build_policy_sql(policy: TimescalePolicyMetadata) -> str:
         index_name = config.get("index_name")
         if not index_name:
             raise ValueError("Reorder policy has no index_name.")
-        return (
-            f"SELECT add_reorder_policy({relation}, "
-            f"{_sql_string(str(index_name))});"
-        )
+        return f"SELECT add_reorder_policy({relation}, {_sql_string(str(index_name))});"
 
     raise ValueError(f"Unsupported Timescale policy: {policy.proc_name}")
 
@@ -391,13 +354,10 @@ def build_portable_plan(
         raise ValueError("Portable bridge requires valid source and target Timescale versions.")
     if source <= target:
         raise ValueError(
-            "Portable Timescale bridge is only required when source TimescaleDB is newer "
-            "than the destination."
+            "Portable Timescale bridge is only required when source TimescaleDB is newer than the destination."
         )
     if target < (2, 7, 0):
-        raise ValueError(
-            "Portable continuous-aggregate reconstruction requires TimescaleDB 2.7 or newer."
-        )
+        raise ValueError("Portable continuous-aggregate reconstruction requires TimescaleDB 2.7 or newer.")
 
     hypertables = collect_hypertables(hypertable_rows, dimension_rows)
     caggs = collect_continuous_aggregates(continuous_aggregate_rows)
@@ -444,7 +404,9 @@ def render_recreate_sql(plan: PortableTimescalePlan) -> str:
     return render_hypertable_sql(plan) + render_post_data_sql(plan)
 
 
-async def _read_source_metadata(database_url: str) -> tuple[
+async def _read_source_metadata(
+    database_url: str,
+) -> tuple[
     list[Mapping[str, Any]],
     list[Mapping[str, Any]],
     list[Mapping[str, Any]],
@@ -555,11 +517,7 @@ if __name__ == "__main__":
 
     import os
 
-    database_url = (
-        args.database_url
-        if args.database_url is not None
-        else os.environ.get(args.database_url_env, "")
-    )
+    database_url = args.database_url if args.database_url is not None else os.environ.get(args.database_url_env, "")
     if not database_url:
         parser.error("database URL environment variable is empty")
 
