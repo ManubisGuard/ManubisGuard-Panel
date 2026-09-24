@@ -7,16 +7,16 @@
 - هیچ نتیجه‌ای بدون اجرای واقعی PASS اعلام نمی‌شود.
 
 ## Migration/Installer Corrections — 2026-09-24
-- [ ] **CRITICAL:** Remove every legacy `/var/lib/pasarguard` fallback/reference from ManubisGuard runtime, installer and migration paths.
-- [ ] **CRITICAL:** ManubisGuard backup directory contract is `/opt/manubisguard/backup/`; do not derive or invent this path from `MANUBISGUARD_DATA_DIR`.
-- [ ] **CRITICAL:** Migration backup staging must be accessible from inside the Panel container; the current `/var/lib/pasarguard/migration/...` Host path is invisible because the container only mounts `/var/lib/manubisguard`.
+- [x] **CRITICAL:** Removed legacy `/var/lib/pasarguard` runtime/installer path fallback; canonical runtime root is `/var/lib/manubisguard`. Legacy references remain only as migration-source/test evidence where required.
+- [x] **CRITICAL:** Installer now creates canonical `/opt/manubisguard/backup/` independently of `MANUBISGUARD_DATA_DIR`.
+- [x] **CRITICAL:** Verified the running Panel container mounts `/var/lib/manubisguard` to `/var/lib/manubisguard`; migration workspace is therefore container-visible.
 - [ ] Never introduce `MANUBISGUARD_SSL_CERT`, `MANUBISGUARD_SSL_KEY`, or `MANUBISGUARD_DOMAIN` as replacements for the canonical `UVICORN_SSL_CERTFILE` / `UVICORN_SSL_KEYFILE` configuration without explicit evidence from the PasarGuard reference implementation.
-- [ ] SSL file paths in `.env` must use the canonical `UVICORN_SSL_CERTFILE` and `UVICORN_SSL_KEYFILE` keys and preserve the expected quoted `.env` format when generated.
-- [ ] Do not invent, rename, or duplicate environment variables based on assumptions; compare against the PasarGuard reference implementation before changing installer-generated `.env`.
-- [ ] Before real Restore/Migration testing, verify backup path, container visibility, environment schema and Compose mounts.
-- [ ] The real backup `/root/backup_20260923210118.zip` is test evidence only and must not be treated as the permanent backup directory.
-- [ ] Previous failed `migrate-inspect` was caused by the backup existing on Host at `/var/lib/pasarguard/migration/...` while the Panel container could not see that path (`FileNotFoundError`).
-- [ ] Required follow-up: refactor migration staging to use ManubisGuard paths only, then rerun real `--check` without modifying Production.
+- [x] SSL runtime uses canonical `UVICORN_SSL_CERTFILE` / `UVICORN_SSL_KEYFILE`; live `.env` verification confirmed both keys are quoted.
+- [x] Installer changes preserve canonical Uvicorn SSL keys and do not introduce `MANUBISGUARD_SSL_*` or `MANUBISGUARD_DOMAIN` replacements.
+- [x] Verified backup directory, Panel mount visibility, live SSL env keys and `docker compose config` before rerunning real backup check.
+- [x] Confirmed `/root/backup_20260923210118.zip` is consumed as explicit test input; canonical backup directory remains `/opt/manubisguard/backup/`.
+- [x] Historical failure documented; current migration workspace uses `/var/lib/manubisguard/migration/` and is container-visible.
+- [x] Refactor/path contract verified and real `manubisguard-migrate --check /root/backup_20260923210118.zip` exited 0 without modifying staging or Production.
 
 
 ## Restore/Migration
