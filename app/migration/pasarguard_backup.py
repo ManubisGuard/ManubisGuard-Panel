@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import posixpath
 from pathlib import Path
+import tarfile
+import zipfile
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,7 @@ def parse_manifest_tsv(source: str | Path) -> PasarGuardManifest:
         text = source
 
     entries: list[PasarGuardDatabaseEntry] = []
+    seen_names: set[str] = set()
     for line_number, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -43,9 +47,14 @@ def parse_manifest_tsv(source: str | Path) -> PasarGuardManifest:
                 f"Invalid manifest.tsv row {line_number}: expected 4 or 5 columns"
             )
 
-        name, owner, timescale_raw, dump_file = (column.strip() for column in columns[:4])
+        name, owner, timescale_raw, dump_file = (
+            column.strip() for column in columns[:4]
+        )
         if not name or not owner or not dump_file:
             raise ValueError(f"Invalid manifest.tsv row {line_number}: empty required field")
+        if name in seen_names:
+            raise ValueError(f"Invalid manifest.tsv row {line_number}: duplicate database name {name!r}")
+        seen_names.add(name)
 
         normalized_timescale = timescale_raw.lower()
         if normalized_timescale not in {"0", "1"}:
@@ -77,3 +86,75 @@ def parse_manifest_tsv(source: str | Path) -> PasarGuardManifest:
         raise ValueError("manifest.tsv contains no database entries")
 
     return PasarGuardManifest(databases=tuple(entries))
+
+
+def _normalize_member_name(name: str) -> str:
+    normalized = posixpath.normpath(name.replace("\\", "/"))
+    if name.startswith(("/", "\\")) or normalized in {".", ".."} or normalized.startswith("../"):
+        raise ValueError(f"Unsafe archive member path: {name!r}")
+    return normalized
+
+
+def validate_manifest_members(
+    manifest: PasarGuardManifest,
+    members: set[str],
+) -> tuple[str, ...]:
+    """Validate manifest dump paths against archive members without extracting files."""
+    normalized_members = {_normalize_member_name(member) for member in members}
+    errors: list[str] = []
+    seen_paths: set[str] = set()
+    for entry in manifest.databases:
+        try:
+            dump_path = _normalize_member_name(entry.dump_file)
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        if dump_path in seen_paths:
+            errors.append(f"Manifest references the same dump more than once: {dump_path!r}")
+        seen_paths.add(dump_path)
+        if dump_path not in normalized_members:
+            errors.append(f"Manifest dump file is missing from archive: {entry.dump_file!r}")
+    return tuple(dict.fromkeys(errors))
+
+
+def read_manifest_from_archive(path: str | Path) -> tuple[PasarGuardManifest | None, tuple[str, ...]]:
+    """Read and validate manifest.tsv from a ZIP/TAR without extracting the archive."""
+    archive_path = Path(path).expanduser()
+    manifest_name: str | None = None
+    manifest_text: str | None = None
+    members: set[str] = set()
+
+    if archive_path.suffix.lower() == ".zip":
+        with zipfile.ZipFile(archive_path) as archive:
+            for info in archive.infolist():
+                normalized = _normalize_member_name(info.filename)
+                members.add(normalized)
+                if normalized.lower() == "manifest.tsv":
+                    if manifest_name is not None:
+                        return None, ("Archive contains multiple manifest.tsv files.",)
+                    manifest_name = normalized
+                    manifest_text = archive.read(info).decode("utf-8-sig")
+    elif archive_path.suffix.lower() in {".tar", ".tgz"} or archive_path.name.lower().endswith(".tar.gz"):
+        with tarfile.open(archive_path, "r:*") as archive:
+            for info in archive.getmembers():
+                normalized = _normalize_member_name(info.name)
+                members.add(normalized)
+                if normalized.lower() == "manifest.tsv":
+                    if manifest_name is not None:
+                        return None, ("Archive contains multiple manifest.tsv files.",)
+                    manifest_name = normalized
+                    extracted = archive.extractfile(info)
+                    if extracted is None:
+                        return None, ("manifest.tsv is not a regular file.",)
+                    manifest_text = extracted.read().decode("utf-8-sig")
+    else:
+        return None, ("PasarGuard manifest inspection requires a ZIP or TAR archive.",)
+
+    if manifest_name is None or manifest_text is None:
+        return None, ()
+
+    try:
+        manifest = parse_manifest_tsv(manifest_text)
+    except (UnicodeDecodeError, ValueError) as exc:
+        return None, (f"Invalid PasarGuard manifest.tsv: {exc}",)
+    return manifest, validate_manifest_members(manifest, members)
