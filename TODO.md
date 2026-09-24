@@ -91,3 +91,15 @@
 - [ ] Verify certificate validity/renewal behavior and document the final production SSL flow.
 - [ ] Future sessions MUST read this TODO section before repeating domain/SSL setup; do not re-discover or re-add the same configuration from scratch.
 
+
+## Domain / SSL — Error Log & Non-Negotiable Rules
+- [x] Previous assistant mistake recorded: `MANUBISGUARD_DOMAIN` was added to `.env` even though it is not part of the Panel's required SSL environment contract. Do NOT repeat this.
+- [x] Previous assistant mistake recorded: invented `MANUBISGUARD_SSL_CERT` and `MANUBISGUARD_SSL_KEY` variables were added without evidence that the application consumes them. Do NOT create application-specific SSL variable names by assumption.
+- [x] Previous assistant mistake recorded: `PASARGUARD_SSL_ENABLED`, `PASARGUARD_SSL_MODE`, `PASARGUARD_SSL_CERT`, and `PASARGUARD_SSL_KEY` were treated as Panel SSL configuration without first verifying that they belong to the current Panel's active ENV contract. Do NOT copy legacy PasarGuard variables into the ManubisGuard Panel ENV by assumption.
+- [x] Correct variable names for Uvicorn TLS are exactly `UVICORN_SSL_CERTFILE` and `UVICORN_SSL_KEYFILE`.
+- [x] Correct ENV formatting must preserve double quotes around certificate/key paths when matching the project's established ENV convention, e.g. `UVICORN_SSL_CERTFILE="..."` and `UVICORN_SSL_KEYFILE="..."`.
+- [x] Do NOT rename, invent, substitute, or migrate these variables to `MANUBISGUARD_SSL_*` names unless the source code explicitly introduces and consumes those names.
+- [x] Do NOT infer ENV names from legacy PasarGuard configuration, directory names, or intuition. Verify against the current source/installer/config contract first.
+- [x] When correcting an ENV mistake, document the mistake and the corrected contract here so future sessions/devices/chats do not repeat it.
+- [ ] Before any future Domain/SSL ENV edit, inspect the current source/installer contract and this section of TODO.md first.
+
