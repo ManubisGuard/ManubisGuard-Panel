@@ -163,7 +163,9 @@ def collect_hypertables(
                     column_name=str(row["column_name"]),
                     dimension_type=str(row["dimension_type"]),
                     time_interval=(str(row["time_interval"]) if row.get("time_interval") is not None else None),
-                    integer_interval=(int(row["integer_interval"]) if row.get("integer_interval") is not None else None),
+                    integer_interval=(
+                        int(row["integer_interval"]) if row.get("integer_interval") is not None else None
+                    ),
                     num_partitions=(int(row["num_partitions"]) if row.get("num_partitions") is not None else None),
                 ),
             )
