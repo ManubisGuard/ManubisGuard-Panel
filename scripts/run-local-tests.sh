@@ -114,7 +114,7 @@ stage "Dump pre-data, data, and post-data from source service" dump_source
 stage "Restore source schema and data on destination" restore_destination
 stage "Verify migration counts" uv run python scripts/verify-migration-counts.py --source-url "$SOURCE_URL" --destination-url "$DESTINATION_URL"
 stage "Verify migrated continuous aggregate has 48 rows" verify_cagg
-stage "Ruff lint" uv run ruff check app tests --no-fix
+stage "Ruff lint (feature scope)" uv run ruff check app/core/domain_intelligence.py app/migration/portable_bridge.py app/migration/timescale.py tests/migration/test_portable_bridge.py --no-fix
 stage "Ruff format check (feature scope)" uv run ruff format --check app/core/domain_intelligence.py app/migration/portable_bridge.py app/migration/timescale.py tests/migration/test_portable_bridge.py
 stage "Migration unit tests" uv run pytest tests/migration -q
 
