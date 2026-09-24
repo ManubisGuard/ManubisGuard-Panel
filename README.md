@@ -26,7 +26,7 @@ The installation includes:
 After installation, generate a temporary admin key:
 
 ```bash
-docker exec manubisguard-panel-pasarguard-1 /code/.venv/bin/python /code/pasarguard-cli.py generate-temp-key
+docker exec manubisguard-panel-manubisguard-1 /code/.venv/bin/python /code/pasarguard-cli.py generate-temp-key
 ```
 
 Use the exact key printed by the command. Do not publish it in the repository.
@@ -42,7 +42,7 @@ Check the Panel logs:
 
 ```bash
 cd /opt/manubisguard-panel
-docker compose logs --tail=100 pasarguard
+docker compose logs --tail=100 manubisguard
 ```
 
 ## Node installation
