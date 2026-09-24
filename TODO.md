@@ -37,6 +37,7 @@
 - [x] workflow مستقل GitHub Actions برای integration.
 - [x] تست robust برای preinstalled TimescaleDB extension در local migration seed.
 - [x] رفع replay ناسازگار `ONLY` روی hypertable و refresh syntax در restore path.
+- [x] parser اولیه `manifest.tsv` رسمی PasarGuard برای database/owner/Timescale/dump/version metadata.
 
 ## Restore / Migration — تست‌شده در سرور واقعی
 - [x] Synthetic E2E: PostgreSQL 17 / TimescaleDB 2.30.0 → PostgreSQL 16 / TimescaleDB 2.29.2.
@@ -47,6 +48,7 @@
 - [x] Ruff lint: passed.
 - [x] Ruff format: passed.
 - [x] `bash scripts/run-local-tests.sh`: **ALL TESTS PASSED** در سرور واقعی.
+- [ ] تست parser جدید `manifest.tsv` روی سرور واقعی.
 - [ ] `--check` روی backup واقعی PasarGuard.
 - [ ] restore روی staging/isolated database از backup واقعی.
 - [ ] validation schema/table/hypertable/CAGG و count comparison روی backup واقعی.
@@ -103,6 +105,7 @@
 - Head: feature/amnezia-wg.
 - Integration workflow در repository تعریف شده است؛ green بودن GitHub Actions فقط پس از completed/successful واقعی ثبت می‌شود.
 - Railway: کنار گذاشته شده.
+- آخرین commit مربوط به parser/tests: `8871b44`؛ در زمان ثبت TODO هنوز status check قابل مشاهده نبود.
 
 ## قانون ادامه کار
 **از این مرحله به بعد بعد از هر تغییر کد یا تست مهم، همین `TODO.md` باید در همان branch به‌روزرسانی شود و سپس گزارش وضعیت داده شود.**
@@ -143,8 +146,11 @@
 
 ## مرحله بعدی — PasarGuard Backup Compatibility Matrix
 - [x] فرمت رسمی backup PasarGuard از repository و documentation مرجع بررسی و ثبت شد.
-- [ ] پیدا کردن/ثبت مسیر دقیق تولید backup و manifest/metadata آن در source/test fixtures با version pin.
-- [ ] ساخت detector برای engine/version/backup metadata بر اساس `manifest.tsv` و sidecar.
+- [x] مسیر/ساختار manifest رسمی بررسی شد؛ نمونه رسمی شامل `appdb\tappuser\t1\tdb-001.sql\t2.27.2` است.
+- [x] parser اولیه `manifest.tsv` با validation صریح برای 4/5 ستون و Timescale flag/version اضافه شد.
+- [x] تست‌های parser برای row معتبر، rowهای malformed و comment/blank lines اضافه شد.
+- [ ] اجرای تست‌های parser روی سرور واقعی و ثبت نتیجه.
+- [ ] اتصال parser به detector/preflight تا `--check` از metadata واقعی manifest استفاده کند.
 - [ ] اجرای `--check` روی backup واقعی بدون تغییر مقصد.
 - [ ] اجرای restore در isolated staging.
 - [ ] مقایسه schema، table counts، hypertable counts و CAGG counts.
@@ -153,6 +159,8 @@
 - [ ] ثبت هر ترکیب واقعی در compatibility matrix.
 
 ### آخرین تغییر TODO
-- فرمت رسمی backup PasarGuard ثبت شد: archive شامل config/state و database dumpهاست؛ PostgreSQL/TimescaleDB از `globals.sql` + `pg_dump/db-<NNN>.sql` + `manifest.tsv` و metadata نسخه Timescale استفاده می‌کند.
-- نتیجه تحقیق: برای E2E واقعی هنوز باید artifact واقعی PasarGuard وارد test harness شود؛ synthetic fixture به‌تنهایی supported بودن backup واقعی را ثابت نمی‌کند.
-- مرحله بعد: **پیاده‌سازی detector/manifest parser و تست `--check` بدون تغییر مقصد**.
+- Synthetic Timescale migration E2E همچنان **PASSED on real server** است.
+- parser اولیه manifest رسمی PasarGuard در commitهای `2fef3bb` و `8871b44` اضافه شد.
+- تست‌های parser اضافه شده‌اند، اما هنوز اجرای واقعی تست روی سرور و integration با preflight انجام نشده است؛ بنابراین supported بودن backup واقعی هنوز اعلام نمی‌شود.
+- روال اجباری «تغییر → تست → TODO.md → گزارش → ادامه» فعال است و از اینجا به بعد بعد از هر تغییر مهم رعایت می‌شود.
+- مرحله بعد: **اتصال manifest parser به detector/preflight و سپس اجرای تست واقعی روی سرور**.
