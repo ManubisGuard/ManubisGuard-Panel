@@ -57,11 +57,11 @@ def test_runner_ignores_archived_compose_for_timescale_version(tmp_path: Path):
         "-- PostgreSQL database dump complete\n"
     )
     with zipfile.ZipFile(backup, "w") as zf:
-        zf.writestr("pg_dump/manifest.tsv", "pasarguard\\tpasarguard\\t1\\tdb-001.sql\\t2.28.2\\n")
+        zf.writestr("pg_dump/manifest.tsv", "pasarguard\tpasarguard\t1\tdb-001.sql\t2.28.2\n")
         zf.writestr("pg_dump/db-001.sql", sql)
         zf.writestr(
             "docker-compose.yml",
-            "image: timescale/timescaledb:9.99.9-pg17\\n",
+            "image: timescale/timescaledb:9.99.9-pg17\n",
         )
 
     result = analyze_backup(backup)
