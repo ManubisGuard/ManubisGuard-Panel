@@ -29,6 +29,22 @@
 - [x] Installer persists POSTGRES_* and SQLALCHEMY_DATABASE_URL.
 - [x] Installer fetches feature/amnezia-wg, builds latest Panel source, starts Compose and runs import/health checks.
 - [x] Duplicate installer entrypoint removed.
+- [x] Real server runtime reaches healthy state with the feature-amnezia-wg image.
+- [x] Real server HTTPS `/health` returns `{"status":"ok"}`.
+- [x] Protocol-aware `/code/healthcheck.sh` passes inside the running Panel container.
+- [x] Compose Panel healthcheck uses `/code/healthcheck.sh` instead of a hard-coded HTTP probe.
+- [x] TimescaleDB dependency reaches healthy state before Panel startup.
+
+## Runtime Healthcheck Investigation — 2026-09-24
+- [x] Root cause identified: Compose healthcheck used `http://127.0.0.1:8000/health` while Uvicorn was serving HTTPS on port 8000.
+- [x] Confirmed original failure signature: `curl: (52) Empty reply from server`.
+- [x] Confirmed application startup completed successfully: `Application startup complete` and `Uvicorn running on https://0.0.0.0:8000`.
+- [x] Confirmed `/code/healthcheck.sh` correctly detects the active TLS configuration and passes the local health probe.
+- [x] Recreated stack with corrected healthcheck and observed `starting` -> `healthy`.
+- [x] Final container status verified: `manubisguard-panel-manubisguard-1 ... (healthy)`.
+- [x] Final health log contains successful `0 | {"status":"ok"}` result.
+- [x] Build completed successfully; Vite/Rolldown >500 kB chunk messages are warnings only and are not a healthcheck failure.
+- [x] Detailed report committed: `docs/reports/2026-09-24-runtime-healthcheck.md`.
 
 ## Previous real tests
 - [x] Synthetic E2E PG17 + Timescale 2.30.0 -> PG16 + Timescale 2.29.2.
@@ -46,7 +62,7 @@
 - [ ] discovery regression.
 - [ ] Ruff.
 - [ ] full run-local-tests.sh.
-- [ ] import/health after installer.
+- [x] Panel import/startup and health verification on the current feature image.
 - [ ] real backup --check.
 - [ ] staging restore.
 - [ ] schema/table/row/hypertable/CAGG/FK/identity validation.
@@ -87,10 +103,9 @@
   - `UVICORN_SSL_KEYFILE=/var/lib/manubisguard/certs/ua.qoqnusradio.top/privkey.pem`
 - [x] Do NOT add `MANUBISGUARD_DOMAIN` to the main Panel `.env` merely to configure SSL/domain. The main `.env` should contain only variables actually consumed by the application.
 - [ ] After changing SSL env values, recreate the `manubisguard` container so the new environment is loaded.
-- [ ] Verify the process binds externally with TLS, then test the HTTPS health endpoint.
+- [x] Verify the process binds externally with TLS, then test the HTTPS health endpoint.
 - [ ] Verify certificate validity/renewal behavior and document the final production SSL flow.
 - [ ] Future sessions MUST read this TODO section before repeating domain/SSL setup; do not re-discover or re-add the same configuration from scratch.
-
 
 ## Domain / SSL — Error Log & Non-Negotiable Rules
 - [x] Previous assistant mistake recorded: `MANUBISGUARD_DOMAIN` was added to `.env` even though it is not part of the Panel's required SSL environment contract. Do NOT repeat this.
@@ -103,3 +118,5 @@
 - [x] When correcting an ENV mistake, document the mistake and the corrected contract here so future sessions/devices/chats do not repeat it.
 - [ ] Before any future Domain/SSL ENV edit, inspect the current source/installer contract and this section of TODO.md first.
 
+## Reports
+- `docs/reports/2026-09-24-runtime-healthcheck.md` — real-server healthcheck incident, root cause, fix, validation and final green state.
