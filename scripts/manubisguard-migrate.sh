@@ -161,7 +161,8 @@ PY
 }
 
 find_services() {
-  local services candidates service
+  local services service
+  local -a candidates=()
   services="$(docker compose -f "$COMPOSE_FILE" config --services 2>/dev/null || true)"
   [ -n "$services" ] || die "No services found in compose."
 
@@ -170,22 +171,21 @@ find_services() {
     printf '%s\n' "$services" | grep -qx "$COMPOSE_SERVICE" ||
       die "Configured ManubisGuard panel service not found in compose: $COMPOSE_SERVICE"
   else
-    candidates=""
     for service in manubisguard panel pasarguard; do
       if printf '%s\n' "$services" | grep -qx "$service"; then
-        candidates="${candidates:+$candidates\n}$service"
+        candidates+=("$service")
       fi
     done
 
-    case "$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l)" in
+    case "${#candidates[@]}" in
       0)
         die "No ManubisGuard panel service candidate found in compose (expected one of: manubisguard, panel, pasarguard)."
         ;;
       1)
-        COMPOSE_SERVICE="$candidates"
+        COMPOSE_SERVICE="${candidates[0]}"
         ;;
       *)
-        die "Multiple ManubisGuard panel service candidates found in compose: $(printf '%s' "$candidates" | paste -sd ', ' -). Set MANUBISGUARD_COMPOSE_SERVICE explicitly."
+        die "Multiple ManubisGuard panel service candidates found in compose: ${candidates[*]}. Set MANUBISGUARD_COMPOSE_SERVICE explicitly."
         ;;
     esac
   fi
