@@ -120,7 +120,7 @@ def validate_manifest_members(
 def read_manifest_from_archive(path: str | Path) -> tuple[PasarGuardManifest | None, tuple[str, ...]]:
     """Read and validate manifest.tsv from a ZIP/TAR without extracting the archive."""
     archive_path = Path(path).expanduser()
-    manifest_name: str | None = None
+    manifest_names: list[str] = []
     manifest_text: str | None = None
     members: set[str] = set()
 
@@ -129,20 +129,20 @@ def read_manifest_from_archive(path: str | Path) -> tuple[PasarGuardManifest | N
             for info in archive.infolist():
                 normalized = _normalize_member_name(info.filename)
                 members.add(normalized)
-                if normalized.lower() == "manifest.tsv":
-                    if manifest_name is not None:
+                if posixpath.basename(normalized).lower() == "manifest.tsv":
+                    manifest_names.append(normalized)
+                    if len(manifest_names) > 1:
                         return None, ("Archive contains multiple manifest.tsv files.",)
-                    manifest_name = normalized
                     manifest_text = archive.read(info).decode("utf-8-sig")
     elif archive_path.suffix.lower() in {".tar", ".tgz"} or archive_path.name.lower().endswith(".tar.gz"):
         with tarfile.open(archive_path, "r:*") as archive:
             for info in archive.getmembers():
                 normalized = _normalize_member_name(info.name)
                 members.add(normalized)
-                if normalized.lower() == "manifest.tsv":
-                    if manifest_name is not None:
+                if posixpath.basename(normalized).lower() == "manifest.tsv":
+                    manifest_names.append(normalized)
+                    if len(manifest_names) > 1:
                         return None, ("Archive contains multiple manifest.tsv files.",)
-                    manifest_name = normalized
                     extracted = archive.extractfile(info)
                     if extracted is None:
                         return None, ("manifest.tsv is not a regular file.",)
@@ -150,7 +150,7 @@ def read_manifest_from_archive(path: str | Path) -> tuple[PasarGuardManifest | N
     else:
         return None, ("PasarGuard manifest inspection requires a ZIP or TAR archive.",)
 
-    if manifest_name is None or manifest_text is None:
+    if not manifest_names or manifest_text is None:
         return None, ()
 
     try:
