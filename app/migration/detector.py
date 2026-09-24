@@ -156,20 +156,22 @@ def detect_backup(path: str | Path) -> BackupDetection:
                 try:
                     with archive.open("manifest.json") as fh:
                         payload = json.load(fh)
-                except (OSError, json.JSONDecodeError, UnicodeDecodeError, zipfile.BadZipFile):
+                except OSError, json.JSONDecodeError, UnicodeDecodeError, zipfile.BadZipFile:
                     payload = {"files": archive.namelist()}
                 result = _detect_json(p, payload)
             else:
                 result = _detect_text(p, names)
                 for member in archive.infolist():
                     member_name = member.filename.lower()
+                    if member_name.rsplit("/", 1)[-1] == "globals.sql":
+                        continue
                     if not member_name.endswith((".sql", ".sql.gz", ".dump")):
                         continue
                     try:
                         with archive.open(member) as fh:
                             raw = fh.read(5_000_000)
                         candidate = _detect_text(p, raw.decode("utf-8", errors="replace"))
-                    except (OSError, RuntimeError, zipfile.BadZipFile, UnicodeDecodeError):
+                    except OSError, RuntimeError, zipfile.BadZipFile, UnicodeDecodeError:
                         continue
                     if candidate.source_product == "pasarguard" or candidate.evidence:
                         result = candidate
@@ -281,8 +283,7 @@ def validate_archive_integrity(path: str | Path) -> tuple[str, ...]:
                         continue
                     if name in seen:
                         errors.append(
-                            f"Archive contains duplicate normalized path: {name!r} "
-                            f"({seen[name]!r}, {info.name!r})"
+                            f"Archive contains duplicate normalized path: {name!r} ({seen[name]!r}, {info.name!r})"
                         )
                     seen[name] = info.name
                     if not (info.isfile() or info.isdir()):
@@ -357,7 +358,7 @@ def inspect_pg_dump_custom(path: str | Path, timeout: int = 120) -> BackupDetect
 
     revision = None
     pg_major = None
-    pg_match = re.search(r"dumped from database version\s+(\d+)(?:\.\d+)?", sample, re.I)
+    pg_match = re.search(r"dumped from database version\s+(\d+)(?:\.\d+)?", sample, re.IGNORECASE)
     if pg_match:
         pg_major = int(pg_match.group(1))
         evidence.append(f"detected source PostgreSQL major: {pg_major}")

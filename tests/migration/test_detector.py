@@ -80,7 +80,7 @@ def test_zip_symlink_is_blocked(tmp_path: Path):
     backup = tmp_path / "backup.zip"
     info = zipfile.ZipInfo("pasarguard_data/certs/key.pem")
     info.create_system = 3
-    info.external_attr = (0o120777 << 16)
+    info.external_attr = 0o120777 << 16
     with zipfile.ZipFile(backup, "w") as zf:
         zf.writestr(info, "not-a-real-key")
 
@@ -132,6 +132,33 @@ def test_detects_source_postgres_major_from_dump_header(tmp_path: Path):
     result = detect_backup(backup)
 
     assert result.source_postgres_major == 17
+
+
+def test_zip_skips_globals_only_dump_and_detects_database_dump(tmp_path: Path):
+    import zipfile
+
+    backup = tmp_path / "pasarguard.zip"
+    with zipfile.ZipFile(backup, "w") as zf:
+        zf.writestr(
+            "pg_dump/globals.sql",
+            "-- PostgreSQL database cluster dump\nCREATE ROLE pasarguard;\n",
+        )
+        zf.writestr(
+            "pg_dump/db-001.sql",
+            "-- PostgreSQL database dump\n"
+            "-- Dumped from database version 17.10\n"
+            "-- Dumped by pg_dump version 17.10\n"
+            "-- PasarGuard backup\n"
+            "CREATE TABLE alembic_version (version_num varchar(32));\n"
+            "CREATE TABLE core_configs (id integer);\n"
+            "CREATE TABLE nodes (id integer);\n",
+        )
+
+    result = detect_backup(backup)
+
+    assert result.source_product == "pasarguard"
+    assert result.source_postgres_major == 17
+    assert result.format == "zip"
 
 
 def test_globals_only_dump_is_not_a_database_candidate(tmp_path: Path):

@@ -278,7 +278,7 @@ def build_continuous_aggregate_sql(cagg: ContinuousAggregateMetadata) -> tuple[s
     definition = cagg.view_definition.strip().rstrip(";")
     return (
         (f"CREATE MATERIALIZED VIEW {view} WITH ({', '.join(options)}) AS {definition} WITH NO DATA;"),
-        f"CALL refresh_continuous_aggregate({view}, NULL, NULL);",
+        f"CALL refresh_continuous_aggregate({_sql_string(f'{cagg.schema}.{cagg.name}')}, NULL, NULL);",
     )
 
 

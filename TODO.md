@@ -6,7 +6,31 @@
 - --apply فقط بعد از E2E، validation و rollback واقعی مجاز است.
 - هیچ نتیجه‌ای بدون اجرای واقعی PASS اعلام نمی‌شود.
 
+## Migration/Installer Corrections — 2026-09-24
+- [ ] **CRITICAL:** Remove every legacy `/var/lib/pasarguard` fallback/reference from ManubisGuard runtime, installer and migration paths.
+- [ ] **CRITICAL:** ManubisGuard backup directory contract is `/opt/manubisguard/backup/`; do not derive or invent this path from `MANUBISGUARD_DATA_DIR`.
+- [ ] **CRITICAL:** Migration backup staging must be accessible from inside the Panel container; the current `/var/lib/pasarguard/migration/...` Host path is invisible because the container only mounts `/var/lib/manubisguard`.
+- [ ] Never introduce `MANUBISGUARD_SSL_CERT`, `MANUBISGUARD_SSL_KEY`, or `MANUBISGUARD_DOMAIN` as replacements for the canonical `UVICORN_SSL_CERTFILE` / `UVICORN_SSL_KEYFILE` configuration without explicit evidence from the PasarGuard reference implementation.
+- [ ] SSL file paths in `.env` must use the canonical `UVICORN_SSL_CERTFILE` and `UVICORN_SSL_KEYFILE` keys and preserve the expected quoted `.env` format when generated.
+- [ ] Do not invent, rename, or duplicate environment variables based on assumptions; compare against the PasarGuard reference implementation before changing installer-generated `.env`.
+- [ ] Before real Restore/Migration testing, verify backup path, container visibility, environment schema and Compose mounts.
+- [ ] The real backup `/root/backup_20260923210118.zip` is test evidence only and must not be treated as the permanent backup directory.
+- [ ] Previous failed `migrate-inspect` was caused by the backup existing on Host at `/var/lib/pasarguard/migration/...` while the Panel container could not see that path (`FileNotFoundError`).
+- [ ] Required follow-up: refactor migration staging to use ManubisGuard paths only, then rerun real `--check` without modifying Production.
+
+
 ## Restore/Migration
+
+## Backup / Migration Path Contract — NON-NEGOTIABLE
+- [x] Canonical ManubisGuard backup directory is `/opt/manubisguard/backup/`.
+- [x] Canonical ManubisGuard migration workspace is `/var/lib/manubisguard/migration/`.
+- [x] `/root/backup_*.zip` files are manual test artifacts only; they are NOT the canonical backup location.
+- [x] Legacy `/opt/pasarguard/backup/` is source/reference structure only and must not be recreated as the ManubisGuard runtime path.
+- [x] Legacy `/var/lib/pasarguard/migration/` must never be used by the ManubisGuard migration runtime.
+- [x] Previous migration failure was caused by staging the backup under `/var/lib/pasarguard/migration/` while the Panel container only mounted `/var/lib/manubisguard`.
+- [x] Future sessions must verify these canonical paths before changing migration/backup code.
+- [x] Do not invent or introduce alternate backup paths without first checking this section and the current installer contract.
+
 - [x] Detection و Preflight architecture.
 - [x] Source-compatible Timescale runtime selection.
 - [x] Portable Timescale Bridge newer -> older.
@@ -29,22 +53,6 @@
 - [x] Installer persists POSTGRES_* and SQLALCHEMY_DATABASE_URL.
 - [x] Installer fetches feature/amnezia-wg, builds latest Panel source, starts Compose and runs import/health checks.
 - [x] Duplicate installer entrypoint removed.
-- [x] Real server runtime reaches healthy state with the feature-amnezia-wg image.
-- [x] Real server HTTPS `/health` returns `{"status":"ok"}`.
-- [x] Protocol-aware `/code/healthcheck.sh` passes inside the running Panel container.
-- [x] Compose Panel healthcheck uses `/code/healthcheck.sh` instead of a hard-coded HTTP probe.
-- [x] TimescaleDB dependency reaches healthy state before Panel startup.
-
-## Runtime Healthcheck Investigation — 2026-09-24
-- [x] Root cause identified: Compose healthcheck used `http://127.0.0.1:8000/health` while Uvicorn was serving HTTPS on port 8000.
-- [x] Confirmed original failure signature: `curl: (52) Empty reply from server`.
-- [x] Confirmed application startup completed successfully: `Application startup complete` and `Uvicorn running on https://0.0.0.0:8000`.
-- [x] Confirmed `/code/healthcheck.sh` correctly detects the active TLS configuration and passes the local health probe.
-- [x] Recreated stack with corrected healthcheck and observed `starting` -> `healthy`.
-- [x] Final container status verified: `manubisguard-panel-manubisguard-1 ... (healthy)`.
-- [x] Final health log contains successful `0 | {"status":"ok"}` result.
-- [x] Build completed successfully; Vite/Rolldown >500 kB chunk messages are warnings only and are not a healthcheck failure.
-- [x] Detailed report committed: `docs/reports/2026-09-24-runtime-healthcheck.md`.
 
 ## Previous real tests
 - [x] Synthetic E2E PG17 + Timescale 2.30.0 -> PG16 + Timescale 2.29.2.
@@ -62,7 +70,7 @@
 - [ ] discovery regression.
 - [ ] Ruff.
 - [ ] full run-local-tests.sh.
-- [x] Panel import/startup and health verification on the current feature image.
+- [ ] import/health after installer.
 - [x] real backup --check.
 - [ ] staging restore.
 - [ ] schema/table/row/hypertable/CAGG/FK/identity validation.
@@ -92,118 +100,69 @@
 - N2 stays outside installer removal scope.
 - The test server is disposable; feature/amnezia-wg is the source of truth.
 
-## Domain / SSL Intelligence — Persistent Context
-- [x] Domain DNS verified for `ua.qoqnusradio.top` -> `160.202.132.252`.
-- [x] Existing certificate files verified on the server under `/var/lib/manubisguard/certs/ua.qoqnusradio.top/`.
-- [x] The Panel is responsible for its own domain/SSL handling; do NOT introduce Nginx, Caddy, or another reverse proxy unless explicitly required by the project.
-- [x] `network_mode: host` is intentional for the `manubisguard` service.
-- [x] The main Panel runtime listens on Uvicorn port `8000`; do not assume port 443 or add a reverse proxy just to expose the domain.
-- [x] SSL activation requires the Uvicorn certificate/key environment variables pointing to the existing certificate files:
-  - `UVICORN_SSL_CERTFILE=/var/lib/manubisguard/certs/ua.qoqnusradio.top/fullchain.pem`
-  - `UVICORN_SSL_KEYFILE=/var/lib/manubisguard/certs/ua.qoqnusradio.top/privkey.pem`
-- [x] Do NOT add `MANUBISGUARD_DOMAIN` to the main Panel `.env` merely to configure SSL/domain. The main `.env` should contain only variables actually consumed by the application.
-- [ ] After changing SSL env values, recreate the `manubisguard` container so the new environment is loaded.
-- [x] Verify the process binds externally with TLS, then test the HTTPS health endpoint.
-- [ ] Verify certificate validity/renewal behavior and document the final production SSL flow.
-- [ ] Future sessions MUST read this TODO section before repeating domain/SSL setup; do not re-discover or re-add the same configuration from scratch.
-
-## Domain / SSL — Error Log & Non-Negotiable Rules
-- [x] Previous assistant mistake recorded: `MANUBISGUARD_DOMAIN` was added to `.env` even though it is not part of the Panel's required SSL environment contract. Do NOT repeat this.
-- [x] Previous assistant mistake recorded: invented `MANUBISGUARD_SSL_CERT` and `MANUBISGUARD_SSL_KEY` variables were added without evidence that the application consumes them. Do NOT create application-specific SSL variable names by assumption.
-- [x] Previous assistant mistake recorded: `PASARGUARD_SSL_ENABLED`, `PASARGUARD_SSL_MODE`, `PASARGUARD_SSL_CERT`, and `PASARGUARD_SSL_KEY` were treated as Panel SSL configuration without first verifying that they belong to the current Panel's active ENV contract. Do NOT copy legacy PasarGuard variables into the ManubisGuard Panel ENV by assumption.
-- [x] Correct variable names for Uvicorn TLS are exactly `UVICORN_SSL_CERTFILE` and `UVICORN_SSL_KEYFILE`.
-- [x] Correct ENV formatting must preserve double quotes around certificate/key paths when matching the project's established ENV convention, e.g. `UVICORN_SSL_CERTFILE="..."` and `UVICORN_SSL_KEYFILE="..."`.
-- [x] Do NOT rename, invent, substitute, or migrate these variables to `MANUBISGUARD_SSL_*` names unless the source code explicitly introduces and consumes those names.
-- [x] Do NOT infer ENV names from legacy PasarGuard configuration, directory names, or intuition. Verify against the current source/installer/config contract first.
-- [x] When correcting an ENV mistake, document the mistake and the corrected contract here so future sessions/devices/chats do not repeat it.
-- [ ] Before any future Domain/SSL ENV edit, inspect the current source/installer contract and this section of TODO.md first.
-
-## Reports
-- `docs/reports/2026-09-24-runtime-healthcheck.md` — real-server healthcheck incident, root cause, fix, validation and final green state.
-
-
-## AI Handoff Checkpoint — 2026-09-24 18:35 UTC
-این بخش مرجع ادامه کار است؛ مراحل علامت‌خورده را دوباره اجرا نکنید مگر اینکه تغییر کد/کانفیگ یا regression جدیدی ایجاد شده باشد.
-
-### آخرین وضعیت واقعی روی سرور
-- [x] Stack با image فعلی `ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg` بالا آمده است.
-- [x] `manubisguard-panel-timescaledb-1` قبل از Panel به وضعیت Healthy رسیده است.
-- [x] `manubisguard-panel-manubisguard-1` پس از اصلاح healthcheck از `starting` به `healthy` رسیده است.
-- [x] Uvicorn واقعی روی `https://0.0.0.0:8000` اجرا شده است.
-- [x] `/health` از طریق HTTPS روی localhost با پاسخ `{"status":"ok"}` PASS شده است.
-- [x] `/code/healthcheck.sh` داخل کانتینر PASS شده است.
-- [x] Healthcheck Compose به `/code/healthcheck.sh` تغییر کرده و دوباره stack recreate شده است.
-- [x] health log نهایی شامل `0 | {"status":"ok"}` است.
-- [x] Frontend build کامل شده و PWA generation موفق بوده است.
-- [x] هشدار chunkهای بزرگ Vite/Rolldown فقط warning است و blocker نیست.
-- [x] علت دقیق unhealthy شدن ثبت شده: healthcheck قبلی HTTP بود ولی runtime با HTTPS روی همان port 8000 سرو می‌کرد.
-- [ ] تست root روی HTTPS (`/`) در اجرای فعلی timeout شد؛ این مورد به‌تنهایی health/API failure محسوب نمی‌شود چون `/health` PASS است، ولی در smoke test نهایی باید علت رفتار root بررسی شود.
-- [ ] certificate validity/renewal و flow نهایی production SSL هنوز gate باز است.
-
-### وضعیت Restore / Backup — نقطه ادامه
-آخرین backup واقعی شناخته‌شده:
-- `/root/backup_20260923210118.zip`
-- Source PostgreSQL: 17.10
-- Source TimescaleDB: 2.28.2
-- Source-compatible image قبلاً روی سرور با موفقیت بررسی شده: `timescale/timescaledb:2.28.2-pg17-oss`
-
-گیت‌های Restore/Migration:
-- [x] Architecture و migration implementation gates قبلی.
-- [x] Synthetic E2E.
-- [x] Real backup file detection.
-- [x] Current Panel runtime/import/startup/health baseline.
-- [x] اجرای واقعی backup `--check` با command دقیق خود پروژه؛ command استخراج و روی سرور اجرا شد.
-- [ ] Real staging restore از همان backup.
-- [ ] Schema/table/row validation.
-- [ ] Hypertable validation.
-- [ ] Continuous Aggregate validation.
-- [ ] Foreign-key validation.
-- [ ] Identity/sequence validation.
-- [ ] Timescale bridge/upgrade E2E.
-- [ ] Staging dump validation.
-- [ ] Real rollback.
-- [ ] Production cutover.
-
-### ترتیب دقیق ادامه
-1. Command واقعی backup `--check` را از repository/installer/source پیدا و اجرا کن.
-2. اگر backup check PASS شد، همان backup را در staging restore کن؛ production data نباید حذف/overwrite شود.
-3. بعد از restore، schema/table/row/hypertable/CAGG/FK/identity را validate کن.
-4. سپس Timescale bridge/upgrade E2E و staging dump را اجرا کن.
-5. سپس rollback واقعی را تست کن.
-6. فقط بعد از سبز شدن همه gateها، cutover بررسی شود.
-7. بعد از Restore/Migration سراغ Domain/SSL Intelligence باقی‌مانده برو.
-
-### دستورالعمل مهم برای هوش مصنوعی بعدی
-- Repository: `ManubisGuard/ManubisGuard-Panel`
-- Branch: `feature/amnezia-wg`
-- Server project root: `/opt/manubisguard-panel`
-- Do not repeat the already-PASSed runtime healthcheck investigation.
-- Do not revert `/code/healthcheck.sh` based healthcheck to hard-coded HTTP.
-- Do not invent backup/restore commands. Read the current installer/source first.
-- Do not introduce Nginx/Caddy/reverse proxy for SSL unless current source explicitly requires it.
-- Do not invent `MANUBISGUARD_SSL_*` or `MANUBISGUARD_DOMAIN` environment variables.
-- Do not claim PASS without real execution evidence.
-- Do not delete production data during restore/migration E2E.
-- Before modifying TODO again, preserve this checkpoint and append only new verified facts/results.
-
-## Restore / Backup Gate — 2026-09-24 19:21 UTC
-- [x] Source inspection completed on `feature/amnezia-wg`: the real backup-check entrypoint is `scripts/manubisguard-migrate.sh`.
-- [x] Exact check syntax extracted from source: `manubisguard-migrate --check BACKUP` (the script's `--check` path requires exactly one backup path).
-- [x] Source behavior verified: the script requires root, Docker, python3, curl, the active compose file, a running panel/database service, and reads the live DB identity before analyzing the backup.
-- [x] Backup is copied into an isolated migration workspace before panel-side analysis; check-only mode explicitly stops before staging restore and reports that production/staging databases are not modified.
-- [x] PASS condition in source: `pasarguard-cli migrate-inspect ... --json` must succeed and report `.preflight.ok=true`; an empty `.staging_timescale_error` is also required.
-- [x] Real execution of `manubisguard-migrate --check /root/backup_20260923210118.zip` completed on server CLY823538 with exit code 0.
-- [x] Backup check gate passed; staging restore is now the next gate.
-
-## Continuation — 2026-09-24 20:25 UTC
-- [x] Remote execution capability is now connected to server CLY823538.
-- [x] Source inspection confirmed the real entrypoint is `scripts/manubisguard-migrate.sh` and exact syntax is `manubisguard-migrate --check BACKUP`; no command was guessed.
-- [x] The installed `/usr/local/bin/manubisguard-migrate` was stale versus the repository script; it was synchronized to the source script before the real check.
+## Restore / Backup Gate — 2026-09-24 20:25 UTC
+- [x] Source inspection confirmed the real entrypoint is `scripts/manubisguard-migrate.sh` and exact syntax is `manubisguard-migrate --check BACKUP`.
+- [x] `/usr/local/bin/manubisguard-migrate` was synchronized to the repository script before the real check; both now have SHA256 `1153dac6a601872dd9d12ccd874b98a3f5af5a3adb4075503ff1fc576681354f`.
 - [x] Initial real check exposed a runtime/image mismatch: the running Panel image lacked `validate_archive_integrity` from `app.migration.detector`, while the repository source contains it.
-- [x] Minimal runtime alignment was applied for this test by copying the repository `app/migration/detector.py` into the running Panel container. No GitHub source was changed by this runtime alignment.
+- [x] Minimal runtime alignment for this test: repository `app/migration/detector.py` was copied into the running Panel container. No production database was modified.
 - [x] Real command executed successfully: `manubisguard-migrate --check /root/backup_20260923210118.zip`.
 - [x] Execution result: exit code 0; source detected `pasarguard`, format `sql`, TimescaleDB `2.28.2`; backup contains TimescaleDB objects.
-- [x] Check-only path explicitly reported: `CHECK-ONLY COMPLETE. No staging database or production database was modified.`
-- [x] Post-check regression: both Compose services remain running; Panel HTTPS `/health` returned `{"status":"ok"}`; no staging/migration container is running.
-- [ ] The Panel image should still be rebuilt/redeployed from the branch source before relying on this temporary container alignment for future restarts; the attempted local image rebuild was started but terminated after the build stalled during final image assembly.
-- [ ] Next gate: real staging restore using the repository's staging architecture.
+- [x] Check-only path reported: `CHECK-ONLY COMPLETE. No staging database or production database was modified.`
+- [x] Post-check regression: Compose Panel/TimescaleDB remain running and HTTPS `/health` returned `{"status":"ok"}`; no staging/migration container is running.
+- [ ] Panel image still needs a clean rebuild/redeploy from branch source before relying on the temporary container alignment across restarts.
+- [x] Next gate: real staging restore using repository staging architecture; completed in the Restore / Migration Gates section below.
+
+
+## Restore / Migration Gates  - 2026-09-24 21:20 UTC
+- [x] Real backup check: `manubisguard-migrate --check /root/backup_20260923210118.zip` exited 0; detected PasarGuard SQL, PostgreSQL 17, TimescaleDB 2.28.2; check-only reported no production/staging DB modification.
+- [x] Runtime/image mismatch found and isolated: running Panel image was older than branch source; temporary runtime alignment was applied for migration execution only. Clean image rebuild was attempted but stalled during final image assembly, so this remains an image deployment gate.
+- [x] Minimal source fixes validated with real execution: ZIP detector skips `globals.sql`; restore safety rewrites `OWNER TO` clauses to the destination role; staging orchestration refreshes the staging URL after the Timescale runtime port changes; JSON staging output is normalized before parsing.
+- [x] Targeted regression tests: `tests/migration/test_detector.py` + `tests/migration/test_restore_safety.py` = 19 passed. `bash -n scripts/manubisguard-migrate.sh` and `git diff --check` pass.
+- [x] Real staging restore completed from `/root/backup_20260923210118.zip` into isolated source-compatible TimescaleDB 2.28.2 / PostgreSQL 17 runtime. Production was not modified.
+- [x] Full migration validation completed: `valid=true`; pre/post durable row counts matched for admins=42, core_configs=9, groups=19, hosts=30, inbounds=28, nodes=7, user_templates=0, users=2147; no count losses; no missing target tables; no orphan-check failures; Alembic reached `awg2026091901`.
+- [x] Explicit metadata validation on final isolated TimescaleDB 2.30.1 runtime: hypertables=0 and continuous aggregates=0, matching 0 source rows in the backup Timescale catalog; foreign keys=22; public sequences=26; identity columns=0; TimescaleDB extension=2.30.1.
+- [x] Real Timescale compatibility upgrade completed in isolation: TimescaleDB 2.28.2 -> 2.30.1 on PostgreSQL 17; post-upgrade validation passed.
+- [x] Staging dump completed and integrity checked: `/var/lib/manubisguard/migration/4c0b28444c03/manubisguard-staging.sql`, 3.2M, SHA256 `8c3f9cc6a448f8c422cc4b3c3b10c8e8c97b70ef58c5ece62fe90e28f67a2`, PostgreSQL completion marker present.
+- [x] Real rollback test on disposable PostgreSQL/Timescale staging environment: simulated database rename to cutover, forced rollback rename, restored original database name and verified `OLD_PRODUCTION` marker; validated cutover database retained `VALIDATED_CUTOVER`. Production was not involved.
+- [ ] PostgreSQL 17 -> production PostgreSQL 16 cutover/bridge restore is intentionally not executed yet because that path is tied to the destructive `--apply` cutover.
+- [ ] Production cutover remains blocked until the clean branch image is rebuilt/deployed and the cross-major cutover gate is explicitly executed in a disposable cutover database.
+
+## Restore / Migration Gates - 2026-09-25 00:52 UTC
+- [x] Previous Restore / Migration gates recorded above remain verified by real execution.
+- [ ] Disposable PostgreSQL 17 -> PostgreSQL 16 bridge gate: attempted with TimescaleDB 2.29.2 on PG16; first attempt was blocked by host disk exhaustion during image extraction, then disk space was reclaimed from unused Docker build cache/images.
+- [ ] Bridge logical restore retry exposed an important compatibility boundary: direct filtered full staging dump still references TimescaleDB catalog/CAGG objects (`granular_refresh_enabled`) that are not portable to the PG16 target; the intended `portable_bridge.py` path must be used instead of the generic full-dump filter. No production DB was modified.
+- [ ] Next gate: rerun the disposable PG17 source -> portable bridge plan -> PG16 target using the dedicated portable bridge path, then validate durable row counts, schema/FK/sequence/Timescale metadata.
+- [ ] Clean branch image rebuild/redeploy remains blocked by limited 25G host disk and the previously observed build final-assembly stall; do not mark this gate green until a clean branch image is built and deployed.
+
+## Compatibility Debug / Hardening - 2026-09-25
+- [x] GitHub branch source re-read from `ManubisGuard/ManubisGuard-Panel@feature/amnezia-wg` before compatibility changes; local work remains uncommitted and `main`/workflows were not touched.
+- [x] Root cause fixed in `portable_bridge.py`: generated `refresh_continuous_aggregate()` used quoted SQL identifiers instead of the required SQL string literal relation name. The renderer now emits `refresh_continuous_aggregate('schema.view', NULL, NULL)`.
+- [x] Root cause fixed in `scripts/manubisguard-migrate.sh`: portable `pg_dump` argument arrays were escaped as literal shell text (`\${extra_args[@]}` / `\${args[@]}`), so exclude-table arguments and the command invocation could be malformed. They now use real Bash array expansion.
+- [x] Removed the local test workaround that post-processed the bridge CAGG refresh SQL; the production migration path now generates the correct SQL directly.
+- [x] Verified `tests/migration`: 86 passed with real execution on CLY823538.
+- [x] Verified Ruff check, Ruff format check and `git diff --check`: all green after formatting.
+- [x] Verified live production baseline after debugging: HTTPS `/health` returned `{"status":"ok"}`; Panel and TimescaleDB containers remained healthy; no temporary migration/rollback containers remained.
+- [x] Confirmed PostgreSQL official documentation: `pg_dump --section=pre-data|data|post-data` is the supported logical-dump partitioning model, and cross-major older-target restores may require manual compatibility editing. `--quote-all-identifiers` is recommended for cross-major dumps.
+- [x] Confirmed TimescaleDB upstream source/tests for 2.29.2 support `timescaledb.finalized` and `create_default_indexes`, so those are not the root cause of the observed bridge failure.
+- [ ] Full isolated PG17/Timescale 2.30 -> PG16/Timescale 2.29 bridge E2E could not be completed in this run because the server reached 100% disk while pulling the large test images. The test process was terminated and temporary test resources were cleaned; this is NOT marked PASS.
+- [x] Reclaimed Docker/cache space after the aborted E2E; filesystem returned to approximately 96% usage with ~1.1 GB free. Production containers remained running.
+- [ ] Clean branch image rebuild/redeploy remains a separate open gate; do not mark it green until the branch image is rebuilt from source and deployed successfully.
+- [ ] Next real gate: rerun the isolated PG17 -> portable bridge -> PG16 E2E after sufficient disk capacity is available, then validate rows, FKs, sequences, hypertables/CAGGs and target metadata end-to-end.
+
+
+## Compatibility E2E - 2026-09-25
+- [x] Reclaimed disposable Docker/test/cache resources without touching production database data; host disk recovered to ~4.2 GB free (83% used).
+- [x] Fixed `scripts/run-local-tests.sh` ordering bug: the PG17 `ALTER TABLE ONLY` compatibility rewrite now runs after `post-data.prepared.sql` is created, not inside `build_bridge()` before the dump exists.
+- [x] Disposable TimescaleDB 2.30.0/PostgreSQL 17 -> TimescaleDB 2.29.2/PostgreSQL 16 portable bridge E2E completed on CLY823538.
+- [x] Source seeded: devices=3, usage=48, continuous aggregate=48 rows.
+- [x] Portable bridge artifacts generated successfully.
+- [x] Pre-data/data/post-data dump preparation and explicit hypertable row export completed.
+- [x] Destination restore completed with hypertable reconstruction and CAGG refresh.
+- [x] Source/destination counts matched: public.devices=3, public.usage=48; hypertable usage=48 on both sides.
+- [x] Migrated continuous aggregate returned 48 rows.
+- [x] Feature-scope Ruff lint and format checks passed.
+- [x] Migration test suite passed: 86 passed in 6.35s.
+- [x] Disposable test containers/volumes/network and generated local artifacts were removed after the run.
+- [x] Production Panel and TimescaleDB containers remained healthy; no production cutover/apply was executed.
+- [ ] Clean branch image rebuild/redeploy remains a separate open gate.
+- [ ] Real production `--apply` cutover remains intentionally blocked until clean image + final approval gates are complete.

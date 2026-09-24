@@ -74,7 +74,8 @@ def test_cagg_recreation_is_portable():
     sql = build_continuous_aggregate_sql(cagg)
     assert "CREATE MATERIALIZED VIEW" in sql[0]
     assert "WITH NO DATA" in sql[0]
-    assert "refresh_continuous_aggregate" in sql[1]
+    assert "refresh_continuous_aggregate('public.daily_usage', NULL, NULL)" in sql[1]
+    assert 'refresh_continuous_aggregate("public"."daily_usage"' not in sql[1]
     assert "_timescaledb_internal" not in "\n".join(sql)
 
 

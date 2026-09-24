@@ -134,32 +134,6 @@ build_bridge() {
   sed -i -E 's/, timescaledb\.finalized=(true|false)//g' \
     .local-bridge-test/portable-post-data.sql
 
-  # PostgreSQL 17 pg_dump emits ALTER TABLE ONLY for constraints/index metadata.
-  # Timescale hypertables reject the ONLY form because their chunks are managed
-  # by Timescale. Removing ONLY lets the constraint apply to the hypertable.
-  sed -i -E 's/^ALTER TABLE ONLY /ALTER TABLE /' \
-    .local-migration-dumps/post-data.prepared.sql
-
-  # The bridge renders identifiers for CREATE MATERIALIZED VIEW, but function
-  # arguments must be SQL string literals. Convert generated refresh calls.
-  python3 - .local-bridge-test/portable-post-data.sql <<'PY'
-from pathlib import Path
-import re
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-pattern = re.compile(
-    r'CALL refresh_continuous_aggregate\("([^"]+)"\."([^"]+)",\s*NULL,\s*NULL\);'
-)
-text, count = pattern.subn(
-    lambda m: f"CALL refresh_continuous_aggregate('{m.group(1)}.{m.group(2)}', NULL, NULL);",
-    text,
-)
-if count == 0 and "CALL refresh_continuous_aggregate" in text:
-    raise SystemExit("Found a refresh_continuous_aggregate call but could not normalize it")
-path.write_text(text, encoding="utf-8")
-PY
 }
 
 dump_source() {
@@ -172,6 +146,12 @@ dump_source() {
     uv run python -c "from pathlib import Path; from app.migration.timescale import prepare_timescale_sql_file; p=Path('.local-migration-dumps/$section.sql'); prepare_timescale_sql_file(p, p.with_suffix('.prepared.sql'), target_pg_major=16)"
     test -s ".local-migration-dumps/$section.prepared.sql"
   done
+
+  # PostgreSQL 17 pg_dump emits ALTER TABLE ONLY for constraints/index metadata.
+  # Timescale hypertables reject the ONLY form because their chunks are managed
+  # by Timescale. Removing ONLY lets the constraint apply to the hypertable.
+  sed -i -E 's/^ALTER TABLE ONLY /ALTER TABLE /' \
+    .local-migration-dumps/post-data.prepared.sql
 
   # pg_dump intentionally emits COPY 0 for hypertables because the actual rows
   # live in Timescale chunks. Export the logical hypertable rows explicitly and

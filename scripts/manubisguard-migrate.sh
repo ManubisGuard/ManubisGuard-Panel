@@ -13,7 +13,7 @@ set -Eeuo pipefail
 
 SCRIPT_NAME="manubisguard-migrate"
 COMPOSE_FILE="${MANUBISGUARD_COMPOSE_FILE:-/opt/manubisguard-panel/docker-compose.yml}"
-DATA_DIR="${MANUBISGUARD_DATA_DIR:-/var/lib/pasarguard}"
+DATA_DIR="${MANUBISGUARD_DATA_DIR:-/var/lib/manubisguard}"
 MIGRATION_ROOT="$DATA_DIR/migration"
 ID="$(LC_ALL=C tr -dc 'a-f0-9' </dev/urandom | head -c 12 || true)"
 WORKDIR="$MIGRATION_ROOT/$ID"
@@ -84,7 +84,7 @@ Options:
   --clean     Remove the workspace on successful exit except safety-critical errors.
   --help      Show this help.
 
-The backup is copied under /var/lib/pasarguard/migration before the panel reads it.
+The backup is copied under the configured ManubisGuard data directory before the panel reads it.
 EOF
 }
 
@@ -157,6 +157,19 @@ elif value is None:
     print("")
 else:
     print(str(value))
+PY
+}
+
+extract_json_object() {
+  local text="$1"
+  JSON_TEXT="$text" python3 - <<'PY'
+import json, os
+text = os.environ["JSON_TEXT"]
+start = text.find("{")
+if start < 0:
+    raise SystemExit("No JSON object found in command output.")
+value, _ = json.JSONDecoder().raw_decode(text[start:])
+print(json.dumps(value, ensure_ascii=False))
 PY
 }
 
@@ -557,12 +570,26 @@ create_staging_database() {
 run_staging() {
   log "Restoring -> staging -> Alembic HEAD -> legacy adapter -> validation..."
   local output
-  if output="$(docker exec       -e MANUBISGUARD_MIGRATION_STAGING_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER"       pasarguard-cli migrate-staging "$PANEL_BACKUP"       --external-staging       ${MANUBISGUARD_SOURCE_TIMESCALE:+--source-timescale "$MANUBISGUARD_SOURCE_TIMESCALE"}       --json 2>&1)"; then
-    printf '%s\n' "$output" >"$WORKDIR/staging.json"
+  local stderr_file="$WORKDIR/staging.stderr"
+  if output="$(docker exec       -e MANUBISGUARD_MIGRATION_STAGING_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER"       pasarguard-cli migrate-staging "$PANEL_BACKUP"       --external-staging       ${MANUBISGUARD_SOURCE_TIMESCALE:+--source-timescale "$MANUBISGUARD_SOURCE_TIMESCALE"}       --json 2>"$stderr_file")"; then
+    local json_output
+    if ! json_output="$(extract_json_object "$output")"; then
+      printf '%s\n' "$output" >"$WORKDIR/staging.error"
+      [ -s "$stderr_file" ] && cat "$stderr_file" >>"$WORKDIR/staging.error"
+      cat "$WORKDIR/staging.error" >&2
+      return 1
+    fi
+    printf '%s\n' "$json_output" >"$WORKDIR/staging.json"
+    if [ -s "$stderr_file" ]; then
+      cat "$stderr_file" >&2
+    fi
     return 0
   fi
-  printf '%s\n' "$output" >"$WORKDIR/staging.error"
-  printf '%s\n' "$output" >&2
+  {
+    printf '%s\n' "$output"
+    [ -s "$stderr_file" ] && cat "$stderr_file"
+  } >"$WORKDIR/staging.error"
+  cat "$WORKDIR/staging.error" >&2
   return 1
 }
 
@@ -612,6 +639,7 @@ upgrade_temp_timescale_to_target() {
     "$target_image" >/dev/null
   TEMP_PORT="$(docker port "$TEMP_CONTAINER" 5432/tcp | sed -nE 's/.*:([0-9]+)$/\1/p' | head -n1)"
   [[ "$TEMP_PORT" =~ ^[0-9]+$ ]] || die "Could not determine upgraded temporary TimescaleDB port."
+  build_temp_url
 
   local i
   for i in $(seq 1 90); do
@@ -754,9 +782,9 @@ portable_pg_dump() {
     "--exclude-schema=_timescaledb_catalog"
     "--exclude-schema=_timescaledb_config"
   )
-  args+=("\${extra_args[@]}")
+  args+=("${extra_args[@]}")
 
-  if ! docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" "\${args[@]}" >"$output"; then
+  if ! docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" "${args[@]}" >"$output"; then
     rm -f "$output"
     die "Portable $section pg_dump failed. Production was not modified."
   fi

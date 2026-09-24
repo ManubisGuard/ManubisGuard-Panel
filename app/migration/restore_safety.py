@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import re
 
-
 ROLE_PASSWORD_RE = re.compile(
     r"""\s+(?:(?:ENCRYPTED|UNENCRYPTED)\s+)?PASSWORD\s+(?:'([^']|'')*'|NULL)""",
     re.IGNORECASE,
 )
 ROLE_STMT_RE = re.compile(
     r"""^\s*(CREATE|ALTER)\s+(ROLE|USER)\s+((?:"(?:[^"]|"")*")|[A-Za-z_][A-Za-z0-9_$]*)(?=\s|;|$)""",
+    re.IGNORECASE,
+)
+OWNER_TO_RE = re.compile(
+    r"""\bOWNER\s+TO\s+((?:"(?:[^"]|"")*")|[A-Za-z_][A-Za-z0-9_$]*)\b""",
     re.IGNORECASE,
 )
 
@@ -34,16 +37,24 @@ def sanitize_role_password_line(
     remain authoritative.
     """
     match = ROLE_STMT_RE.match(line)
-    if not match:
-        return line, False
+    if match:
+        role = _unquote_role(match.group(3))
+        if destination_role and role == destination_role:
+            return "", True
 
-    role = _unquote_role(match.group(3))
-    if destination_role and role == destination_role:
-        return "", True
+        sanitized, changed = ROLE_PASSWORD_RE.subn("", line)
+    else:
+        sanitized, changed = line, False
 
-    sanitized, changed = ROLE_PASSWORD_RE.subn("", line)
+    if destination_role:
+
+        def replace_owner(owner_match: re.Match[str]) -> str:
+            return f"OWNER TO {destination_role}"
+
+        sanitized, owner_count = OWNER_TO_RE.subn(replace_owner, sanitized)
+        changed = changed or owner_count > 0
+
     return sanitized, bool(changed)
-
 
 
 def sanitize_role_password_statement(
