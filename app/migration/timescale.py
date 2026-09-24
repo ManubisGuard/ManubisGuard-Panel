@@ -4,12 +4,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.migration.restore_safety import sanitize_role_password_line
 from app.migration.compatibility import (
     TIMESCALE_FIRST_RELID,
     TimescaleCompatibility,
     version_tuple,
 )
+from app.migration.restore_safety import sanitize_role_password_line
 
 
 TIMESCALEDB_CATALOG_SEED_CLEAR_SQL = """\
@@ -147,7 +147,7 @@ def filter_timescaledb_ddl_line(line: str) -> bool:
             line,
             re.IGNORECASE,
         )
-        or re.search(r"^\s*COMMENT\s+ON\s+EXTENSION\s+timescaledb\b", line, re.I)
+        or re.search(r"^\s*COMMENT\s+ON\s+EXTENSION\s+timescaledb\b", line, re.IGNORECASE)
     )
 
 
