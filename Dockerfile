@@ -31,13 +31,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Pre-build the dashboard so production containers do not perform a Vite build at startup.
 RUN cd /build/dashboard && bun run build --outDir build --assetsDir statics && test -s build/index.html
 
+# Runtime only needs the compiled dashboard; never ship the development dependency tree.
+RUN rm -rf /build/dashboard/node_modules
+
 FROM python:${PYTHON_VERSION}-slim-trixie
 
 COPY --from=builder /build /code
 WORKDIR /code
-
-# Bun is required at application startup because the dashboard is built there.
-COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
 ENV PATH="/code/.venv/bin:/usr/local/bin:$PATH"
 
