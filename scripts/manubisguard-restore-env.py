@@ -120,8 +120,7 @@ def safe_member(name: str) -> str | None:
 
 def read_archive_member(archive: Path, wanted: str) -> bytes | None:
     suffix = archive.name.lower()
-    with tempfile.TemporaryDirectory(prefix="manubisguard-env-") as td:
-        root = Path(td)
+    with tempfile.TemporaryDirectory(prefix="manubisguard-env-"):
         if suffix.endswith(".zip"):
             with zipfile.ZipFile(archive) as zf:
                 for info in zf.infolist():

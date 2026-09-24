@@ -55,10 +55,13 @@ class PortableTimescalePlan:
     warnings: tuple[str, ...] = ()
 
 
+# TimescaleDB 2.30 removed is_distributed from this public information view.
+# Filtering on that column caused UndefinedColumnError during portable restores.
+# Distributed hypertables are no longer exposed through this public hypertable view,
+# so the stable schema/name columns are sufficient here.
 HYPERTABLES_QUERY = """
 SELECT hypertable_schema, hypertable_name
 FROM timescaledb_information.hypertables
-WHERE is_distributed = false
 ORDER BY hypertable_schema, hypertable_name
 """
 

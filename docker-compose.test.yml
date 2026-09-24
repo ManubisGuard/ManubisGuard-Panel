@@ -1,0 +1,28 @@
+services:
+  timescaledb-source:
+    image: timescale/timescaledb:2.30.0-pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: integration
+      POSTGRES_DB: source_db
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d source_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  timescaledb-destination:
+    image: timescale/timescaledb:2.29.2-pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: integration
+      POSTGRES_DB: destination_db
+    ports:
+      - "127.0.0.1:55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d destination_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

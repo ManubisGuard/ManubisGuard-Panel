@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import posixpath
 import re
 import shutil
 import subprocess
@@ -199,6 +200,79 @@ def detect_backup(path: str | Path) -> BackupDetection:
     with p.open("rb") as fh:
         raw = fh.read(5_000_000)
     return _detect_text(p, raw.decode("utf-8", errors="replace"))
+
+
+def _safe_archive_member(name: str) -> str | None:
+    name = name.replace("\\", "/")
+    if name.startswith("/") or ":" in name.split("/")[0]:
+        return None
+    normalized = posixpath.normpath(name)
+    if normalized in {".", ""} or normalized == ".." or normalized.startswith("../"):
+        return None
+    return normalized
+
+
+def validate_archive_integrity(path: str | Path) -> tuple[str, ...]:
+    """Validate archive paths, file types, duplicates, and ZIP CRCs before restore."""
+    archive_path = Path(path).expanduser().resolve()
+    errors: list[str] = []
+
+    if archive_path.suffix.lower() == ".zip":
+        try:
+            with zipfile.ZipFile(archive_path) as archive:
+                seen: dict[str, str] = {}
+                for info in archive.infolist():
+                    name = _safe_archive_member(info.filename)
+                    if name is None:
+                        errors.append(f"Archive contains unsafe path: {info.filename!r}")
+                        continue
+                    if name in seen:
+                        errors.append(
+                            f"Archive contains duplicate normalized path: {name!r} "
+                            f"({seen[name]!r}, {info.filename!r})"
+                        )
+                        continue
+                    seen[name] = info.filename
+                    mode = (info.external_attr >> 16) & 0o170000
+                    if mode == 0o120000 or (mode and mode != 0o100000):
+                        errors.append(f"Archive contains a link or special file: {info.filename!r}")
+                bad_name = archive.testzip()
+                if bad_name is not None:
+                    errors.append(f"Archive CRC validation failed for: {bad_name!r}")
+        except zipfile.BadZipFile as exc:
+            errors.append(f"Invalid ZIP archive: {exc}")
+        return tuple(dict.fromkeys(errors))
+
+    if archive_path.suffix.lower() in {".tar", ".tgz"} or archive_path.name.lower().endswith(".tar.gz"):
+        try:
+            with tarfile.open(archive_path, "r:*") as archive:
+                seen: dict[str, str] = {}
+                for info in archive.getmembers():
+                    name = _safe_archive_member(info.name)
+                    if name is None:
+                        errors.append(f"Archive contains unsafe path: {info.name!r}")
+                        continue
+                    if name in seen:
+                        errors.append(
+                            f"Archive contains duplicate normalized path: {name!r} "
+                            f"({seen[name]!r}, {info.name!r})"
+                        )
+                    seen[name] = info.name
+                    if not (info.isfile() or info.isdir()):
+                        errors.append(f"Archive contains a link or special file: {info.name!r}")
+                    if info.isfile():
+                        try:
+                            extracted = archive.extractfile(info)
+                            if extracted is not None:
+                                while extracted.read(1024 * 1024):
+                                    pass
+                        except (OSError, tarfile.TarError) as exc:
+                            errors.append(f"Archive integrity validation failed for {info.name!r}: {exc}")
+        except (OSError, tarfile.TarError) as exc:
+            errors.append(f"Invalid TAR archive: {exc}")
+        return tuple(dict.fromkeys(errors))
+
+    return ("Unsupported archive format.",)
 
 
 def inspect_pg_dump_custom(path: str | Path, timeout: int = 120) -> BackupDetection:

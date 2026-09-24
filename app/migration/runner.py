@@ -388,7 +388,7 @@ def migrate_pasarguard_staging(
                 uses_timescaledb=analysis.uses_timescaledb,
             )
 
-    detection = restore_backup_into_staging(
+    restore_backup_into_staging(
         backup_path,
         staging,
         timeout=timeout,
