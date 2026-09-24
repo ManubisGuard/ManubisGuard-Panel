@@ -90,6 +90,32 @@ def test_zip_symlink_is_blocked(tmp_path: Path):
     assert any("link/special" in error.lower() for error in result.blocking_errors)
 
 
+def test_zip_directory_entries_are_allowed(tmp_path: Path):
+    import zipfile
+
+    backup = tmp_path / "pasarguard.zip"
+    with zipfile.ZipFile(backup, "w") as zf:
+        zf.writestr("pasarguard_data/", "")
+        zf.writestr("pg_dump/", "")
+        zf.writestr(
+            "pg_dump/manifest.tsv",
+            "pasarguard\tpasarguard\t0\tdb-001.sql\n",
+        )
+        zf.writestr(
+            "pg_dump/db-001.sql",
+            "-- PasarGuard backup\n"
+            "CREATE TABLE alembic_version (version_num varchar(32));\n"
+            "CREATE TABLE core_configs (id integer);\n"
+            "CREATE TABLE nodes (id integer);\n",
+        )
+
+    result = preflight_backup(backup)
+
+    assert result.ok
+    assert result.pasarguard_manifest is not None
+    assert not result.blocking_errors
+
+
 def test_detects_source_postgres_major_from_dump_header(tmp_path: Path):
     backup = tmp_path / "backup.sql"
     backup.write_text(
