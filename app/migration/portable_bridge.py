@@ -74,8 +74,9 @@ ORDER BY hypertable_schema, hypertable_name, dimension_number
 """
 
 CONTINUOUS_AGGREGATES_QUERY = """
-SELECT view_schema, view_name, view_definition, materialized_only, finalized
-FROM timescaledb_information.continuous_aggregates
+SELECT view_schema, view_name, view_definition, materialized_only,
+       COALESCE((to_jsonb(cagg)->>'finalized')::boolean, true) AS finalized
+FROM timescaledb_information.continuous_aggregates AS cagg
 ORDER BY view_schema, view_name
 """
 
