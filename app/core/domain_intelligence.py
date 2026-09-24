@@ -109,7 +109,7 @@ class DomainIntelligence:
                     final_url=str(response.url),
                     redirect_chain=history,
                 )
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as exc:
+        except (TimeoutError, aiohttp.ClientError, OSError) as exc:
             return DomainHTTPProbe(url=url, error=type(exc).__name__)
 
     @staticmethod
