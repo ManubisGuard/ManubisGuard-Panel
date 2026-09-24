@@ -8,7 +8,7 @@ ROLE_PASSWORD_RE = re.compile(
     re.IGNORECASE,
 )
 ROLE_STMT_RE = re.compile(
-    r"""^\s*(CREATE|ALTER)\s+(ROLE|USER)\s+((?:"(?:[^"]|"")*")|[A-Za-z_][A-Za-z0-9_$]*)(?=\s|$)""",
+    r"""^\s*(CREATE|ALTER)\s+(ROLE|USER)\s+((?:"(?:[^"]|"")*")|[A-Za-z_][A-Za-z0-9_$]*)(?=\s|;|$)""",
     re.IGNORECASE,
 )
 

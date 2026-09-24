@@ -51,7 +51,7 @@ def test_prepare_postgresql_sql_counts_transformations():
     assert "legacy-admin-secret" not in transformed
     assert 'CREATE ROLE legacy_admin WITH LOGIN;' in transformed
     assert removed == 1
-    assert suppressed == 1
+    assert suppressed == 2
 
 
 def test_stream_sanitizer_handles_realistic_globals_shape_without_loading_password():

@@ -72,7 +72,7 @@ def _detect_text(path: Path, text: str) -> BackupDetection:
 
     revision = None
     pg_major = None
-    pg_match = re.search(r"dumped from database version\s+(\d+)(?:\.\d+)?", sample, re.I)
+    pg_match = re.search(r"dumped from database version\s+(\d+)(?:\.\d+)?", sample, re.IGNORECASE)
     if pg_match:
         pg_major = int(pg_match.group(1))
         evidence.append(f"detected source PostgreSQL major: {pg_major}")
@@ -143,7 +143,7 @@ def detect_backup(path: str | Path) -> BackupDetection:
                 try:
                     with archive.open("manifest.json") as fh:
                         payload = json.load(fh)
-                except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError, zipfile.BadZipFile):
                     payload = {"files": archive.namelist()}
                 result = _detect_json(p, payload)
             else:
