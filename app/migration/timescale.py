@@ -153,9 +153,11 @@ def filter_postgresql_compatibility_line(line: str, *, target_pg_major: int | No
     verbatim into the PG16 ManubisGuard target. This filter is deliberately
     narrow: unknown statements are never silently discarded.
     """
-    return target_pg_major is not None and target_pg_major < 17 and re.match(
-        r"^\s*SET\s+transaction_timeout\s*=", line, re.IGNORECASE
-    ) is not None
+    return (
+        target_pg_major is not None
+        and target_pg_major < 17
+        and re.match(r"^\s*SET\s+transaction_timeout\s*=", line, re.IGNORECASE) is not None
+    )
 
 
 def prepare_timescale_sql_file(
