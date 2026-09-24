@@ -166,3 +166,11 @@
 - [x] Production Panel and TimescaleDB containers remained healthy; no production cutover/apply was executed.
 - [ ] Clean branch image rebuild/redeploy remains a separate open gate.
 - [ ] Real production `--apply` cutover remains intentionally blocked until clean image + final approval gates are complete.
+
+## Final Restore / Clean Image Gate - 2026-09-25
+- [x] Backup restore compatibility E2E is complete and PASS: disposable TimescaleDB 2.30.0/PostgreSQL 17 source restored into TimescaleDB 2.29.2/PostgreSQL 16 destination.
+- [x] Restore data integrity verified: devices=3, usage=48, hypertable usage=48 on both source/destination, migrated continuous aggregate=48 rows.
+- [x] Real backup metadata/row-count, isolated restore, Timescale upgrade, and disposable rollback gates previously passed.
+- [x] Clean branch Docker image build completed successfully: `manubisguard-panel:feature-amnezia-wg-clean` (image id `340bbb479218`).
+- [ ] Clean-image disposable application startup/health gate remains open; the first run exceeded the test window during the runtime Vite dashboard build on the 1-vCPU/2-GB test host. The container was then stopped by the test harness, so this is not classified as a source-code failure yet.
+- [ ] Production `--apply` cutover remains blocked until the clean-image startup/health gate passes.
