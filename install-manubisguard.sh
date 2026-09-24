@@ -11,6 +11,7 @@ DATABASE="timescaledb"
 ASSUME_YES=false
 OVERRIDE=false
 MIN_FREE_MB="${MANUBISGUARD_MIN_FREE_MB:-6144}"
+PANEL_IMAGE="ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg"
 
 log() { printf '[manubisguard-install] %s\n' "$*"; }
 die() { printf '[manubisguard-install] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -197,7 +198,7 @@ start_stack() {
   log "Pulling database image..."
   docker compose -f docker-compose.yml pull timescaledb
   log "Building latest Panel source from $BRANCH..."
-  docker compose -f docker-compose.yml build --pull manubisguard
+  docker build --pull -t "$PANEL_IMAGE" "$INSTALL_DIR"
   log "Starting ManubisGuard + TimescaleDB..."
   docker compose -f docker-compose.yml up -d --remove-orphans --wait --wait-timeout 180
 }
