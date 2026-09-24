@@ -184,7 +184,7 @@ class CloudflareDns01ChallengeProvider:
         try:
             async with session.request(method, url, json=payload, params=params, headers=headers) as response:
                 body = await response.text()
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (aiohttp.ClientError, TimeoutError) as exc:
             raise AcmeError(f"Cloudflare API request failed: {type(exc).__name__}") from exc
 
         try:
