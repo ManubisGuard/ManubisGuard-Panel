@@ -83,6 +83,20 @@
 - [ ] Timescale older → newer با source-compatible restore و سپس upgrade در staging.
 - [ ] backup نباید role password، DB identity، compose، image/container یا deployment identity مقصد را overwrite کند.
 
+## PasarGuard Backup Format — بررسی‌شده از منبع رسمی
+- [x] repository رسمی `PasarGuard/scripts` و مستندات Backup & Disaster Recovery بررسی شد.
+- [x] backup کامل PasarGuard شامل application configuration، persistent state و database dumps است.
+- [x] configuration شامل `docker-compose.yml` و `.env` است؛ این فایل‌ها در Restore مقصد نباید authoritative باشند.
+- [x] persistent state در `/var/lib/pasarguard/` قرار دارد و می‌تواند theme/assets/certificates/local state داشته باشد.
+- [x] PostgreSQL/TimescaleDB backup چند-database است و ساختار مورد انتظار شامل `globals.sql` و `pg_dump/db-<NNN>.sql` به‌همراه `manifest.tsv` است.
+- [x] `manifest.tsv` باید database name، owner، Timescale presence و exact extension version را ثبت کند.
+- [x] PasarGuard برای Timescale sidecar با نام `db_backup.timescaledb-version` نیز version metadata را پشتیبانی می‌کند.
+- [x] backup دستی در مسیر `/opt/pasarguard/backup/` تولید و به ZIP یا tarball بسته‌بندی می‌شود.
+- [x] checksum SHA256 و validation/truncation checks بخشی از جریان backup/restore رسمی هستند.
+- [x] restore رسمی archive را در staging موقت extract و قبل از destructive change validation می‌کند.
+- [x] mismatch نسخه Timescale در Restore رسمی fail-closed است؛ ManubisGuard باید به‌جای رد صرف، در صورت پشتیبانی bridge مسیر compatible را انتخاب کند.
+- [ ] فایل backup واقعی PasarGuard هنوز در اختیار test harness قرار نگرفته و E2E واقعی با artifact واقعی انجام نشده است.
+
 ## GitHub Actions — آخرین وضعیت
 - PR #1: #1 / Draft / Open / Not merged.
 - Base: main.
@@ -128,9 +142,9 @@
 - `scripts/run-local-tests.sh` اکنون سناریوی preinstalled TimescaleDB، hypertable data transfer و CAGG refresh را پوشش می‌دهد.
 
 ## مرحله بعدی — PasarGuard Backup Compatibility Matrix
-- [ ] پیدا کردن/ثبت فرمت دقیق backup واقعی PasarGuard در repository و tooling.
-- [ ] پیدا کردن مسیر تولید backup و manifest/metadata آن در source و test fixtures.
-- [ ] ساخت detector برای engine/version/backup metadata.
+- [x] فرمت رسمی backup PasarGuard از repository و documentation مرجع بررسی و ثبت شد.
+- [ ] پیدا کردن/ثبت مسیر دقیق تولید backup و manifest/metadata آن در source/test fixtures با version pin.
+- [ ] ساخت detector برای engine/version/backup metadata بر اساس `manifest.tsv` و sidecar.
 - [ ] اجرای `--check` روی backup واقعی بدون تغییر مقصد.
 - [ ] اجرای restore در isolated staging.
 - [ ] مقایسه schema، table counts، hypertable counts و CAGG counts.
@@ -139,7 +153,6 @@
 - [ ] ثبت هر ترکیب واقعی در compatibility matrix.
 
 ### آخرین تغییر TODO
-- وضعیت synthetic Timescale migration E2E به‌طور رسمی ثبت شد: **PASSED on real server**.
-- قانون به‌روزرسانی `TODO.md` بعد از هر تغییر/تست مهم فعال و ثبت شد.
-- مرحله بعد بدون توقف: **شناسایی فرمت و tooling بکاپ واقعی PasarGuard و آماده‌سازی E2E واقعی**.
-- از این commit به بعد، هر تغییر مهم باید با ترتیب «تغییر → تست → TODO.md → گزارش → ادامه» ثبت شود.
+- فرمت رسمی backup PasarGuard ثبت شد: archive شامل config/state و database dumpهاست؛ PostgreSQL/TimescaleDB از `globals.sql` + `pg_dump/db-<NNN>.sql` + `manifest.tsv` و metadata نسخه Timescale استفاده می‌کند.
+- نتیجه تحقیق: برای E2E واقعی هنوز باید artifact واقعی PasarGuard وارد test harness شود؛ synthetic fixture به‌تنهایی supported بودن backup واقعی را ثابت نمی‌کند.
+- مرحله بعد: **پیاده‌سازی detector/manifest parser و تست `--check` بدون تغییر مقصد**.
