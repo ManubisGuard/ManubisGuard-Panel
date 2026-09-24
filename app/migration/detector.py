@@ -13,7 +13,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-
 PASARGUARD_MARKERS = (
     "pasarguard",
     "pasar guard",
@@ -137,6 +136,19 @@ def detect_backup(path: str | Path) -> BackupDetection:
     suffixes = {s.lower() for s in p.suffixes}
     name = p.name.lower()
 
+    # pg_dump --globals-only emits roles/ACL SQL in a separate globals.sql file.
+    # It is metadata for the cluster, not the application database dump, and must
+    # never compete with the real PasarGuard database backup during candidate search.
+    if name == "globals.sql":
+        return BackupDetection(
+            path=str(p),
+            format="sql",
+            source_product="unknown",
+            confidence="low",
+            evidence=("PostgreSQL cluster globals-only dump; not an application database backup",),
+            warnings=("Cluster globals dump is ignored for database restore candidate selection.",),
+        )
+
     if ".zip" in suffixes:
         with zipfile.ZipFile(p) as archive:
             names = "\n".join(archive.namelist()).lower()
@@ -198,7 +210,6 @@ def detect_backup(path: str | Path) -> BackupDetection:
             sql = fh.read(5_000_000)
         return _with_format(_detect_text(p, sql), "sql")
 
-    # PostgreSQL custom/tar formats are binary. Do not guess their origin.
     with p.open("rb") as fh:
         header = fh.read(16)
     if header.startswith(b"PGDMP"):
@@ -247,10 +258,6 @@ def validate_archive_integrity(path: str | Path) -> tuple[str, ...]:
                         )
                         continue
                     seen[name] = info.filename
-
-                    # ZIP archives commonly contain explicit directory entries.
-                    # A directory is safe to traverse and must not be classified
-                    # as a link/special file merely because its Unix mode is 040xxx.
                     mode = stat.S_IFMT((info.external_attr >> 16) & 0o170000)
                     if info.is_dir() or mode == stat.S_IFDIR:
                         continue
@@ -326,10 +333,7 @@ def inspect_pg_dump_custom(path: str | Path, timeout: int = 120) -> BackupDetect
             format="pg_dump_custom",
             source_product="unknown",
             confidence="low",
-            evidence=(
-                "PostgreSQL custom dump signature PGDMP",
-                "pg_restore --list failed",
-            ),
+            evidence=("PostgreSQL custom dump signature PGDMP", "pg_restore --list failed"),
             warnings=(f"Read-only custom dump inspection failed: {detail}",),
         )
 
@@ -357,11 +361,7 @@ def inspect_pg_dump_custom(path: str | Path, timeout: int = 120) -> BackupDetect
     if pg_match:
         pg_major = int(pg_match.group(1))
         evidence.append(f"detected source PostgreSQL major: {pg_major}")
-    match = re.search(
-        r"alembic_version.*?([0-9a-z]{8,32})",
-        sample,
-        flags=re.DOTALL,
-    )
+    match = re.search(r"alembic_version.*?([0-9a-z]{8,32})", sample, flags=re.DOTALL)
     if match:
         revision = match.group(1)
         evidence.append(f"detected alembic revision: {revision}")
@@ -374,7 +374,5 @@ def inspect_pg_dump_custom(path: str | Path, timeout: int = 120) -> BackupDetect
         evidence=tuple(dict.fromkeys(evidence)),
         schema_revision=revision,
         source_postgres_major=pg_major,
-        warnings=(
-            "Custom PostgreSQL dump was positively identified from a read-only TOC inspection.",
-        ),
+        warnings=("Custom PostgreSQL dump was positively identified from a read-only TOC inspection.",),
     )
