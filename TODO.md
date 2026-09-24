@@ -37,6 +37,7 @@
 - [x] regression برای ZIPهای واقعی دارای directory entry اضافه شد.
 - [x] `pg_dump --globals-only` / `globals.sql` از candidate database restore جدا شد؛ cluster roles/ACL dump دیگر با database dump رقابت نمی‌کند.
 - [x] regression test برای `globals.sql` اضافه شد.
+- [x] runtime واقعی `timescale/timescaledb:2.28.2-pg17-oss` روی سرور pull و executable بودن PostgreSQL 17.10 آن تأیید شد.
 
 ## تست‌شده روی سرور واقعی
 - [x] Synthetic E2E: PostgreSQL 17 / TimescaleDB 2.30.0 → PostgreSQL 16 / TimescaleDB 2.29.2.
@@ -53,19 +54,20 @@
 - [x] `9185c6f`: 82 migration tests passed.
 - [x] بکاپ واقعی `/root/backup_20260923210118.zip` شناسایی شد به‌عنوان ZIP با source_product=`pasarguard` و confidence=`high`.
 - [x] Preflight directory-entry blocker رفع شد و 83 تست migration روی سرور سبز شدند.
-- [!] مرحله `analyze_backup()` روی بکاپ واقعی اکنون به blocker بعدی رسید: archive شامل `pg_dump/db-001.sql` و `pg_dump/globals.sql` است و `_find_candidate()` هر دو را database backup تشخیص می‌داد.
-- [x] `globals.sql` به‌عنوان PostgreSQL cluster globals-only dump از candidate selection خارج شد.
-- [x] regression test مربوط به `globals.sql` اضافه شد.
+- [x] blocker مربوط به رقابت `pg_dump/db-001.sql` و `pg_dump/globals.sql` رفع شد.
+- [x] artifact واقعی اکنون با Preflight و candidate selection عبور می‌کند؛ source PostgreSQL=17.10 و source TimescaleDB=2.28.2 تشخیص داده می‌شود.
+- [x] Timescale compatibility برای backup واقعی: catalog era=`schema_name`، نسخه دقیق source=`2.28.2` و restore مستقیم به Timescale 2.29+ ناامن تشخیص داده می‌شود.
+- [x] source-compatible runtime موردنیاز `timescale/timescaledb:2.28.2-pg17-oss` روی سرور pull شد؛ `psql` و `postgres` هر دو PostgreSQL 17.10 گزارش کردند.
 
 ## مرحله بعدی فوری
-1. `git pull --ff-only origin feature/amnezia-wg`
-2. `bash scripts/run-local-tests.sh`
-3. اجرای مجدد `analyze_backup("/root/backup_20260923210118.zip")` و اطمینان از عبور Preflight + candidate selection.
-4. ثبت ساختار واقعی manifest و dumpهای بکاپ.
-5. اجرای staging restore از backup واقعی، بدون تغییر production.
-6. validation کامل schema/table/row-count/hypertable/CAGG و identity safety.
-7. rollback واقعی و سپس runtime assets.
-8. در پایان compatibility matrix را فقط با اجرای واقعی update کن.
+1. اجرای migration واقعی در **staging-only** با `/root/backup_20260923210118.zip`؛ بدون `--apply`.
+2. restore کامل داخل runtime سازگار PG17 + Timescale 2.28.2.
+3. اجرای Alembic/adapter/normalization روی staging و بررسی عدم loss در durable tables.
+4. upgrade ایزوله Timescale از 2.28.2 به نسخه مقصد فقط بعد از restore/validation اولیه.
+5. validation کامل schema/table/row-count/hypertable/CAGG/FK و identity safety.
+6. بررسی staging dump نهایی برای آماده‌سازی cross-major PG17 → PG16.
+7. rollback واقعی؛ سپس فقط در صورت سبز بودن همه gateها بررسی cutover.
+8. compatibility matrix را فقط با نتایج E2E واقعی update کن.
 
 ## Backup واقعی PasarGuard
 - [x] ساختار رسمی backup و manifest بررسی شده است.
@@ -76,17 +78,18 @@
 - [x] archive detection روی artifact واقعی انجام شد.
 - [x] directory entries واقعی PasarGuard از preflight عبور می‌کنند.
 - [x] globals-only dump از database candidate selection جدا شد.
-- [ ] تست تغییر globals-only روی سرور واقعی.
-- [ ] preflight + candidate selection artifact واقعی پس از اصلاح globals-only.
+- [x] preflight + candidate selection artifact واقعی پس از اصلاح globals-only سبز است.
+- [x] runtime سازگار PG17/Timescale 2.28.2 روی سرور آماده و نسخه PostgreSQL آن تأیید شد.
 - [ ] restore کامل artifact واقعی روی staging.
 - [ ] schema/table/hypertable/CAGG validation روی artifact واقعی.
+- [ ] Timescale isolated upgrade و bridge به target.
 - [ ] rollback واقعی.
 
 ## Compatibility matrix
 | Source | Target | وضعیت |
 |---|---|---|
 | PG17 + Timescale 2.30.0 synthetic | PG16 + Timescale 2.29.2 | **PASSED on real server** |
-| PasarGuard واقعی، PG17.10 + Timescale 2.28.2 | ManubisGuard PG16 | implementation موجود؛ E2E واقعی باقی است |
+| PasarGuard واقعی، PG17.10 + Timescale 2.28.2 | ManubisGuard PG16 | source-compatible runtime آماده؛ E2E restore باقی است |
 | ManubisGuard backup واقعی | ManubisGuard target | تست نشده |
 | PasarGuard نسخه‌های جدیدتر | target مربوطه | regression لازم |
 
