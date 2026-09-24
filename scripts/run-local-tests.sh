@@ -42,6 +42,21 @@ wait_for_postgres() {
   compose_exec "$service" pg_isready -U postgres -d "$database"
 }
 
+wait_for_timescaledb_extension() {
+  local service="$1"
+  local database="$2"
+  local attempt
+  for attempt in $(seq 1 30); do
+    if PGPASSWORD=integration compose_exec "$service" psql -U postgres -d "$database" -Atc \
+      "SELECT 1 FROM pg_extension WHERE extname='timescaledb'" | grep -qx 1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "TimescaleDB extension is not installed in $database" >&2
+  return 1
+}
+
 verify_databases() {
   PGPASSWORD=integration compose_exec "$SOURCE_SERVICE" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='source_db'" | grep -qx 1
   PGPASSWORD=integration compose_exec "$DESTINATION_SERVICE" psql -U postgres -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='destination_db'" | grep -qx 1
@@ -50,7 +65,6 @@ verify_databases() {
 seed_source() {
   compose_exec "$SOURCE_SERVICE" psql -U postgres -d source_db -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
-CREATE EXTENSION IF NOT EXISTS timescaledb;
 CREATE TABLE public.devices (id integer PRIMARY KEY, name text NOT NULL);
 CREATE TABLE public.usage (
   time timestamptz NOT NULL,
@@ -129,6 +143,7 @@ echo "OK: Validate compose configuration"
 stage "Start isolated Timescale services" docker compose -p "$PROJECT" -f "$COMPOSE_FILE" up -d --wait || exit "$RESULT"
 stage "Verify source and destination databases" verify_databases || exit "$RESULT"
 stage "Verify PostgreSQL readiness before seed" wait_for_postgres "$SOURCE_SERVICE" source_db || exit "$RESULT"
+stage "Wait for preinstalled TimescaleDB extension" wait_for_timescaledb_extension "$SOURCE_SERVICE" source_db || exit "$RESULT"
 stage "Seed source database" seed_source || exit "$RESULT"
 stage "Verify seeded data and 48-row continuous aggregate" verify_seed || exit "$RESULT"
 stage "Build portable bridge artifacts" build_bridge || exit "$RESULT"
