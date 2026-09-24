@@ -381,9 +381,13 @@ def migrate_pasarguard_staging(
                     minimum_version=analysis.timescale.minimum_version,
                     catalog_era=analysis.timescale.catalog_era,
                     recommended_version=required_timescale,
-                    warnings=(*analysis.timescale.warnings,
-                              f"Adaptive restore selected source-compatible TimescaleDB {required_timescale} "
-                              f"for destination {live_timescale}."),
+                    warnings=(
+                            *analysis.timescale.warnings,
+                            (
+                                f"Adaptive restore selected source-compatible TimescaleDB {required_timescale} "
+                                f"for destination {live_timescale}."
+                            ),
+                        ),
                 ),
                 uses_timescaledb=analysis.uses_timescaledb,
             )

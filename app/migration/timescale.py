@@ -145,7 +145,7 @@ def filter_timescaledb_ddl_line(line: str) -> bool:
             r"^\s*(DROP|CREATE)\s+EXTENSION\s+"
             r"(IF\s+(EXISTS|NOT\s+EXISTS)\s+)?timescaledb(_toolkit)?\b",
             line,
-            re.I,
+            re.IGNORECASE,
         )
         or re.search(r"^\s*COMMENT\s+ON\s+EXTENSION\s+timescaledb\b", line, re.I)
     )

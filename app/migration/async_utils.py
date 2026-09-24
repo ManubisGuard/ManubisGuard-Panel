@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Coroutine, TypeVar
-
-T = TypeVar("T")
+from typing import Coroutine
 
 
-def run_async(coro: Coroutine[object, object, T]) -> T:
+def run_async[T](coro: Coroutine[object, object, T]) -> T:
     """Run a coroutine from sync code, including when the caller already has a loop.
 
     The migration/validation helpers are intentionally synchronous at their public

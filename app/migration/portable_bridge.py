@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import asyncpg
 
@@ -112,7 +113,7 @@ def _sql_string(value: str) -> str:
 
 def _dimension_value(value: Any) -> str:
     if isinstance(value, bool):
-        raise ValueError("Boolean dimension interval is invalid.")
+        raise TypeError("Boolean dimension interval is invalid.")
     if isinstance(value, int):
         return str(value)
     if isinstance(value, float):
@@ -133,9 +134,9 @@ def _parse_config(value: Any) -> Mapping[str, Any]:
     if isinstance(value, str):
         parsed = json.loads(value)
         if not isinstance(parsed, dict):
-            raise ValueError("Timescale policy config must be a JSON object.")
+            raise TypeError("Timescale policy config must be a JSON object.")
         return parsed
-    raise ValueError("Unsupported Timescale policy config type.")
+    raise TypeError("Unsupported Timescale policy config type.")
 
 
 def collect_hypertables(
@@ -298,15 +299,17 @@ def build_continuous_aggregate_sql(cagg: ContinuousAggregateMetadata) -> tuple[s
     view = _qualified(cagg.schema, cagg.name)
     definition = cagg.view_definition.strip().rstrip(";")
     return (
-        f"CREATE MATERIALIZED VIEW {view} WITH ({', '.join(options)}) "
-        f"AS {definition} WITH NO DATA;",
+        (
+            f"CREATE MATERIALIZED VIEW {view} WITH ({', '.join(options)}) "
+            f"AS {definition} WITH NO DATA;"
+        ),
         f"CALL refresh_continuous_aggregate({view}, NULL, NULL);",
     )
 
 
 def _policy_arg(value: Any) -> str:
     if isinstance(value, bool):
-        raise ValueError("Boolean policy interval is invalid.")
+        raise TypeError("Boolean policy interval is invalid.")
     if isinstance(value, int):
         return str(value)
     text = str(value).strip()
@@ -401,10 +404,14 @@ def build_portable_plan(
         policies=policies,
         excluded_tables=excluded,
         warnings=(
-            "Timescale internal schemas/catalogs are excluded; only public/user-facing "
-            "metadata is used to reconstruct Timescale objects.",
-            "Continuous aggregate materialization data is rebuilt by a full refresh; "
-            "historical rows deleted from source hypertables are not implicitly preserved.",
+            (
+                "Timescale internal schemas/catalogs are excluded; only public/user-facing "
+                "metadata is used to reconstruct Timescale objects."
+            ),
+            (
+                "Continuous aggregate materialization data is rebuilt by a full refresh; "
+                "historical rows deleted from source hypertables are not implicitly preserved."
+            ),
         ),
     )
 
