@@ -21,7 +21,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    pull_policy: always
+    pull_policy: never
     restart: always
     env_file: .env
     network_mode: host

@@ -209,7 +209,7 @@ verify_stack() {
   [ -n "$container" ] || die "ManubisGuard container was not created."
   docker inspect -f '{{.State.Status}}' "$container" | grep -qx running || die "ManubisGuard container is not running."
   docker exec "$container" python -c 'import app; print("IMPORT_OK")' | grep -qx IMPORT_OK || die "Python import check failed."
-  curl -fsS --max-time 10 http://127.0.0.1:8000/health >/dev/null || die "Panel health check failed."
+  curl -kfsS --max-time 10 https://127.0.0.1:8000/health >/dev/null || die "Panel HTTPS health check failed."
 }
 
 install_helper() {
