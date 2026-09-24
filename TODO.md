@@ -75,3 +75,19 @@
 - Never commit real secrets.
 - N2 stays outside installer removal scope.
 - The test server is disposable; feature/amnezia-wg is the source of truth.
+
+## Domain / SSL Intelligence — Persistent Context
+- [x] Domain DNS verified for `ua.qoqnusradio.top` -> `160.202.132.252`.
+- [x] Existing certificate files verified on the server under `/var/lib/manubisguard/certs/ua.qoqnusradio.top/`.
+- [x] The Panel is responsible for its own domain/SSL handling; do NOT introduce Nginx, Caddy, or another reverse proxy unless explicitly required by the project.
+- [x] `network_mode: host` is intentional for the `manubisguard` service.
+- [x] The main Panel runtime listens on Uvicorn port `8000`; do not assume port 443 or add a reverse proxy just to expose the domain.
+- [x] SSL activation requires the Uvicorn certificate/key environment variables pointing to the existing certificate files:
+  - `UVICORN_SSL_CERTFILE=/var/lib/manubisguard/certs/ua.qoqnusradio.top/fullchain.pem`
+  - `UVICORN_SSL_KEYFILE=/var/lib/manubisguard/certs/ua.qoqnusradio.top/privkey.pem`
+- [x] Do NOT add `MANUBISGUARD_DOMAIN` to the main Panel `.env` merely to configure SSL/domain. The main `.env` should contain only variables actually consumed by the application.
+- [ ] After changing SSL env values, recreate the `manubisguard` container so the new environment is loaded.
+- [ ] Verify the process binds externally with TLS, then test the HTTPS health endpoint.
+- [ ] Verify certificate validity/renewal behavior and document the final production SSL flow.
+- [ ] Future sessions MUST read this TODO section before repeating domain/SSL setup; do not re-discover or re-add the same configuration from scratch.
+
