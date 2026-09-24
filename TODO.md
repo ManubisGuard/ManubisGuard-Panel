@@ -17,6 +17,7 @@
 ## انجام‌شده
 - [x] Detection → Preflight → Source-Compatible Staging → Transformation/Bridge → Alembic → Validation → Cutover architecture.
 - [x] ZIP/TAR integrity، CRC، path traversal، duplicate normalized paths و special-file guards.
+- [x] ZIP directory entries به‌عنوان مسیرهای مجاز شناخته می‌شوند؛ symlink/special file همچنان block می‌شود.
 - [x] credential/deployment identity safety.
 - [x] runtime asset staging/rollback architecture.
 - [x] Compose integrity guard.
@@ -33,6 +34,7 @@
 - [x] اتصال manifest به Preflight برای ZIP/TAR.
 - [x] پشتیبانی از manifest تو‌در‌تو؛ dump path نسبی به directory خود manifest resolve می‌شود.
 - [x] regression fixture مربوط به archive PasarGuard با TSV واقعی اصلاح شد.
+- [x] regression برای ZIPهای واقعی دارای directory entry اضافه شد.
 
 ## تست‌شده روی سرور واقعی
 - [x] Synthetic E2E: PostgreSQL 17 / TimescaleDB 2.30.0 → PostgreSQL 16 / TimescaleDB 2.29.2.
@@ -40,31 +42,36 @@
 - [x] source/destination hypertable count = 48.
 - [x] Continuous Aggregate = 48 rows.
 - [x] Ruff lint/format قبلاً passed.
-- [x] `bash scripts/run-local-tests.sh` قبل از تغییرات اخیر manifest: ALL TESTS PASSED.
+- [x] `bash scripts/run-local-tests.sh` روی commit `9185c6f`: 82 passed، ALL TESTS PASSED.
+- [ ] تست commitهای جدید `c01c226` و `531b28c` هنوز روی سرور اجرا نشده است.
 
 ## آخرین وضعیت تست
-- [ ] اجرای سرور بعد از commitهای `88440a5b` و `f87bd43e` هنوز انجام نشده است.
-- آخرین اجرای سرور روی `2659238` شامل 80 passed و 2 failed بود:
-  - nested manifest path fixture انتظار داشت `db-001.sql` نسبت به `pg_dump/manifest.tsv` resolve شود.
-  - runner regression fixture به‌اشتباه literal `\\t` نوشته بود و manifest معتبر تولید نمی‌کرد.
-- هر دو مورد اصلاح شده‌اند.
+- [x] دو failure قبلی مربوط به nested manifest و literal `\\t` اصلاح شدند.
+- [x] `9185c6f`: 82 migration tests passed.
+- [x] بکاپ واقعی `/root/backup_20260923210118.zip` روی سرور شناسایی شد به‌عنوان ZIP با source_product=`pasarguard` و confidence=`high`.
+- [!] Preflight بکاپ واقعی هنوز block می‌شود، اما علت مشخص شد: ZIP رسمی PasarGuard شامل directory entryهای Unix با mode `040xxx` است و validator فعلی آن‌ها را اشتباهاً special file تشخیص می‌داد.
+- [x] validator اصلاح شد تا directory entry مجاز باشد و symlink/special file همچنان block شود.
+- [x] regression test برای directory entry اضافه شد.
 
 ## مرحله بعدی فوری
 1. `git pull --ff-only origin feature/amnezia-wg`
 2. `bash scripts/run-local-tests.sh`
-3. اگر سبز شد: ثبت نتیجه در همین TODO.
-4. سپس `--check` روی backup واقعی PasarGuard.
-5. سپس staging restore از backup واقعی و validation کامل.
-6. سپس rollback واقعی و runtime assets.
-7. در پایان compatibility matrix را فقط با اجرای واقعی update کن.
+3. اجرای مجدد `analyze_backup("/root/backup_20260923210118.zip")` و اطمینان از عبور Preflight.
+4. ثبت ساختار واقعی manifest و dumpهای بکاپ.
+5. اجرای staging restore از backup واقعی، بدون تغییر production.
+6. validation کامل schema/table/row-count/hypertable/CAGG و identity safety.
+7. rollback واقعی و سپس runtime assets.
+8. در پایان compatibility matrix را فقط با اجرای واقعی update کن.
 
 ## Backup واقعی PasarGuard
 - [x] ساختار رسمی backup و manifest بررسی شده است.
 - [x] `manifest.tsv` شامل database/owner/Timescale/dump/version metadata است.
 - [x] `pg_dump/manifest.tsv` و `pg_dump/db-<NNN>.sql` پشتیبانی می‌شوند.
 - [x] sidecar `db_backup.timescaledb-version` شناخته شده است.
-- [ ] backup واقعی هنوز با restore کامل روی staging اجرا نشده است.
-- [ ] `--check` روی artifact واقعی.
+- [x] artifact واقعی `/root/backup_20260923210118.zip` روی سرور موجود و 2.2MB است.
+- [x] archive detection روی artifact واقعی انجام شد.
+- [ ] preflight artifact واقعی پس از اصلاح directory entries.
+- [ ] restore کامل artifact واقعی روی staging.
 - [ ] schema/table/hypertable/CAGG validation روی artifact واقعی.
 - [ ] rollback واقعی.
 
