@@ -5,11 +5,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 
-from app.models.domain_intelligence import (
-    DomainDNSResult,
-    DomainHTTPProbe,
-    DomainIntelligenceResult,
-)
+from app.models.domain_intelligence import DomainDNSResult, DomainHTTPProbe, DomainIntelligenceResult
 from app.models.settings import ManagedDomain
 
 
