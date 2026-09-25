@@ -373,6 +373,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] Overall Domain/SSL closure still has one specification-dependent item: Server Address `additional` / `alias` / `both` generation lacks an authoritative runtime/subscription contract in the repository, so no speculative propagation has been enabled.
 - [ ] Real ACME issuance, real Cloudflare DNS mutation, and live production-node certificate deployment remain operational actions not executed in regression tests.
 
+## Settings routing regression — 2026-09-25
+- [x] Reproduced the Settings navigation 404 for `/settings/backup` and `/settings/domains`: both page components existed, but `dashboard/src/app/router.tsx` did not register either child route or lazy import.
+- [x] Fixed the router by registering `/settings/domains` and `/settings/backup` and wiring both existing page components through the same lazy-loading/error-boundary pattern as the other Settings tabs.
+- [x] Clean production Docker build PASS; Vite/PWA build completed successfully and emitted only the existing chunk-size/browser-compatibility warnings.
+- [x] `git diff --check` PASS.
+- [x] Deployed the rebuilt `feature/amnezia-wg` image to the test server without changing the TimescaleDB volume.
+- [x] Post-deploy runtime PASS: Panel and TimescaleDB are healthy, external `https://55.qoqnusradio.top/health` returned `{"status":"ok"}`, root returned HTTP 200, and the built assets contain the new `/settings/backup` route reference.
+
 ## Reality Inbound Auto-SNI completion — 2026-09-25
 - [x] Root cause identified: the previous Auto Select implementation treated each configured SNI-pool entry as a new Reality **target**, so it replaced the inbound target instead of testing candidate SNI names against the existing target.
 - [x] Added an optional TLS SNI override to the Reality scanner/API while preserving the original target host/IP and port.
@@ -383,6 +391,6 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Ruff check, Ruff format check and `git diff --check` PASS.
 - [x] Live non-destructive scanner smoke: `example.com:443` tested with multiple SNI candidates; target remained `example.com:443`, feasible candidates were ranked by measured latency, and `www.cloudflare.com` was selected in that run. No inbound/core configuration was persisted and no node was restarted.
 - [x] Frontend TypeScript `--noEmit` and production Vite build PASS; only existing large-chunk and browser-external warnings remain.
-- [x] Production Panel image/runtime deployment of this source change is intentionally not executed in this milestone; source is committed/pushed for the next normal deployment.
+- [x] Initial production-image deployment was intentionally deferred at the code milestone; the later live test deployment checkpoint records the actual image deployment and runtime validation.
 - [x] Test deployment completed on the authorized server from branch `feature/amnezia-wg` at commit `bb5204a5`: existing TimescaleDB volume preserved, pre-deployment pg_dump saved outside Git, local image rebuilt, Panel recreated, runtime `/health` returned 200, and no production data restore/cutover was performed.
 - [x] HTTPS test endpoint configured for `55.qoqnusradio.top` with Nginx reverse proxy and a real Let's Encrypt certificate; external `/` returned 200 and `/health` returned `{"status":"ok"}`. Certificate is valid through 2026-12-24 and Certbot renewal is scheduled.
