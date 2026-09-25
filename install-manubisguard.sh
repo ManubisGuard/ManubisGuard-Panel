@@ -137,12 +137,13 @@ configure_ssl_choice() {
   echo " 3) Custom Certificate"
   echo " 4) Normal Install - No SSL"
   echo
-  read -r -p "Select [1-4] (default: 1): " choice
+  [ -r /dev/tty ] || die "interactive SSL setup requires a TTY; use --ssl-mode for non-interactive installation"
+  read -r -p "Select [1-4] (default: 1): " choice </dev/tty
   choice="${choice:-1}"
   case "$choice" in
-    1) SSL_MODE="domain"; read -r -p "Domain (example.com): " SSL_DOMAIN; [ -n "$SSL_DOMAIN" ] || die "domain is required" ;;
-    2) SSL_MODE="ip"; SERVER_IP="$(curl -4fsS --max-time 5 https://api.ipify.org || true)"; [ -n "$SERVER_IP" ] || read -r -p "Server public IP: " SERVER_IP; [ -n "$SERVER_IP" ] || die "server IP is required" ;;
-    3) SSL_MODE="custom"; read -r -p "Certificate file: " SSL_CERTFILE; read -r -p "Private key file: " SSL_KEYFILE; [ -f "$SSL_CERTFILE" ] || die "certificate file not found"; [ -f "$SSL_KEYFILE" ] || die "private key file not found" ;;
+    1) SSL_MODE="domain"; read -r -p "Domain (example.com): " SSL_DOMAIN </dev/tty; [ -n "$SSL_DOMAIN" ] || die "domain is required" ;;
+    2) SSL_MODE="ip"; SERVER_IP="$(curl -4fsS --max-time 5 https://api.ipify.org || true)"; [ -n "$SERVER_IP" ] || read -r -p "Server public IP: " SERVER_IP </dev/tty; [ -n "$SERVER_IP" ] || die "server IP is required" ;;
+    3) SSL_MODE="custom"; read -r -p "Certificate file: " SSL_CERTFILE </dev/tty; read -r -p "Private key file: " SSL_KEYFILE </dev/tty; [ -f "$SSL_CERTFILE" ] || die "certificate file not found"; [ -f "$SSL_KEYFILE" ] || die "private key file not found" ;;
     4) SSL_MODE="none" ;;
     *) die "invalid SSL selection" ;;
   esac
