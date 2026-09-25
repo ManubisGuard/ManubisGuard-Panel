@@ -198,3 +198,14 @@ Continue MANUBISGUARD from GitHub ManubisGuard/ManubisGuard-Panel, branch featur
 Restore/Migration gates already passed: real backup check, isolated restore, schema/tables/rows/FK/sequences/identity validation, Timescale upgrade, staging dump/integrity, disposable rollback, PG17/Timescale -> PG16/Timescale portable bridge E2E, 86 migration tests, clean branch image build and disposable runtime health. Production --apply has not been executed.
 Current D0 backend: Backup model/migration/service/admin API; Fernet encryption using BACKUP_TELEGRAM_KEY; token hidden from API/logs; opt-in APScheduler job; SQLite backup-ID regression fix. Commits 8e06f568 and 46dbff58.
 Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure, frontend, retention, restore UI flow, tests, clean build/runtime. On FAIL: evidence -> root cause -> minimal fix -> regression -> PASS -> TODO -> commit -> push.
+
+
+## D0.2 Runtime/API Regression — 2026-09-25
+- [x] Re-synced `feature/amnezia-wg` from origin; clean tree and HEAD `f4578393` verified before execution.
+- [x] `docker compose ps`: Panel and TimescaleDB are healthy; no production cutover/apply was executed.
+- [x] Panel runtime `/health` returned `{"status":"ok"}` with HTTP 200.
+- [x] `docker compose exec -T manubisguard python -m alembic current` returned head `b7c8d9e0f1a4`.
+- [x] Live `Backup` ORM inspection returned expected backup/Telegram columns, including `telegram_bot_token` and `telegram_chat_id`.
+- [x] Unauthenticated `/api/admin/backup/list`, `/create`, and `/configure-telegram` requests were rejected with HTTP 401; no secret was supplied.
+- [ ] Authenticated automated Backup API regression suite is not yet green: repository test runner stalled during test-module import/Alembic SQLite setup in disposable execution; no production database was used or modified.
+- [ ] Next: isolate/fix test-runner hang, then execute authenticated manual-backup, Telegram mock, list secret non-disclosure and RBAC regression tests in disposable data only.
