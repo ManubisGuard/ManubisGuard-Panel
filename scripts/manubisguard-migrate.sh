@@ -912,20 +912,12 @@ timescale_prepare_cutover() {
 }
 
 restore_dump_to_cutover() {
+  [ -n "$CUTOVER_DB" ] || die "No cutover database exists."
   log "Restoring validated logical dump into isolated cutover database on the production PostgreSQL server."
   local rc=0
   if [ "$PROD_HAS_TIMESCALE" = true ]; then
-    local is_mariadb
-    is_mariadb="$(json_get "$(cat "$WORKDIR/analysis.json")" ".detection.is_mariadb")"
-    if [ "$is_mariadb" = "True" ] || [ "$is_mariadb" = "true" ]; then
-      SOURCE_PG_MAJOR="$PG_MAJOR"
-      stage_version="$PROD_TS_VERSION"
-      log "MariaDB source has no PostgreSQL/Timescale compatibility runtime; using an isolated destination-compatible PostgreSQL/Timescale staging runtime."
-      start_temp_timescale "$stage_version"
-      create_staging_database
-      start_temp_mariadb
-    elif portable_bridge_required; then
-    cat "$PANEL_DUMP" | docker exec -i "$PANEL_CONTAINER" python -c '
+    if portable_bridge_required; then
+      cat "$PANEL_DUMP" | docker exec -i "$PANEL_CONTAINER" python -c '
 import sys
 from app.migration.timescale import filter_postgresql_compatibility_line, filter_timescaledb_ddl_line
 for raw in sys.stdin:
@@ -936,13 +928,15 @@ for raw in sys.stdin:
         continue
     sys.stdout.write(line + "\n")
 ' | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$ADMIN_USER" -d "$CUTOVER_DB" || rc=$?
+    else
+      cat "$PANEL_DUMP" | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$ADMIN_USER" -d "$CUTOVER_DB" || rc=$?
+    fi
   else
     cat "$PANEL_DUMP" | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$ADMIN_USER" -d "$CUTOVER_DB" || rc=$?
   fi
   psql_prod -d "$CUTOVER_DB" -c "SELECT timescaledb_post_restore();" >/dev/null 2>&1 || true
   [ "$rc" -eq 0 ] || die "Cutover restore failed. Production database is unchanged."
 }
-
 
 validate_cutover() {
   log "Validating cutover database before stopping the live panel..."
@@ -1174,25 +1168,16 @@ main() {
     elif portable_bridge_required; then
       stage_version="$SOURCE_TS_VERSION"
       log "Source TimescaleDB $SOURCE_TS_VERSION is newer than destination $PROD_TS_VERSION; enabling Portable Timescale Bridge."
+      [ -n "$stage_version" ] || die "No compatible TimescaleDB staging version was selected."
+      start_temp_timescale "$stage_version"
+      create_staging_database
     else
       stage_version="$(json_get "$(cat "$WORKDIR/analysis.json")" ".staging_timescale_version")"
       stage_version="${stage_version:-$PROD_TS_VERSION}"
-    fi
-    [ -n "$stage_version" ] || die "No compatible TimescaleDB staging version was selected."
-    if [ "$is_mariadb" != "True" ] && [ "$is_mariadb" != "true" ]; then
+      [ -n "$stage_version" ] || die "No compatible TimescaleDB staging version was selected."
       start_temp_timescale "$stage_version"
       create_staging_database
     fi
-    if portable_bridge_required; then
-      stage_version="$SOURCE_TS_VERSION"
-      log "Source TimescaleDB $SOURCE_TS_VERSION is newer than destination $PROD_TS_VERSION; enabling Portable Timescale Bridge."
-    else
-      stage_version="$(json_get "$(cat "$WORKDIR/analysis.json")" ".staging_timescale_version")"
-      stage_version="${stage_version:-$PROD_TS_VERSION}"
-    fi
-    [ -n "$stage_version" ] || die "No compatible TimescaleDB staging version was selected."
-    start_temp_timescale "$stage_version"
-    create_staging_database
   elif [ "$uses_ts" = "True" ] || [ "$uses_ts" = "true" ]; then
     die "TimescaleDB backup cannot be automatically restored into a plain PostgreSQL production database."
   else
