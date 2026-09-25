@@ -482,3 +482,11 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Dashboard TypeScript check passed.
 - [x] Panel rebuilt/restarted and production health verified: `/health` returned `{"status":"ok"}`; Panel and TimescaleDB are healthy.
 - [x] Fix commit: `9c6f874f43cda92d32d6ee6df9890e05bb46ac96`.
+
+
+## Native CLI installer command — 2026-09-25
+- [x] Added a native host command `manubisguard` to the installer. On a fresh server it bootstraps the installer from the canonical branch; after installation it provides `install`, `status`, `start`, `stop`, `restart`, `logs` and `update` commands.
+- [x] `manubisguard update` reuses the canonical installer with `--yes --override` while preserving persistent database credentials/data.
+- [x] Installer documentation now uses the canonical `ManubisGuard/ManubisGuard-Panel` repository and documents the native CLI lifecycle commands.
+- [x] Corrected the Panel image reference to the currently used GHCR image `ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg`.
+- [x] Remote validation: latest installer script fetched from `feature/amnezia-wg` passed `bash -n`; Compose continues to reference the same Panel image registry and no production database was modified by this installer change.
