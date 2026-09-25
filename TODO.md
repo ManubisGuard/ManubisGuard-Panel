@@ -352,11 +352,17 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 
 - [ ] Server Address `additional` / `alias` / `both` generation remains pending because the repository still lacks an authoritative runtime/subscription contract for those semantics; no speculative propagation is enabled.
 
-## D4 — Domains & SSL UI lifecycle — in progress 2026-09-25
+## D4 — Domains & SSL UI lifecycle — completed 2026-09-25
 - [x] Added Issue/Renew controls for Let's Encrypt and Cloudflare-managed certificates.
 - [x] Added Existing Certificate installation UI with local-only private-key form state; private keys are cleared from the UI after successful submission and are never returned by the API.
 - [x] Added manual Deploy/Re-deploy controls and persistent deployment status/error/timestamp presentation.
 - [x] Added expiration, days-remaining, renewal-attempts and next-renewal visibility plus explicit Expired status.
 - [x] Added frontend lifecycle service outside the generated API client so future `gen:api` runs do not overwrite custom certificate hooks.
 - [x] Frontend validation PASS: TypeScript `--noEmit` and Vite production build PASS; Vite emitted only existing bundle-size/browser-compatibility warnings.
-- [ ] Next D4 operation: wire address-mode semantics only after an authoritative generator/contract is identified; then perform final UI/backend regression.
+
+## D5 — Domains & SSL regression — 2026-09-25
+- [x] Domain/SSL + Node/Settings targeted regression PASS: `78 passed in 2.90s`; Ruff and `git diff --check` PASS.
+- [x] Runtime health PASS: `GET /health` returned HTTP 200 with `{"status":"ok"}`.
+- [x] Full project pytest started against disposable SQLite; migrations completed and the suite reached 42% with no reported test failure before it was intentionally interrupted because this environment made the full suite disproportionately long. This is not recorded as a full-suite PASS.
+- [ ] Overall Domain/SSL closure still has one specification-dependent item: Server Address `additional` / `alias` / `both` generation lacks an authoritative runtime/subscription contract in the repository, so no speculative propagation has been enabled.
+- [ ] Real ACME issuance, real Cloudflare DNS mutation, and live production-node certificate deployment remain operational actions not executed in regression tests.
