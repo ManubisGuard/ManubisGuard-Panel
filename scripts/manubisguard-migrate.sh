@@ -490,7 +490,7 @@ start_temp_mariadb() {
   docker run -d --name "$MARIADB_CONTAINER" --restart=no --label "manubisguard.migration=$ID" --network host -e MARIADB_ROOT_PASSWORD="$MARIADB_PASSWORD" -e MARIADB_DATABASE=pasarguard -v "$MARIADB_VOLUME:/var/lib/mysql" mariadb:12.3.3 --port="$MARIADB_PORT" >/dev/null
   local i
   for i in $(seq 1 90); do
-    if docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -e "SELECT 1" >/dev/null 2>&1; then break; fi
+    if docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -p"$MARIADB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
     if [ "$(docker inspect -f '{{.State.Status}}' "$MARIADB_CONTAINER" 2>/dev/null || true)" = "exited" ]; then docker logs "$MARIADB_CONTAINER" >"$WORKDIR/mariadb-container.log" 2>&1 || true; die "Temporary MariaDB exited. See $WORKDIR/mariadb-container.log"; fi
     sleep 2
     [ "$i" -eq 90 ] && die "Temporary MariaDB did not become ready."
@@ -500,7 +500,7 @@ start_temp_mariadb() {
   # logical import cannot race the shutdown of the bootstrap server.
   sleep 5
   for i in $(seq 1 30); do
-    if docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -e "SELECT 1" >/dev/null 2>&1; then
+    if docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -p"$MARIADB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
       break
     fi
     sleep 1
@@ -511,11 +511,11 @@ start_temp_mariadb() {
   [ -n "$sql_member" ] || sql_member="$(unzip -Z1 "$PANEL_BACKUP" | grep -E '\.sql$' | head -n1 || true)"
   [ -n "$sql_member" ] || die "MariaDB backup ZIP contains no SQL dump."
   log "Importing MariaDB source dump into isolated runtime: $sql_member"
-  if ! unzip -p "$PANEL_BACKUP" "$sql_member" | docker exec -i "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot; then
+  if ! unzip -p "$PANEL_BACKUP" "$sql_member" | docker exec -i "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -p"$MARIADB_PASSWORD"; then
     docker logs "$MARIADB_CONTAINER" >"$WORKDIR/mariadb-import.error" 2>&1 || true
     die "MariaDB source dump import failed. See $WORKDIR/mariadb-import.error"
   fi
-  docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -e "CREATE USER IF NOT EXISTS 'manubisguard_bridge'@'%' IDENTIFIED BY '$MARIADB_PASSWORD'; GRANT ALL PRIVILEGES ON *.* TO 'manubisguard_bridge'@'%'; FLUSH PRIVILEGES;"
+  docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -p"$MARIADB_PASSWORD" -e "CREATE USER IF NOT EXISTS 'manubisguard_bridge'@'%' IDENTIFIED BY '$MARIADB_PASSWORD'; GRANT ALL PRIVILEGES ON *.* TO 'manubisguard_bridge'@'%'; FLUSH PRIVILEGES;"
   MARIADB_SOURCE_URL="$(python3 - "$MARIADB_PASSWORD" "$MARIADB_PORT" <<'PY'
 import sys
 from urllib.parse import quote
