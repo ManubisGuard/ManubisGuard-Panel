@@ -921,6 +921,32 @@ class Settings(Base, IdMixin):
     general: Mapped[dict] = mapped_column(JSON())
 
 
+class Backup(Base, CreatedAtUTCMixin):
+    __tablename__ = "backups"
+    __table_args__ = (
+        Index("ix_backups_created_at", "created_at"),
+        Index("ix_backups_status", "status"),
+        Index("ix_backups_schedule_id", "schedule_id"),
+    )
+
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    backup_path: Mapped[str] = mapped_column(String(2048), nullable=False)
+    source_version: Mapped[str | None] = mapped_column(String(64), default=None)
+    source_db: Mapped[str | None] = mapped_column(String(128), default=None)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="created", server_default="created")
+    error_message: Mapped[str | None] = mapped_column(Text, default=None)
+    metadata_json: Mapped[dict | None] = mapped_column(PostgresJSONB, default_factory=dict)
+    created_by: Mapped[int | None] = fk_id_column("admins.id", ondelete="SET NULL", default=None)
+    schedule_id: Mapped[int | None] = mapped_column(SqliteCompatibleBigInteger, default=None)
+    telegram_bot_token: Mapped[str | None] = mapped_column(Text, default=None)
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(128), default=None)
+
+    @property
+    def telegram_enabled(self) -> bool:
+        return bool(self.telegram_bot_token and self.telegram_chat_id)
+
+
 class AdminRole(Base, CreatedAtUTCMixin):
     __tablename__ = "admin_roles"
     name: Mapped[str] = mapped_column(String(64), unique=True)
