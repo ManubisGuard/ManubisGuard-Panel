@@ -5,6 +5,16 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Coroutine
 
 
+def run_sync_in_worker[T](func, *args, **kwargs) -> T:
+    """Run synchronous code in a worker thread when called from an active event loop."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return func(*args, **kwargs)
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="mg-migration-sync") as pool:
+        return pool.submit(func, *args, **kwargs).result()
+
+
 def run_async[T](coro: Coroutine[object, object, T]) -> T:
     """Run a coroutine from sync code, including when the caller already has a loop.
 
