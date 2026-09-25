@@ -19,12 +19,24 @@ export type ManagedDomainLifecycle = Omit<ApiManagedDomain, 'status'> & {
 export interface CertificateIssueRequest {
   domain_id: string
   force?: boolean
+  domain?: ManagedDomainLifecycle
+  primary?: boolean
+}
+
+export interface CloudflareCredentialResponse {
+  configured: boolean
+}
+
+export interface CloudflareCredentialRequest {
+  api_token: string
 }
 
 export interface ExistingCertificateInstallRequest {
   domain_id: string
   certificate_pem: string
   private_key_pem: string
+  domain?: ManagedDomainLifecycle
+  primary?: boolean
 }
 
 export interface CertificateDeploymentRequest {
@@ -77,6 +89,23 @@ export const deployManagedCertificates = async (request: CertificateDeploymentRe
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(request),
+  })
+
+export const getCloudflareCredentialStatus = async (options?: RequestInit): Promise<CloudflareCredentialResponse> =>
+  orvalFetcher<CloudflareCredentialResponse>('/api/settings/domains/certificate/cloudflare', { ...options, method: 'GET' })
+
+export const setCloudflareCredential = async (request: CloudflareCredentialRequest, options?: RequestInit): Promise<CloudflareCredentialResponse> =>
+  orvalFetcher<CloudflareCredentialResponse>('/api/settings/domains/certificate/cloudflare', {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(request),
+  })
+
+export const useSetCloudflareCredential = () =>
+  useMutation({
+    mutationKey: ['setCloudflareCredential'],
+    mutationFn: ({ data }: MutationVariables<CloudflareCredentialRequest>) => setCloudflareCredential(data),
   })
 
 export const useDeployManagedCertificates = () =>

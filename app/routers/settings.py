@@ -14,6 +14,8 @@ from app.models.managed_certificates import (
     CertificateDeploymentResponse,
     CertificateIssueRequest,
     CertificateLifecycleResponse,
+    CloudflareCredentialRequest,
+    CloudflareCredentialResponse,
     ExistingCertificateInstallRequest,
 )
 from app.models.settings import General, ManagedDomain, SettingsSchema
@@ -57,6 +59,35 @@ async def inspect_domain_certificate(
     return await DomainCertificateInspector().inspect(request.domain)
 
 
+@router.get("/domains/certificate/cloudflare", response_model=CloudflareCredentialResponse)
+async def get_cloudflare_credential_status(
+    db: AsyncSession = Depends(get_db), _=Depends(require_permission("settings", "read_general"))
+):
+    settings = await settings_operator.get_settings(db)
+    general = settings.general or {}
+    from config import certificate_settings
+
+    return {
+        "configured": bool(
+            str(general.get("_cloudflare_api_token") or "").strip() or certificate_settings.cloudflare_api_token
+        )
+    }
+
+
+@router.put("/domains/certificate/cloudflare", response_model=CloudflareCredentialResponse)
+async def set_cloudflare_credential(
+    request: CloudflareCredentialRequest,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_permission("settings", "update")),
+):
+    settings = await settings_operator.get_settings(db)
+    general = dict(settings.general or {})
+    general["_cloudflare_api_token"] = request.api_token.strip()
+    settings.general = general
+    await db.commit()
+    return {"configured": True}
+
+
 @router.post("/domains/certificate/issue", response_model=CertificateLifecycleResponse)
 async def issue_managed_certificate(
     request: CertificateIssueRequest,
@@ -67,20 +98,41 @@ async def issue_managed_certificate(
     general = dict(settings.general or {})
     domains = list(general.get("domains") or [])
     primary = general.get("primary_domain")
-    target = next((item for item in domains if item.get("id") == request.domain_id), None)
-    if target is None and primary and primary.get("id") == request.domain_id:
-        target = primary
+    target = (
+        request.domain.model_dump(mode="json")
+        if request.domain is not None
+        else next((item for item in domains if item.get("id") == request.domain_id), None)
+    )
+    is_primary = request.primary or bool(primary and primary.get("id") == request.domain_id)
     if target is None:
         from fastapi import HTTPException
 
         raise HTTPException(status_code=404, detail="Managed domain not found")
-    service = ManagedCertificateService()
-    domain = await service.renew_if_due(ManagedDomain.model_validate(target), force=True)
-    if primary and primary.get("id") == request.domain_id:
-        general["primary_domain"] = domain.model_dump(mode="json")
+    if target.get("id") != request.domain_id:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail="Domain ID mismatch")
+    domain_input = ManagedDomain.model_validate(target)
+    if is_primary:
+        general["primary_domain"] = domain_input.model_dump(mode="json")
+        general["domains"] = [item for item in domains if item.get("id") != request.domain_id]
     else:
         general["domains"] = [
-            domain.model_dump(mode="json") if item.get("id") == request.domain_id else item for item in domains
+            domain_input.model_dump(mode="json") if item.get("id") == request.domain_id else item for item in domains
+        ]
+        if not any(item.get("id") == request.domain_id for item in domains):
+            general.setdefault("domains", []).append(domain_input.model_dump(mode="json"))
+    settings.general = general
+    await db.commit()
+    service = ManagedCertificateService()
+    cloudflare_api_token = str(general.get("_cloudflare_api_token") or "").strip() or None
+    domain = await service.renew_if_due(domain_input, force=True, cloudflare_api_token=cloudflare_api_token)
+    if is_primary:
+        general["primary_domain"] = domain.model_dump(mode="json")
+    else:
+        current_domains = list(general.get("domains") or [])
+        general["domains"] = [
+            domain.model_dump(mode="json") if item.get("id") == request.domain_id else item for item in current_domains
         ]
     settings.general = general
     await db.commit()
@@ -100,8 +152,12 @@ async def install_existing_certificate(
     general = dict(settings.general or {})
     domains = list(general.get("domains") or [])
     primary = general.get("primary_domain")
-    target = next((item for item in domains if item.get("id") == request.domain_id), None)
-    is_primary = False
+    target = (
+        request.domain.model_dump(mode="json")
+        if request.domain is not None
+        else next((item for item in domains if item.get("id") == request.domain_id), None)
+    )
+    is_primary = request.primary or bool(primary and primary.get("id") == request.domain_id)
     if target is None and primary and primary.get("id") == request.domain_id:
         target = primary
         is_primary = True
@@ -109,6 +165,21 @@ async def install_existing_certificate(
         from fastapi import HTTPException
 
         raise HTTPException(status_code=404, detail="Managed domain not found")
+    if target.get("id") != request.domain_id:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail="Domain ID mismatch")
+    domain_input = ManagedDomain.model_validate(target)
+    if is_primary:
+        general["primary_domain"] = domain_input.model_dump(mode="json")
+    else:
+        general["domains"] = [
+            domain_input.model_dump(mode="json") if item.get("id") == request.domain_id else item for item in domains
+        ]
+        if not any(item.get("id") == request.domain_id for item in domains):
+            general.setdefault("domains", []).append(domain_input.model_dump(mode="json"))
+    settings.general = general
+    await db.commit()
     service = ManagedCertificateService()
     domain = service.install_existing(
         ManagedDomain.model_validate(target),

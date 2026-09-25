@@ -629,7 +629,7 @@ class ManagedCertificateEngine:
     def __init__(self, store: CertificateArtifactStore | None = None):
         self.store = store or CertificateArtifactStore()
 
-    async def issue(self, managed_domain: ManagedDomain) -> AcmeIssueResult:
+    async def issue(self, managed_domain: ManagedDomain, cloudflare_api_token: str | None = None) -> AcmeIssueResult:
         method = managed_domain.certificate_method
         if method == "letsencrypt":
             client = AcmeCertificateClient(
@@ -640,7 +640,9 @@ class ManagedCertificateEngine:
             return await client.issue(managed_domain)
         if method == "cloudflare":
             try:
-                provider = CloudflareDns01ChallengeProvider(certificate_settings.cloudflare_api_token)
+                provider = CloudflareDns01ChallengeProvider(
+                    cloudflare_api_token or certificate_settings.cloudflare_api_token
+                )
             except ValueError as exc:
                 raise AcmeError(str(exc)) from exc
             client = AcmeCertificateClient(

@@ -4,10 +4,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useGetGeneralSettings, useGetNodesSimple, useInspectDomainCertificate, useInspectDomainIntelligence, type ManagedServerAddress as ApiManagedServerAddress } from '@/service/api'
-import { useDeployManagedCertificates, useInstallExistingCertificate, useIssueManagedCertificate, type ManagedDomainLifecycle as ApiManagedDomain } from '@/service/domainCertificates'
+import { getCloudflareCredentialStatus, useDeployManagedCertificates, useInstallExistingCertificate, useIssueManagedCertificate, useSetCloudflareCredential, type ManagedDomainLifecycle as ApiManagedDomain } from '@/service/domainCertificates'
 import { CheckCircle2, Clock3, Globe2, Plus, RefreshCcw, ShieldCheck, Trash2, UploadCloud } from 'lucide-react'
 import { toast } from 'sonner'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSettingsContext } from './_dashboard.settings'
 
 const protocolOptions = ['Xray', 'Reality', 'AmneziaWG', 'Shadowsocks', 'TUIC', 'Hysteria2', 'NaiveProxy', 'sing-box']
@@ -32,11 +32,13 @@ const emptyDomain = (): ApiManagedDomain => ({
 })
 
 export default function DomainsSettings() {
-  const { updateSettings, isSaving } = useSettingsContext()
   const { data: generalSettings, isLoading } = useGetGeneralSettings()
   const { data: nodesResponse } = useGetNodesSimple()
   const inspectMutation = useInspectDomainIntelligence()
   const certificateMutation = useInspectDomainCertificate()
+  const cloudflareMutation = useSetCloudflareCredential()
+  const [cloudflareToken, setCloudflareToken] = useState('')
+  const [cloudflareConfigured, setCloudflareConfigured] = useState(false)
   const [intelligence, setIntelligence] = useState<Record<string, any>>({})
   const [certificates, setCertificates] = useState<Record<string, any>>({})
   const nodes = ((nodesResponse as any)?.data?.nodes ?? (nodesResponse as any)?.nodes ?? []) as Array<{ id: number; name: string }>
@@ -53,11 +55,19 @@ export default function DomainsSettings() {
   const storedPrimary = general.primary_domain ?? null
   const storedAddresses = general.server_addresses ?? []
 
+  useEffect(() => {
+    getCloudflareCredentialStatus().then(response => setCloudflareConfigured(Boolean(response?.configured))).catch(() => setCloudflareConfigured(false))
+  }, [])
+
+  const { updateSettings } = useSettingsContext()
+  const syncingRef = useRef(true)
+  const autosaveMountedRef = useRef(false)
   const [primary, setPrimary] = useState<ApiManagedDomain | null>(storedPrimary)
   const [domains, setDomains] = useState<ApiManagedDomain[]>(storedDomains)
   const [addresses, setAddresses] = useState<ApiManagedServerAddress[]>(storedAddresses)
 
   useEffect(() => {
+    syncingRef.current = true
     setPrimary(storedPrimary)
     setDomains(storedDomains)
     setAddresses(storedAddresses)
@@ -72,23 +82,29 @@ export default function DomainsSettings() {
 
   const nodeName = useMemo(() => new Map(nodes.map(node => [node.id, node.name])), [nodes])
 
-  const save = async () => {
-    try {
+  useEffect(() => {
+    if (syncingRef.current) {
+      syncingRef.current = false
+      return
+    }
+    if (!autosaveMountedRef.current) {
+      autosaveMountedRef.current = true
+      return
+    }
+    const timer = window.setTimeout(() => {
       const cleanDomains = domains.map(item => ({ ...item, domain: normalizeDomain(item.domain) })).filter(item => item.domain)
       const cleanPrimary = primary?.domain ? { ...primary, domain: normalizeDomain(primary.domain) } : null
-
-      await updateSettings({
+      updateSettings({
         default_method: general.default_method,
         custom_variables: general.custom_variables,
         reality_sni_pool: general.reality_sni_pool,
         domains: cleanDomains,
         primary_domain: cleanPrimary,
         server_addresses: addresses.filter(item => item.address.trim()).map(item => ({ ...item, address: item.address.trim() })),
-      })
-    } catch {
-      // Parent settings context reports the API error.
-    }
-  }
+      }).catch(() => undefined)
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [addresses, domains, general.custom_variables, general.default_method, general.reality_sni_pool, primary, updateSettings])
 
   const addDomain = () => setDomains(current => [...current, emptyDomain()])
   const updateDomain = (id: string, patch: Partial<ApiManagedDomain>) => setDomains(current => current.map(item => (item.id === id ? { ...item, ...patch } : item)))
@@ -129,7 +145,7 @@ export default function DomainsSettings() {
               </Field>
             </div>
             <div className="border-border/50 mt-5 border-t pt-5">
-              <CertificateLifecycleActions domain={primary} onDomainUpdate={updated => setPrimary(updated)} />
+              <CertificateLifecycleActions domain={primary} primary onDomainUpdate={updated => setPrimary(updated)} />
             </div>
           </>
         )}
@@ -298,6 +314,34 @@ export default function DomainsSettings() {
       <section className="border-border/60 bg-card/40 rounded-2xl border p-5 shadow-sm">
         <div className="mb-5 flex items-center justify-between gap-4">
           <div>
+            <div className="text-lg font-semibold">Cloudflare API</div>
+            <p className="text-muted-foreground mt-1 text-sm">Required only for Cloudflare DNS certificate issuance. The token is stored server-side and is never returned.</p>
+          </div>
+          <span className="rounded-full border px-2 py-1 text-xs">{cloudflareConfigured ? 'Configured' : 'Not configured'}</span>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Input type="password" value={cloudflareToken} onChange={event => setCloudflareToken(event.target.value)} placeholder="Cloudflare API Token" autoComplete="new-password" />
+          <Button
+            disabled={!cloudflareToken.trim() || cloudflareMutation.isPending}
+            onClick={async () => {
+              try {
+                await cloudflareMutation.mutateAsync({ data: { api_token: cloudflareToken.trim() } })
+                setCloudflareToken('')
+                setCloudflareConfigured(true)
+                toast.success('Cloudflare API token saved securely.')
+              } catch (error: any) {
+                toast.error(error?.message ?? 'Cloudflare API token could not be saved.')
+              }
+            }}
+          >
+            {cloudflareMutation.isPending ? 'Saving…' : 'Save API token'}
+          </Button>
+        </div>
+      </section>
+
+      <section className="border-border/60 bg-card/40 rounded-2xl border p-5 shadow-sm">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <div>
             <div className="text-lg font-semibold">Server IPs & addresses</div>
             <p className="text-muted-foreground mt-1 text-sm">Keep stable server addresses available for protocols that need an IP fallback or direct endpoint.</p>
           </div>
@@ -327,17 +371,11 @@ export default function DomainsSettings() {
         </div>
       </section>
 
-      <div className="sticky bottom-4 z-10 flex justify-end">
-        <Button size="lg" onClick={save} disabled={isSaving}>
-          <RefreshCcw className="mr-2 size-4" />
-          {isSaving ? 'Saving…' : 'Save domains & SSL'}
-        </Button>
-      </div>
     </div>
   )
 }
 
-function CertificateLifecycleActions({ domain, onDomainUpdate }: { domain: ApiManagedDomain; onDomainUpdate: (domain: ApiManagedDomain) => void }) {
+function CertificateLifecycleActions({ domain, primary = false, onDomainUpdate }: { domain: ApiManagedDomain; primary?: boolean; onDomainUpdate: (domain: ApiManagedDomain) => void }) {
   const issueMutation = useIssueManagedCertificate()
   const installMutation = useInstallExistingCertificate()
   const deployMutation = useDeployManagedCertificates()
@@ -357,7 +395,7 @@ function CertificateLifecycleActions({ domain, onDomainUpdate }: { domain: ApiMa
 
   const issue = async () => {
     try {
-      const payload = updateFromResponse(await issueMutation.mutateAsync({ data: { domain_id: domain.id, force: true } }))
+      const payload = updateFromResponse(await issueMutation.mutateAsync({ data: { domain_id: domain.id, force: true, domain, primary } }))
       toast.success(payload?.domain?.deployment_status === 'deployed' ? 'Certificate issued and deployed.' : 'Certificate issued; deployment requested.')
     } catch (error: any) {
       toast.error(error?.message ?? 'Certificate issuance failed.')
@@ -376,6 +414,8 @@ function CertificateLifecycleActions({ domain, onDomainUpdate }: { domain: ApiMa
             domain_id: domain.id,
             certificate_pem: certificatePem,
             private_key_pem: privateKeyPem,
+            domain,
+            primary,
           },
         }),
       )

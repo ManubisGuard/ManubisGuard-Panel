@@ -373,6 +373,15 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] Overall Domain/SSL closure still has one specification-dependent item: Server Address `additional` / `alias` / `both` generation lacks an authoritative runtime/subscription contract in the repository, so no speculative propagation has been enabled.
 - [ ] Real ACME issuance, real Cloudflare DNS mutation, and live production-node certificate deployment remain operational actions not executed in regression tests.
 
+## Domains & SSL UX + Cloudflare credential completion — 2026-09-25
+- [x] Removed the visible global “Save domains & SSL” action from the Domains & SSL page; domain edits now persist automatically, while certificate actions also submit the current domain state in the same request.
+- [x] Certificate Issue/Renew and Existing Certificate installation now persist a new or edited domain before certificate processing, eliminating the previous 404 for unsaved client-only domain records.
+- [x] Added server-side Cloudflare API token configuration in Domains & SSL; the token is write-only through the API/UI, is never returned in Settings responses, and is preserved across normal General Settings updates.
+- [x] Cloudflare issuance and renewal paths now use the configured server-side token while retaining the existing environment-variable fallback.
+- [x] Added regression coverage for automatic domain persistence and write-only Cloudflare credential status/storage: targeted Settings + Domain/SSL/Node tests PASS: 36 passed in 1.76s.
+- [x] Frontend TypeScript --noEmit PASS; production Vite/PWA build PASS in 16.54s, with only existing crypto-externalization and large-chunk warnings.
+- [x] git diff --check PASS; changed-file Ruff check/format PASS. The repository-wide Ruff check still reports two pre-existing app/core/acme.py style findings unrelated to this change when run with the current Ruff version.
+
 ## Settings routing regression — 2026-09-25
 - [x] Reproduced the Settings navigation 404 for `/settings/backup` and `/settings/domains`: both page components existed, but `dashboard/src/app/router.tsx` did not register either child route or lazy import.
 - [x] Fixed the router by registering `/settings/domains` and `/settings/backup` and wiring both existing page components through the same lazy-loading/error-boundary pattern as the other Settings tabs.

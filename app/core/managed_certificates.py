@@ -65,8 +65,8 @@ class ManagedCertificateService:
         self.store = store or CertificateArtifactStore()
         self.engine = ManagedCertificateEngine(self.store)
 
-    async def issue(self, domain: ManagedDomain) -> ManagedDomain:
-        result = await self.engine.issue(domain)
+    async def issue(self, domain: ManagedDomain, *, cloudflare_api_token: str | None = None) -> ManagedDomain:
+        result = await self.engine.issue(domain, cloudflare_api_token=cloudflare_api_token)
         validation = result.certificate
         expires_at = validation.expires_at
         now = _now()
@@ -154,7 +154,9 @@ class ManagedCertificateService:
                 )
         settings.general = general
 
-    async def renew_if_due(self, domain: ManagedDomain, *, force: bool = False) -> ManagedDomain:
+    async def renew_if_due(
+        self, domain: ManagedDomain, *, force: bool = False, cloudflare_api_token: str | None = None
+    ) -> ManagedDomain:
         expires_at = _parse(domain.certificate_expires_at)
         if domain.certificate_method == "existing":
             if expires_at and expires_at <= _now():
@@ -172,7 +174,7 @@ class ManagedCertificateService:
         if not due:
             return domain
         try:
-            return await self.issue(domain)
+            return await self.issue(domain, cloudflare_api_token=cloudflare_api_token)
         except Exception as exc:
             attempts = domain.renewal_attempts + 1
             return domain.model_copy(
@@ -190,6 +192,7 @@ class ManagedCertificateService:
             if settings is None:
                 return 0
             general = dict(settings.general or {})
+            cloudflare_api_token = str(general.get("_cloudflare_api_token") or "").strip() or None
             domains = [ManagedDomain.model_validate(item) for item in (general.get("domains") or [])]
             primary = general.get("primary_domain")
             if primary:
@@ -198,7 +201,11 @@ class ManagedCertificateService:
             for domain in domains:
                 if force_domain_id and domain.id != force_domain_id:
                     continue
-                updated = await self.renew_if_due(domain, force=bool(force_domain_id))
+                updated = await self.renew_if_due(
+                    domain,
+                    force=bool(force_domain_id),
+                    cloudflare_api_token=cloudflare_api_token,
+                )
                 if updated != domain:
                     _put_domain(general, updated)
                     changed += 1

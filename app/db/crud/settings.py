@@ -24,6 +24,11 @@ async def modify_settings(db: AsyncSession, db_setting: Settings, modify: Settin
     # only fields explicitly supplied by the caller.
     settings_data = modify.model_dump(exclude_unset=True, exclude_none=True)
 
+    if "general" in settings_data and isinstance(settings_data["general"], dict):
+        existing_general = dict(db_setting.general or {})
+        if "_cloudflare_api_token" in existing_general:
+            settings_data["general"]["_cloudflare_api_token"] = existing_general["_cloudflare_api_token"]
+
     for key, value in settings_data.items():
         setattr(db_setting, key, value)
 
