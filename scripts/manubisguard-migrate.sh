@@ -682,7 +682,7 @@ upgrade_temp_timescale_to_target() {
 
 validate_after_timescale_upgrade() {
   local output
-  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" manubisguard-cli migrate-validate --external-staging --json 2>&1)"; then
+  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" manubisguard-cli migrate-validate --database-url "$STAGING_URL" --production-url "$PROD_URL" --external-staging --json 2>&1)"; then
     printf '%s\n' "$output" >"$WORKDIR/staging-post-upgrade.error"
     printf '%s\n' "$output" >&2
     die "Validation failed after TimescaleDB version alignment."
@@ -907,7 +907,7 @@ for raw in sys.stdin:
 validate_cutover() {
   log "Validating cutover database before stopping the live panel..."
   local output
-  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$CUTOVER_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" manubisguard-cli migrate-validate --json 2>&1)"; then
+  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$CUTOVER_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" manubisguard-cli migrate-validate --database-url "$CUTOVER_URL" --production-url "$PROD_URL" --json 2>&1)"; then
     printf '%s\n' "$output" >"$WORKDIR/cutover-validation.error"
     printf '%s\n' "$output" >&2
     die "Cutover validation command failed. Production database is unchanged."
