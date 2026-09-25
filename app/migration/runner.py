@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -60,6 +61,7 @@ class MigrationRunResult:
     count_losses: dict[str, tuple[int, int]]
     transformations: tuple[str, ...]
     validation: ValidationResult
+    mariadb_bridge: dict[str, Any] | None = None
 
     @property
     def valid(self) -> bool:
@@ -101,6 +103,7 @@ class MigrationRunResult:
                 ),
             },
             "valid": self.valid,
+            "mariadb_bridge": self.mariadb_bridge,
         }
 
 
@@ -280,20 +283,29 @@ def analyze_backup(
             selected_version = explicit_version or metadata_version
 
             if detection.format in {"sql", "sql.gz"}:
-                sample = _read_timescale_sample(source)
-                compatibility = analyze_timescale_sql(
+                if detection.is_mariadb:
+                    compatibility = TimescaleCompatibility(
+                        warnings=(
+                            *metadata_warnings,
+                            "MariaDB/MySQL source detected; PostgreSQL/Timescale logical dump compatibility is not required.",
+                        ),
+                    )
+                    uses_timescaledb = False
+                else:
+                    sample = _read_timescale_sample(source)
+                    compatibility = analyze_timescale_sql(
                     sample,
                     source_version=selected_version,
                 )
-                compatibility = _merge_timescale_source_version(
-                    compatibility,
-                    selected_version,
-                    metadata_warnings,
-                )
-                uses_timescaledb = (
-                    "timescaledb" in sample.lower()
-                    or compatibility.catalog_era is not None
-                )
+                    compatibility = _merge_timescale_source_version(
+                        compatibility,
+                        selected_version,
+                        metadata_warnings,
+                    )
+                    uses_timescaledb = (
+                        "timescaledb" in sample.lower()
+                        or compatibility.catalog_era is not None
+                    )
             else:
                 uses_timescaledb = _custom_uses_timescale(detection)
                 compatibility = TimescaleCompatibility(
@@ -392,39 +404,57 @@ def migrate_manubisguard_staging(
                 uses_timescaledb=analysis.uses_timescaledb,
             )
 
-    restore_backup_into_staging(
-        backup_path,
-        staging,
-        timeout=timeout,
-        allow_external_staging=allow_external_staging,
-    )
+    mariadb_bridge_report: dict[str, Any] | None = None
+    adapter = PasarGuardAdapter() if analysis.detection.is_pasarguard else None
+    if analysis.detection.is_mariadb:
+        source_url = os.environ.get("MANUBISGUARD_MARIADB_SOURCE_URL", "").strip()
+        if not source_url:
+            raise MigrationSafetyError(
+                "MariaDB/MySQL backup detected, but the isolated MariaDB source runtime was not prepared."
+            )
+        upgrade_staging_database(
+            staging,
+            production_url=production_url,
+            revision="head",
+            allow_external_staging=allow_external_staging,
+        )
+        from app.migration.inspector import inspect_database
+        from app.migration.mariadb_bridge import migrate_mariadb_to_postgres
 
-    from app.migration.inspector import inspect_database
+        bridge = migrate_mariadb_to_postgres(source_url, staging.staging_url)
+        mariadb_bridge_report = bridge.as_dict()
+        pre_upgrade = inspect_database(staging.staging_url)
+        pre_upgrade_counts_override = {
+            table: int(count)
+            for table, count in bridge.source_counts.items()
+            if table in DURABLE_COUNT_TABLES
+        }
+        pre_transformations = bridge.transformations
+    else:
+        restore_backup_into_staging(
+            backup_path,
+            staging,
+            timeout=timeout,
+            allow_external_staging=allow_external_staging,
+        )
+        from app.migration.inspector import inspect_database
+        pre_upgrade = inspect_database(staging.staging_url)
+        pre_transformations: tuple[str, ...] = ()
+        if analysis.detection.is_pasarguard and adapter is not None:
+            pre_transformations = adapter.prepare(staging.staging_url)
+        upgrade_staging_database(
+            staging,
+            production_url=production_url,
+            revision="head",
+            allow_external_staging=allow_external_staging,
+        )
+        pre_upgrade_counts_override = _durable_counts(pre_upgrade)
 
-    pre_upgrade = inspect_database(staging.staging_url)
-
-    pre_transformations: tuple[str, ...] = ()
-    post_transformations: tuple[str, ...] = ()
-    if analysis.detection.is_pasarguard:
-        adapter = PasarGuardAdapter()
-        pre_transformations = adapter.prepare(staging.staging_url)
-
-    upgrade_staging_database(
-        staging,
-        production_url=production_url,
-        revision="head",
-        allow_external_staging=allow_external_staging,
-    )
-
-    if analysis.detection.is_pasarguard:
-        post_transformations = adapter.apply(staging.staging_url)
-    transformations = (*pre_transformations, *post_transformations)
-    validation = validate_migrated_database(staging.staging_url)
     post_upgrade = validation.snapshot
     if post_upgrade is None:
         raise MigrationSafetyError("Validation produced no schema snapshot.")
 
-    pre_counts = _durable_counts(pre_upgrade)
+    pre_counts = pre_upgrade_counts_override
     post_counts = _durable_counts(post_upgrade)
     losses = {
         table: (before, post_counts.get(table, 0))
@@ -453,6 +483,7 @@ def migrate_manubisguard_staging(
         count_losses=losses,
         transformations=transformations,
         validation=validation,
+        mariadb_bridge=mariadb_bridge_report,
     )
 
 
