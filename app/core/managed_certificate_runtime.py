@@ -93,7 +93,7 @@ def build_runtime_core(
                 seen_fingerprints.add(fingerprint)
 
     for domain in domains:
-        if domain.status not in ("active", "expiring"):
+        if domain.status not in ("active", "expiring") or not domain.serve_tls:
             continue
         eligible.append(domain.id)
         if not store.exists(domain.domain):

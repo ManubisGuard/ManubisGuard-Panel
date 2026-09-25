@@ -402,6 +402,7 @@ class ManagedDomain(BaseModel):
     protocols: list[str] = Field(default_factory=list, max_length=20)
     email: str | None = Field(default=None, max_length=320)
     auto_renew: bool = Field(default=True)
+    serve_tls: bool = Field(default=True)
     status: Literal["pending", "active", "expiring", "failed", "expired"] = Field(default="pending")
     certificate_expires_at: str | None = Field(default=None, max_length=64)
     certificate_issued_at: str | None = Field(default=None, max_length=64)

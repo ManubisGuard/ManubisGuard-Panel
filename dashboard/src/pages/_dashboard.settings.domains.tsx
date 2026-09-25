@@ -25,6 +25,7 @@ const emptyDomain = (): ApiManagedDomain => ({
   protocols: ['Xray', 'Reality'],
   email: '',
   auto_renew: true,
+  serve_tls: true,
   status: 'pending',
   certificate_expires_at: null,
   last_checked_at: null,
@@ -198,6 +199,12 @@ export default function DomainsSettings() {
                   <div className="border-border/60 flex h-10 items-center gap-3 rounded-md border px-3">
                     <Switch checked={domain.auto_renew} onCheckedChange={auto_renew => updateDomain(domain.id, { auto_renew })} />
                     <span className="text-sm">{domain.auto_renew ? 'Enabled' : 'Disabled'}</span>
+                  </div>
+                </Field>
+                <Field label="Serve TLS">
+                  <div className="border-border/60 flex h-10 items-center gap-3 rounded-md border px-3">
+                    <Switch checked={domain.serve_tls !== false} onCheckedChange={serve_tls => updateDomain(domain.id, { serve_tls })} />
+                    <span className="text-sm">{domain.serve_tls === false ? 'Disabled' : 'Enabled'}</span>
                   </div>
                 </Field>
               </div>

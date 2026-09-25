@@ -139,3 +139,20 @@ def test_build_runtime_core_leaves_non_xray_core_untouched(tmp_path: Path):
     assert result.eligible_domain_ids == ()
     assert result.injected_domain_ids == ()
     assert result.tls_inbound_count == 0
+
+
+def test_build_runtime_core_respects_serve_tls_toggle(tmp_path: Path):
+    store = CertificateArtifactStore(tmp_path)
+    cert, key = _make_pair("edge-disabled.example.com")
+    store.save("edge-disabled.example.com", cert, key)
+
+    result = build_runtime_core(
+        _core(),
+        [ManagedDomain(id="disabled", domain="edge-disabled.example.com", status="active", serve_tls=False)],
+        store,
+    )
+
+    assert result.eligible_domain_ids == ()
+    assert result.injected_domain_ids == ()
+    assert result.skipped_domain_ids == ()
+    assert result.core["inbounds"][0]["streamSettings"]["tlsSettings"]["certificates"] == []

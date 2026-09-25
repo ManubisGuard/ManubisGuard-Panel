@@ -4,6 +4,7 @@ import { orvalFetcher } from './http'
 import type { ManagedDomain as ApiManagedDomain } from './api'
 
 export type ManagedDomainLifecycle = Omit<ApiManagedDomain, 'status'> & {
+  serve_tls?: boolean
   status: 'pending' | 'active' | 'expiring' | 'failed' | 'expired'
   certificate_issued_at?: string | null
   certificate_renewed_at?: string | null

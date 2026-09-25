@@ -364,5 +364,8 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Domain/SSL + Node/Settings targeted regression PASS: `78 passed in 2.90s`; Ruff and `git diff --check` PASS.
 - [x] Runtime health PASS: `GET /health` returned HTTP 200 with `{"status":"ok"}`.
 - [x] Full project pytest started against disposable SQLite; migrations completed and the suite reached 42% with no reported test failure before it was intentionally interrupted because this environment made the full suite disproportionately long. This is not recorded as a full-suite PASS.
+- [x] Added explicit per-domain `serve_tls` lifecycle control, modeled after the verified Rebecca v1.2.0 certificate contract; default remains enabled for backward compatibility, and runtime injection now honors the toggle.
+- [x] Backend regression after the TLS-serving toggle: `27 passed in 3.18s`; Ruff and `git diff --check` PASS.
+- [x] Frontend validation after the TLS-serving toggle: TypeScript `--noEmit` and Vite/PWA production build PASS; only existing chunk-size warnings remain.
 - [ ] Overall Domain/SSL closure still has one specification-dependent item: Server Address `additional` / `alias` / `both` generation lacks an authoritative runtime/subscription contract in the repository, so no speculative propagation has been enabled.
 - [ ] Real ACME issuance, real Cloudflare DNS mutation, and live production-node certificate deployment remain operational actions not executed in regression tests.
