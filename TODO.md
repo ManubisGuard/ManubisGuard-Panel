@@ -527,3 +527,13 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Added `manubisguard restore-check /path/to/backup.zip` for staging-only validation without production cutover.
 - [x] Added restore commands to installer help and project README.
 - [x] Restore keeps the existing migration safety model: backup deployment identity/Compose are not imported, staging is validated first, and production safety/previous DB retention remain handled by `manubisguard-migrate`.
+
+## Node Connecting after restore — 2026-09-25
+- [x] Root cause confirmed on restored Node record: node 1 (Turkey 🇹🇷 Gcor) had address=127.0.0.1:62050, while the live gRPC node is reachable at 185.71.219.195:62050; the restored server_ca fingerprint already matched the live certificate.
+- [x] Corrected node endpoint to 185.71.219.195:62050 and refreshed server_ca from the live TLS certificate. Certificate fingerprint: 21:66:4C:9C:AC:25:13:E0:D2:60:9C:23:C3:AD:76:00:2B:A8:89:3D:B6:B2:D3:0E:E0:5B:8F:05:E6:89:A4:32.
+- [x] Forced the running NodeManager to refresh node 1 through the existing NATS node-sync upsert path.
+- [x] Live connection recovery confirmed in Panel logs: Connected to "Turkey 🇹🇷 Gcor" node v0.5.4, core run on v26.3.27.
+- [x] Post-recovery DB state is connected; endpoint is 185.71.219.195:62050; server_ca length is 635 bytes.
+- [x] External Panel health PASS: https://55.qoqnusradio.top/health returned {"status":"ok"}.
+- [x] UI code-path check confirms the Nodes list/modal renders connected separately from connecting; with backend state now connected, the stale Connecting state is no longer expected after data refresh.
+- [x] git diff --check PASS was executed before the TODO update.
