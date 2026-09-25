@@ -1,6 +1,6 @@
 import re
-from ipaddress import ip_address
 from enum import Enum, StrEnum
+from ipaddress import ip_address
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -404,6 +404,12 @@ class ManagedDomain(BaseModel):
     auto_renew: bool = Field(default=True)
     status: Literal["pending", "active", "expiring", "failed"] = Field(default="pending")
     certificate_expires_at: str | None = Field(default=None, max_length=64)
+    certificate_issued_at: str | None = Field(default=None, max_length=64)
+    certificate_renewed_at: str | None = Field(default=None, max_length=64)
+    certificate_error: str | None = Field(default=None, max_length=1024)
+    renewal_attempts: int = Field(default=0, ge=0)
+    next_renewal_at: str | None = Field(default=None, max_length=64)
+    deployment_status: Literal["not_deployed", "deployed", "failed"] = Field(default="not_deployed")
     last_checked_at: str | None = Field(default=None, max_length=64)
 
     @field_validator("domain")

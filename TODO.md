@@ -315,3 +315,12 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] D5 — Final Gate: regression/unit/integration/E2E tests, migration dry-run on disposable DB, frontend production build, security audit, `git diff --check`, clean Docker smoke test, GitHub verification, and final TODO checkpoint.
 - [ ] Rule: after every successful phase operation/test milestone, update this TODO.md, commit, push, and verify the branch before continuing.
 - [ ] Rule: do not execute destructive production restore/cutover or real certificate issuance/deployment against production without explicit operational authorization.
+
+## D1 — Domain Management Foundation — completed 2026-09-25
+- [x] Extended managed-domain lifecycle metadata without breaking existing Settings persistence: issued/renewed timestamps, renewal attempts, next renewal, certificate error, deployment status.
+- [x] Added authenticated certificate lifecycle API surface for managed-domain issuance and Existing-certificate installation under `/api/settings/domains/certificate/*`; private-key material is accepted only as request input and is never returned.
+- [x] Preserved existing multi-domain-per-node and primary-domain Settings model; no destructive migration was introduced.
+- [x] Added lifecycle service with normalized UTC timestamps, validation through the existing certificate engine/store, renewal-window calculation, failure state and bounded retry scheduling metadata.
+- [x] Domain/certificate regression subset PASS: `40 passed in 11.01s`.
+- [x] `git diff --check` and Python compilation PASS.
+- [x] D1 formatting correction and lint re-run PASS; lifecycle regression re-run remains green after formatting.

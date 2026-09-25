@@ -78,3 +78,11 @@ def test_managed_domain_accepts_acme_wildcard_hostname():
 def test_managed_domain_rejects_invalid_wildcard_hostname(domain):
     with pytest.raises(ValueError):
         ManagedDomain(id="wildcard-invalid", domain=domain)
+
+
+def test_managed_domain_lifecycle_metadata_defaults():
+    item = ManagedDomain(id="d1", domain="edge.example.com")
+    assert item.renewal_attempts == 0
+    assert item.deployment_status == "not_deployed"
+    assert item.certificate_error is None
+    assert item.next_renewal_at is None
