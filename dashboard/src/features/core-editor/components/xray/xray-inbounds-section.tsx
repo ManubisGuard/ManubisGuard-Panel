@@ -2442,13 +2442,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     return [...new Set([...fallback, ...discovered].map(value => String(value).trim()).filter(Boolean))]
   }
 
-  const applyRealityScanResult = (result: RealityScanResult, sourceLabel: string) => {
+  const applyRealityScanResult = (result: RealityScanResult, sourceLabel: string, serverNamesOverride?: string[]) => {
     if (!result.feasible) {
       toast.error(t('coreEditor.realityScan.notFeasible', { defaultValue: 'Not a suitable Reality target' }))
       return false
     }
 
-    const serverNames = normalizeRealityServerNames(result)
+    const serverNames = serverNamesOverride?.filter(Boolean) ?? normalizeRealityServerNames(result)
     if (serverNames.length === 0) {
       toast.error('No valid certificate SNI names were discovered for this target.')
       return false
@@ -2499,12 +2499,19 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       return
     }
 
+    const rawTarget = form.getValues(securityFieldName('target'))
+    const target = typeof rawTarget === 'string' ? rawTarget.trim() : ''
+    if (!target) {
+      toast.error('Set a Reality target first.')
+      return
+    }
+
     setIsRealityAutoSelecting(true)
     try {
       const results = await Promise.all(
-        pool.slice(0, 25).map(async target => {
+        pool.slice(0, 25).map(async candidateSni => {
           try {
-            const response = await scanRealityTarget({ target, timeout: 10 })
+            const response = await scanRealityTarget({ target, sni: candidateSni, timeout: 10 })
             return response.status === 200 ? response.data : null
           } catch {
             return null
@@ -2522,7 +2529,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         return
       }
 
-      applyRealityScanResult(best, 'Auto Select · ' + (best.latency_ms ?? '—') + ' ms')
+      const selectedSni = typeof best.sni === 'string' ? best.sni.trim() : ''
+      if (!selectedSni) {
+        toast.error('The selected Reality SNI candidate did not return a usable SNI.')
+        return
+      }
+      applyRealityScanResult(best, 'Auto Select · ' + (best.latency_ms ?? '—') + ' ms', [selectedSni])
     } finally {
       setIsRealityAutoSelecting(false)
     }

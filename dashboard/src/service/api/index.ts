@@ -2019,6 +2019,8 @@ export interface RealityScanRequest {
      * @maxLength 253
      */
   target: string;
+  /** optional TLS SNI override for the target */
+  sni?: string | null;
   /** Per-probe timeout in seconds (1-20, default 10) */
   timeout?: number | null;
 }

@@ -27,6 +27,14 @@ def test_parse_target_ok(target, expected):
     assert rs.parse_target(target) == expected
 
 
+def test_parse_sni_override_validation():
+    assert rs.parse_sni(" WWW.Example.COM. ") == "www.example.com"
+    assert rs.parse_sni(None) is None
+    for value in ["https://example.com", "example.com:443", "1.1.1.1", "bad/name"]:
+        with pytest.raises(RealityScanError):
+            rs.parse_sni(value)
+
+
 @pytest.mark.parametrize("bad", ["", "   ", "host:0", "host:70000", "host:abc"])
 def test_parse_target_invalid(bad):
     with pytest.raises(RealityScanError):
@@ -318,6 +326,26 @@ def test_scan_sync_skips_extra_probes_when_unreachable(monkeypatch):
     out = rs._scan_sync("example.com", "93.184.216.34", 443, "example.com", 5)
     assert out["feasible"] is False
     assert called == {"group": False, "h3": False}
+
+
+@pytest.mark.asyncio
+async def test_scan_reality_target_accepts_sni_override(monkeypatch):
+    captured = {}
+
+    async def fake_resolve(host, timeout):
+        captured["host"] = host
+        return "93.184.216.34"
+
+    def fake_sync(host, ip, port, sni, timeout):
+        captured.update(host=host, ip=ip, port=port, sni=sni)
+        return {"target": f"{host}:{port}", "host": host, "port": port, "sni": sni, "feasible": True}
+
+    monkeypatch.setattr(rs, "_resolve_public_ip_async", fake_resolve)
+    monkeypatch.setattr(rs, "_scan_sync", fake_sync)
+    result = await rs.scan_reality_target("1.2.3.4:443", sni="www.example.com", timeout=2)
+    assert result["sni"] == "www.example.com"
+    assert captured["host"] == "1.2.3.4"
+    assert captured["sni"] == "www.example.com"
 
 
 @pytest.mark.skipif(os.environ.get("REALITY_SCAN_NETWORK_TEST") != "1", reason="network test opt-in")

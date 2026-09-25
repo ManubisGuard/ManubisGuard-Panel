@@ -372,3 +372,15 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Re-audited the actual PasarGuard upstream source (`PasarGuard/panel`): `BaseHost.address` is a `set[str]`, `_prepare_subscription_inbound_data()` copies it into `SubscriptionInboundData.address`, and subscription formatters consume that list; upstream provides multi-address publishing but no `alias`/`additional`/`both` contract for this feature.
 - [ ] Overall Domain/SSL closure still has one specification-dependent item: Server Address `additional` / `alias` / `both` generation lacks an authoritative runtime/subscription contract in the repository, so no speculative propagation has been enabled.
 - [ ] Real ACME issuance, real Cloudflare DNS mutation, and live production-node certificate deployment remain operational actions not executed in regression tests.
+
+## Reality Inbound Auto-SNI completion — 2026-09-25
+- [x] Root cause identified: the previous Auto Select implementation treated each configured SNI-pool entry as a new Reality **target**, so it replaced the inbound target instead of testing candidate SNI names against the existing target.
+- [x] Added an optional TLS SNI override to the Reality scanner/API while preserving the original target host/IP and port.
+- [x] Auto Select now probes the current inbound Reality target with each configured SNI candidate, filters by the existing Reality feasibility checks, ranks feasible candidates by measured TLS latency, and applies only the selected SNI.
+- [x] Existing “Discover SNI set” behavior remains unchanged: it scans the current target and can apply the certificate SAN/server-name set.
+- [x] Added validation for SNI override input; URLs, ports, paths, IP literals and malformed values are rejected.
+- [x] Added regression coverage for SNI override parsing and scanner propagation; Reality scanner + SNI-pool regression: `75 passed, 2 skipped in 3.83s`.
+- [x] Ruff check, Ruff format check and `git diff --check` PASS.
+- [x] Live non-destructive scanner smoke: `example.com:443` tested with multiple SNI candidates; target remained `example.com:443`, feasible candidates were ranked by measured latency, and `www.cloudflare.com` was selected in that run. No inbound/core configuration was persisted and no node was restarted.
+- [x] Frontend TypeScript `--noEmit` and production Vite build PASS; only existing large-chunk and browser-external warnings remain.
+- [ ] Production Panel image/runtime deployment of this source change is intentionally not executed in this milestone; source is committed/pushed for the next normal deployment.

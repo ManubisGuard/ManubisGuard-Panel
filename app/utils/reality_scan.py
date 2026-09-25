@@ -106,6 +106,23 @@ def parse_target(target: str) -> tuple[str, int, str | None]:
     return host, port, sni
 
 
+def parse_sni(sni: str | None) -> str | None:
+    if sni is None:
+        return None
+    value = sni.strip().lower()
+    if (
+        not value
+        or _has_control_chars(value)
+        or _is_ip_literal(value)
+        or "://" in value
+        or "/" in value
+        or ":" in value
+        or not _looks_like_hostname(value)
+    ):
+        raise RealityScanError("SNI must be a valid hostname.")
+    return value.rstrip(".")
+
+
 def _parse_port(port_str: str) -> int:
     port_str = port_str.strip()
     if not port_str:
@@ -693,8 +710,9 @@ def _scan_sync(host: str, ip: str, port: int, sni: str | None, timeout: float) -
     return result
 
 
-async def scan_reality_target(target: str, timeout: float | None = None) -> dict:
-    host, port, sni = parse_target(target)
+async def scan_reality_target(target: str, timeout: float | None = None, sni: str | None = None) -> dict:
+    host, port, target_sni = parse_target(target)
+    sni = parse_sni(sni) if sni is not None else target_sni
     clamped = _clamp_timeout(timeout)
     async with _get_scan_semaphore():
         ip = await _resolve_public_ip_async(host, min(clamped, DNS_TIMEOUT))
