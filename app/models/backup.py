@@ -86,3 +86,19 @@ class BackupScheduleResponse(BaseModel):
     last_run_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class BackupStagingRestoreResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    backup_id: int
+    valid: bool
+    staging_database: str
+    source_format: str | None = None
+    source_product: str | None = None
+    source_version: str | None = None
+    pre_upgrade_counts: dict[str, int] = Field(default_factory=dict)
+    post_upgrade_counts: dict[str, int] = Field(default_factory=dict)
+    transformations: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)

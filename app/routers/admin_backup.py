@@ -14,6 +14,7 @@ from app.models.backup import (
     BackupResponse,
     BackupScheduleConfigure,
     BackupScheduleResponse,
+    BackupStagingRestoreResponse,
     BackupTelegramConfigure,
 )
 from app.routers.authentication import require_permission
@@ -26,6 +27,7 @@ from app.services.backup import (
     get_backup_schedule,
     list_backups,
 )
+from config import database_settings
 
 router = APIRouter(prefix="/api/admin/backup", tags=["Admin Backup"])
 UPLOAD_DIR = Path("/var/lib/manubisguard/backups")
@@ -135,6 +137,48 @@ async def check_uploaded_backup(
         backup.error_message = str(exc)[:4000]
         await db.commit()
         raise HTTPException(status_code=422, detail=f"Backup validation failed: {exc}") from exc
+
+
+@router.post("/restore/staging/{backup_id}", response_model=BackupStagingRestoreResponse)
+async def restore_backup_to_staging(
+    backup_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("settings", "update")),
+):
+    """Restore and migrate a backup only into an isolated disposable staging database.
+
+    This route never applies a backup to the live database.
+    """
+    backup = (await db.execute(select(Backup).where(Backup.id == backup_id))).scalar_one_or_none()
+    if backup is None:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    if backup.status not in {"valid", "created", "uploaded"}:
+        raise HTTPException(status_code=409, detail=f"Backup status does not permit staging restore: {backup.status}")
+    from app.migration.runner import migrate_manubisguard_staging
+    from app.migration.staging import MigrationSafetyError, create_staging_database, drop_staging_database
+
+    staging = create_staging_database(database_settings.url)
+    try:
+        result = migrate_manubisguard_staging(
+            backup.backup_path, staging, production_url=database_settings.url, timeout=900
+        )
+        return BackupStagingRestoreResponse(
+            backup_id=backup.id,
+            valid=result.valid,
+            staging_database=staging.database_name,
+            source_format=result.analysis.detection.format,
+            source_product=result.analysis.detection.source_product,
+            source_version=result.analysis.detection.schema_revision,
+            pre_upgrade_counts=result.pre_upgrade_counts,
+            post_upgrade_counts=result.post_upgrade_counts,
+            transformations=list(result.transformations),
+            errors=list(result.validation.blocking_errors),
+            warnings=list(result.validation.warnings),
+        )
+    except (MigrationSafetyError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        drop_staging_database(staging)
 
 
 @router.get("/list", response_model=BackupListResponse)

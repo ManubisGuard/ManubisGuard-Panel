@@ -254,3 +254,17 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Dashboard build PASS after exposing schedule controls.
 - [x] Live Panel/TimescaleDB remained healthy and `/health` returned HTTP 200; no Production schema change was executed.
 - [ ] Production runtime must receive migration `b7c8d9e0f1a5` only during the later controlled deployment gate; until then the live backend does not expose the new schedule table/API.
+
+## D0.6 Restore Flow — 2026-09-25
+- [x] Reviewed Rebecca v1.2.0-era backup design and current upstream implementation as a reference: binary-only Backup panel, explicit database/full scope, portable archive with manifest, safe extraction, import/restore result reporting, and warnings that import replaces current data. Rebecca's current source documents these behaviors and keeps Docker backup/import disabled. citeturn0search0
+- [x] Rebecca source inspection confirmed `.rbbackup` manifest-driven export/import, safe archive extraction, SQLite/MySQL/MariaDB restore paths, and explicit database/full scopes; this informed ManubisGuard's separation of validation, isolated restore and future production cutover. citeturn0search0
+- [x] Added ManubisGuard admin endpoint `/api/admin/backup/restore/staging/{id}` for isolated restore + migration validation only.
+- [x] Endpoint creates an engine-generated staging database, runs the existing migration/Timescale safety pipeline, returns source format/counts/transformations/validation, and always drops the staging database in `finally`.
+- [x] Production restore/apply remains unavailable from the API and UI; no live database overwrite is performed.
+- [x] Added Backup & Restore UI `Staging Restore` action and result panel; upload → validate → isolated staging restore is now represented in the panel.
+- [x] Dashboard production build PASS after restore-flow UI changes.
+- [x] Migration regression subset PASS: `14 passed in 3.73s` (`tests/migration/test_staging.py` + `tests/migration/test_runner.py`).
+- [x] Ruff check PASS and format check PASS after formatting `app/routers/admin_backup.py`; `git diff --check` PASS.
+- [x] Live Panel/TimescaleDB healthy and `/health` HTTP 200; no Production migration/restore/apply executed.
+- [ ] Authenticated API security suite became non-responsive in this disposable run and was terminated; previous checkpoint had the security suite green. Re-run it in the next test gate before final D0.6 PASS.
+- [ ] Next: add a deterministic end-to-end staging-restore fixture/test and complete D0.6 authenticated regression before moving to D0.7.
