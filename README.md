@@ -7,26 +7,33 @@ AmneziaWG-enabled ManubisGuard Panel from the `feature/amnezia-wg` branch.
 Install the Panel with TimescaleDB/PostgreSQL 16:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/arsamnikzaad/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh) install --database timescaledb
+curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh | sudo bash -s -- install --database timescaledb --yes
 ```
 
-The installer uses the prebuilt GHCR image first, so a normal installation does **not** build the Panel on the VPS. If the image is unavailable, it automatically falls back to building the Panel from this repository.
+The installer prepares Docker/Compose when missing, clones the selected branch, creates persistent secrets under `/var/lib/manubisguard`, installs the production restore agent, starts TimescaleDB and the Panel, runs database migrations, and verifies the health endpoint.
 
-The installation includes:
+The installer builds the Panel image from the selected source so the target server always runs the exact branch revision being installed.
 
-- TimescaleDB/PostgreSQL 16
-- database migrations
-- AmneziaWG support
-- SSL certificate setup
-- persistent Panel data under `/var/lib/manubisguard`
-- automatic Panel startup through Docker Compose
+After the first installation, the native host CLI is available as:
+
+```bash
+manubisguard status
+manubisguard start
+manubisguard stop
+manubisguard restart
+manubisguard logs
+manubisguard update
+```
+
+`manubisguard update` refreshes the selected branch and reapplies the safe installer configuration while preserving persistent database credentials and data.
 
 ## Temporary admin key
 
 After installation, generate a temporary admin key:
 
 ```bash
-docker exec manubisguard-panel-manubisguard-1 /code/.venv/bin/python /code/pasarguard-cli.py generate-temp-key
+cd /opt/manubisguard-panel
+docker compose exec -T manubisguard /code/.venv/bin/python /code/manubisguard-cli.py generate-temp-key
 ```
 
 Use the exact key printed by the command. Do not publish it in the repository.
@@ -34,32 +41,40 @@ Use the exact key printed by the command. Do not publish it in the repository.
 ## Panel status
 
 ```bash
-cd /opt/manubisguard-panel
-docker compose ps
+manubisguard status
 ```
 
 Check the Panel logs:
 
 ```bash
-cd /opt/manubisguard-panel
-docker compose logs --tail=100 manubisguard
+manubisguard logs
 ```
+
+## Database restore
+
+The installer also installs the production migration helper:
+
+```bash
+manubisguard-migrate /path/to/backup.zip --apply
+```
+
+The restore pipeline supports native ManubisGuard backups and PasarGuard-family backups, including automatic MariaDB/MySQL-to-PostgreSQL conversion for the supported legacy schema.
 
 ## Node installation
 
 Install the matching AmneziaWG-enabled Node:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/arsamnikzaad/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh) install
+bash <(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh) install
 ```
-
-The Node installer also uses a prebuilt GHCR image first and falls back to a local build only if the image cannot be pulled.
 
 ## Source
 
 Panel repository:
 
-https://github.com/arsamnikzaad/ManubisGuard-Panel
+```
+https://github.com/ManubisGuard/ManubisGuard-Panel
+```
 
 Branch:
 
