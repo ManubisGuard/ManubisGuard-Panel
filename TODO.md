@@ -333,3 +333,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Added renewal locking/idempotency and bounded retry metadata; existing certificates are marked expired when their recorded expiration is past.
 - [x] Lifecycle regression PASS: `22 passed in 2.25s`; Ruff and `git diff --check` PASS.
 - [ ] Real ACME issuance and real Cloudflare DNS changes remain operational actions; tests use mocks/disposable data only.
+
+## D3 — Node Integration checkpoint — 2026-09-25
+- [ ] Certificate deployment to Node is not marked complete yet: the installed `PasarGuardNodeBridge` exposes start/stop, maintenance, routing and user-sync APIs, but no certificate/file upload primitive. The node runtime expects certificate material/files on the node filesystem; the current panel cannot safely copy a private key to a remote node through an existing supported API.
+- [ ] TLS inbound integration therefore remains pending a supported certificate-delivery mechanism; do not persist private keys into shared `core_configs` as an improvised workaround.
+- [ ] Server Address `additional` / `alias` / `both` generation remains pending because the repository does not define the exact alias semantics or the target subscription/inbound propagation contract; no speculative behavior is being introduced.
+- [x] Upstream architecture check completed: current Node Bridge maintenance API has no certificate/file-transfer method, and upstream node deployment documents node-local certificate paths. citeturn0search0turn0search1
+- [x] D3 blocker is recorded explicitly rather than falsely claiming end-to-end deployment is complete.
