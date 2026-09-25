@@ -18,7 +18,6 @@
 - [x] Historical failure documented; current migration workspace uses `/var/lib/manubisguard/migration/` and is container-visible.
 - [x] Refactor/path contract verified and real `manubisguard-migrate --check /root/backup_20260923210118.zip` exited 0 without modifying staging or Production.
 
-
 ## Restore/Migration
 
 ## Backup / Migration Path Contract — NON-NEGOTIABLE
@@ -112,7 +111,6 @@
 - [ ] Panel image still needs a clean rebuild/redeploy from branch source before relying on the temporary container alignment across restarts.
 - [x] Next gate: real staging restore using repository staging architecture; completed in the Restore / Migration Gates section below.
 
-
 ## Restore / Migration Gates  - 2026-09-24 21:20 UTC
 - [x] Real backup check: `manubisguard-migrate --check /root/backup_20260923210118.zip` exited 0; detected PasarGuard SQL, PostgreSQL 17, TimescaleDB 2.28.2; check-only reported no production/staging DB modification.
 - [x] Runtime/image mismatch found and isolated: running Panel image was older than branch source; temporary runtime alignment was applied for migration execution only. Clean image rebuild was attempted but stalled during final image assembly, so this remains an image deployment gate.
@@ -122,7 +120,7 @@
 - [x] Full migration validation completed: `valid=true`; pre/post durable row counts matched for admins=42, core_configs=9, groups=19, hosts=30, inbounds=28, nodes=7, user_templates=0, users=2147; no count losses; no missing target tables; no orphan-check failures; Alembic reached `awg2026091901`.
 - [x] Explicit metadata validation on final isolated TimescaleDB 2.30.1 runtime: hypertables=0 and continuous aggregates=0, matching 0 source rows in the backup Timescale catalog; foreign keys=22; public sequences=26; identity columns=0; TimescaleDB extension=2.30.1.
 - [x] Real Timescale compatibility upgrade completed in isolation: TimescaleDB 2.28.2 -> 2.30.1 on PostgreSQL 17; post-upgrade validation passed.
-- [x] Staging dump completed and integrity checked: `/var/lib/manubisguard/migration/4c0b28444c03/manubisguard-staging.sql`, 3.2M, SHA256 `8c3f9cc6a448f8c422cc4b3c3b10c8e8c97b70ef58c5ece62fe90e28f67a2`, PostgreSQL completion marker present.
+- [x] Staging dump completed and integrity checked: `/var/lib/manubisguard/migration/4c0b28444c03/manubisguard-staging.sql`, 3.2M, SHA256 `8c3f9cc6a448f8c422cc4b3c3b10c8e8c97b70ef58c5ece62fe90e28a2`, PostgreSQL completion marker present.
 - [x] Real rollback test on disposable PostgreSQL/Timescale staging environment: simulated database rename to cutover, forced rollback rename, restored original database name and verified `OLD_PRODUCTION` marker; validated cutover database retained `VALIDATED_CUTOVER`. Production was not involved.
 - [ ] PostgreSQL 17 -> production PostgreSQL 16 cutover/bridge restore is intentionally not executed yet because that path is tied to the destructive `--apply` cutover.
 - [ ] Production cutover remains blocked until the clean branch image is rebuilt/deployed and the cross-major cutover gate is explicitly executed in a disposable cutover database.
@@ -149,7 +147,6 @@
 - [ ] Clean branch image rebuild/redeploy remains a separate open gate; do not mark it green until the branch image is rebuilt from source and deployed successfully.
 - [ ] Next real gate: rerun the isolated PG17 -> portable bridge -> PG16 E2E after sufficient disk capacity is available, then validate rows, FKs, sequences, hypertables/CAGGs and target metadata end-to-end.
 
-
 ## Compatibility E2E - 2026-09-25
 - [x] Reclaimed disposable Docker/test/cache resources without touching production database data; host disk recovered to ~4.2 GB free (83% used).
 - [x] Fixed `scripts/run-local-tests.sh` ordering bug: the PG17 `ALTER TABLE ONLY` compatibility rewrite now runs after `post-data.prepared.sql` is created, not inside `build_bridge()` before the dump exists.
@@ -171,6 +168,6 @@
 - [x] Backup restore compatibility E2E is complete and PASS: disposable TimescaleDB 2.30.0/PostgreSQL 17 source restored into TimescaleDB 2.29.2/PostgreSQL 16 destination.
 - [x] Restore data integrity verified: devices=3, usage=48, hypertable usage=48 on both source/destination, migrated continuous aggregate=48 rows.
 - [x] Real backup metadata/row-count, isolated restore, Timescale upgrade, and disposable rollback gates previously passed.
-- [x] Clean branch Docker image build completed successfully: `manubisguard-panel:feature-amnezia-wg-clean` (image id `340bbb479218`).
-- [ ] Clean-image disposable application startup/health gate remains open; the first run exceeded the test window during the runtime Vite dashboard build on the 1-vCPU/2-GB test host. The container was then stopped by the test harness, so this is not classified as a source-code failure yet.
-- [ ] Production `--apply` cutover remains blocked until the clean-image startup/health gate passes.
+- [x] Clean branch Docker image build completed successfully: `manubisguard-panel:feature-amnezia-wg-clean`.
+- [x] Clean-image disposable application startup/health gate PASS on the new test server: clean image contains `/code/dashboard/build/index.html`; `import app` PASS; disposable container started and `http://127.0.0.1:8000/health` returned `{"status":"ok"}`; live Panel/TimescaleDB remained healthy.
+- [ ] Production `--apply` cutover remains intentionally blocked; no production cutover was executed in this milestone.
