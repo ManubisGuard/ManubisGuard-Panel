@@ -177,6 +177,12 @@ async def migrate_mariadb_to_postgres(
 
             for target in _topological_order(target_tables):
                 name = target.name
+                # The source migration history is not application data. The
+                # staging schema is already upgraded to this fork's Alembic
+                # head, so copying the MariaDB alembic_version row would create
+                # a second revision and fail validation.
+                if name == "alembic_version":
+                    continue
                 source = source_tables.get(name)
                 if source is None:
                     continue
