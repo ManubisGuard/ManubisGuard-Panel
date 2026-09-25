@@ -277,3 +277,19 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] The broad repository format check exposed pre-existing/unrelated formatting drift across 19 files; those unintended formatter changes were reverted and are not included in this milestone.
 - [x] D0.6 authenticated regression and deterministic staging-restore test gates are now green; no production restore/apply was executed.
 - [ ] Next: proceed to D0.7 comprehensive tests/security/build/runtime gate, then record final D0 gate evidence.
+
+## D0.7 / D0 Final Gate — 2026-09-25
+- [x] Re-synced `feature/amnezia-wg`; working tree clean and HEAD `fae0a8d3` matched origin before final gate.
+- [x] Live Panel/TimescaleDB containers healthy; live `/health` returned HTTP 200 with `{"status":"ok"}`; Alembic current is `b7c8d9e0f1a4 (head)`.
+- [x] Targeted Backup + restore/security regression PASS: `24 passed in 0.63s`.
+- [x] Full repository migration/local integration gate PASS: `scripts/run-local-tests.sh` completed with `87 passed in 9.70s` and `ALL TESTS PASSED`.
+- [x] Disposable portable bridge E2E remains PASS: PostgreSQL 17/TimescaleDB 2.30.0 -> PostgreSQL 16/TimescaleDB 2.29.2, durable counts and CAGG validated.
+- [x] Dashboard production build PASS with Bun 1.2.21; only existing large-chunk warnings and Vite browser-external warning were emitted.
+- [x] Clean branch Docker image build PASS from current branch source: `manubisguard-panel:feature-amnezia-wg-final`; image ID recorded by execution evidence.
+- [x] Clean image smoke gate PASS: `import app` succeeded; dashboard `/code/dashboard/build/index.html`, `/code/start.sh`, and `/usr/bin/manubisguard-cli` exist and are executable as expected.
+- [x] Feature-scope Ruff check/format and `git diff --check` PASS for Backup/restore/scheduler/security files.
+- [x] An attempted whole-repository Ruff check exposed 41 auto-fixable baseline style differences; all such unintended changes were immediately reverted. No unrelated formatter changes remain in the branch.
+- [x] No real Telegram secret was used; no production restore/apply/cutover was executed.
+- [x] D0 software gate is complete: backup, encryption, Telegram mock security, scheduling/retention, frontend, isolated staging restore, migration regression, full local migration E2E, clean image and runtime baseline are green.
+- [ ] Production destructive `--apply` cutover remains intentionally outside this gate and requires a separately authorized controlled deployment with all final operational prerequisites satisfied.
+- [ ] Domain/SSL Intelligence remains the next non-destructive project phase after D0.
