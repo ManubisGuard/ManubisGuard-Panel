@@ -390,6 +390,15 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Deployed the rebuilt `feature/amnezia-wg` image to the test server without changing the TimescaleDB volume.
 - [x] Post-deploy runtime PASS: Panel and TimescaleDB are healthy, external `https://55.qoqnusradio.top/health` returned `{"status":"ok"}`, root returned HTTP 200, and the built assets contain the new `/settings/backup` route reference.
 
+## Domains & SSL UX + Cloudflare deployment checkpoint — 2026-09-25
+- [x] GitHub branch deployed from commit 4ffcf118 on the authorized test server at /opt/manubisguard-panel.
+- [x] Non-destructive pre-deployment PostgreSQL custom dump created outside Git under /var/lib/manubisguard/deploy-backups/; existing TimescaleDB volume was preserved.
+- [x] Clean Docker image build PASS; dashboard production build completed inside the image with only the existing crypto-externalization and large-chunk warnings.
+- [x] Panel container recreated without replacing the TimescaleDB volume; TimescaleDB remained healthy.
+- [x] External HTTPS health PASS: https://55.qoqnusradio.top/health returned {"status":"ok"}.
+- [x] Certificate issue endpoint no longer presents as a missing route: unauthenticated POST returns HTTP 401, and Cloudflare credential GET returns HTTP 401 while POST correctly returns HTTP 405, confirming the new route registrations are active behind authentication.
+- [ ] Real Cloudflare DNS mutation and real certificate issuance remain intentionally unexecuted until a real Cloudflare API token is configured by the administrator through the new Domains & SSL credential field.
+
 ## Reality Inbound Auto-SNI completion — 2026-09-25
 - [x] Root cause identified: the previous Auto Select implementation treated each configured SNI-pool entry as a new Reality **target**, so it replaced the inbound target instead of testing candidate SNI names against the existing target.
 - [x] Added an optional TLS SNI override to the Reality scanner/API while preserving the original target host/IP and port.
