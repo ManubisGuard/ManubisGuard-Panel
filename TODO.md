@@ -490,3 +490,12 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Installer documentation now uses the canonical `ManubisGuard/ManubisGuard-Panel` repository and documents the native CLI lifecycle commands.
 - [x] Corrected the Panel image reference to the currently used GHCR image `ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg`.
 - [x] Remote validation: latest installer script fetched from `feature/amnezia-wg` passed `bash -n`; Compose continues to reference the same Panel image registry and no production database was modified by this installer change.
+
+
+## Installer SSL wizard — 2026-09-25
+- [x] Installer now starts with an interactive SSL/TLS wizard offering: Let's Encrypt domain, server-IP certificate, custom certificate, or normal install without SSL.
+- [x] Domain mode obtains a Let's Encrypt certificate with Certbot HTTP-01 before the Panel starts.
+- [x] IP mode generates a certificate with an IP SAN and configures `UVICORN_SSL_CA_TYPE=private` because it is self-signed.
+- [x] Custom mode accepts an existing certificate/key pair and installs them under the persistent ManubisGuard data directory.
+- [x] SSL can also be fully automated with `--ssl-mode domain|ip|custom|none` and the corresponding domain/certificate arguments.
+- [x] Remote validation: latest installer passed `bash -n` and `--help`; no production database or running production stack was modified by this validation.
