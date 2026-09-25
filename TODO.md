@@ -453,7 +453,7 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 ## Restore Alembic event-loop bug — 2026-09-25
 - [x] Fixed staging Alembic execution when Restore is triggered from the async API: `command.upgrade()` now runs in a worker thread, so Alembic's internal `asyncio.run()` never nests inside the request event loop.
 - [x] Reused the migration async utility pattern for synchronous Alembic execution; production DB remains protected by the existing staging-target assertions.
-- [ ] Full staging Restore E2E regression after deployment pending.
+- [x] Full staging Restore E2E regression completed as part of the live PasarGuard restore: staging restore, Alembic upgrade to `b7c8d9e0f1a5`, Timescale compatibility upgrade and validation all passed.
 
 ## PasarGuard -> ManubisGuard Production Restore hardening — 2026-09-25
 - [x] Reviewed PGClockMG as the reference restore architecture: validated restore, Timescale compatibility handling, staged validation, then live cutover/restart. citeturn394089view0
@@ -463,4 +463,4 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Fixed post-cutover health validation to inspect the newly-created Panel container and its in-container `/health`, preventing a false rollback caused by probing the host socket.
 - [x] Fixed production safety-dump verification to fail closed when `pg_restore --list` fails.
 - [x] Uploaded `Restore` now validates the ZIP and then executes the real Production Restore flow with explicit `RESTORE_PRODUCTION` confirmation.
-- [ ] Fresh Production Restore E2E PASS after these hardening changes is still the final gate.
+- [x] Fresh Production Restore E2E PASS completed with `/root/backup_20260923210118.zip`: staging validation passed, cutover validation passed, critical durable row counts were preserved, production database swap completed, current Panel restarted, container health passed, and external `/health` returned `{"status":"ok"}`.
