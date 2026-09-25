@@ -499,3 +499,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Custom mode accepts an existing certificate/key pair and installs them under the persistent ManubisGuard data directory.
 - [x] SSL can also be fully automated with `--ssl-mode domain|ip|custom|none` and the corresponding domain/certificate arguments.
 - [x] Remote validation: latest installer passed `bash -n` and `--help`; no production database or running production stack was modified by this validation.
+
+
+## Installer SSL wizard TTY fix — 2026-09-25
+- [x] Fixed the interactive SSL wizard for the documented `curl | bash` installation form: all wizard `read` operations now read from `/dev/tty` instead of the piped script stdin.
+- [x] This prevents the wizard from immediately receiving EOF and returning to the shell, which caused selections such as `2` or `4` to be executed by Bash as commands (`command not found`).
+- [x] Non-interactive installs remain supported through `--ssl-mode ...` and `--yes`.
+- [x] Fix commit: `1559fb0ad7ba6819b239483dd5dd6fe41b8b5926`.
