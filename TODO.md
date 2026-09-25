@@ -367,5 +367,7 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Added explicit per-domain `serve_tls` lifecycle control, modeled after the verified Rebecca v1.2.0 certificate contract; default remains enabled for backward compatibility, and runtime injection now honors the toggle.
 - [x] Backend regression after the TLS-serving toggle: `27 passed in 3.18s`; Ruff and `git diff --check` PASS.
 - [x] Frontend validation after the TLS-serving toggle: TypeScript `--noEmit` and Vite/PWA production build PASS; only existing chunk-size warnings remain.
+- [x] Re-audited the actual subscription pipeline: `app/subscription/share.py` consumes `SubscriptionInboundData.address`, while `app/core/hosts.py` derives that field from each Host's configured address; `ManagedServerAddress` is not consumed by subscription generation today.
+- [x] Re-audited Rebecca v1.2.0: its Host contract exposes address options/selection modes, but no authoritative mapping for ManubisGuard's requested `additional` / `alias` / `both` semantics was found.
 - [ ] Overall Domain/SSL closure still has one specification-dependent item: Server Address `additional` / `alias` / `both` generation lacks an authoritative runtime/subscription contract in the repository, so no speculative propagation has been enabled.
 - [ ] Real ACME issuance, real Cloudflare DNS mutation, and live production-node certificate deployment remain operational actions not executed in regression tests.
