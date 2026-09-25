@@ -441,3 +441,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Deployed commit `74800874` to the test server; Panel and TimescaleDB are healthy and the external `/health` endpoint returns `{"status":"ok"}`.
 - [x] Real staging restore PASS against the existing panel-generated ZIP: staging `manubisguard_migration_3225b66550b4` restored, Alembic/validation completed with `valid=true`, durable pre/post counts matched, and the staging database was dropped afterward.
 - [x] Production database was not used as the restore target and no production cutover was executed.
+
+
+## Backup Restore button — 2026-09-25
+- [x] Added a visible `Restore` button to the Restore Preparation card after a ZIP upload; the uploaded backup ID is retained in the UI so the action targets the exact newly uploaded archive.
+- [x] Restore action runs the existing isolated staging restore endpoint; it does not modify the production database. Production restore remains an explicit separate action from Backup History.
+- [x] Upload response is now captured instead of discarded, and the UI reports that the archive is ready to restore.
+- [ ] Frontend build/deploy/runtime validation pending for this UI-only change.
