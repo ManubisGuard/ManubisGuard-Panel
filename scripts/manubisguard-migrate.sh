@@ -469,7 +469,7 @@ analyze_backup() {
     die "Backup reported an unsafe source TimescaleDB version: $SOURCE_TS_VERSION"
   fi
   log "Accepted source=$(json_get "$output" ".detection.source_product") format=$(json_get "$output" ".detection.format") PostgreSQL=${SOURCE_PG_MAJOR:-unknown} TimescaleDB=${SOURCE_TS_VERSION:-unknown}"
-  if [ "$(printf "%s\n" "$output" | grep -q "detected MariaDB/MySQL logical dump" && echo true || echo false)" = "True" ] || [ "$(json_get "$output" ".detection.is_mariadb")" = "true" ]; then
+  if printf "%s\n" "$output" | grep -q "detected MariaDB/MySQL logical dump"; then
     log "MariaDB/MySQL logical dump detected; enabling isolated MariaDB -> PostgreSQL bridge."
   fi
   if [ "$(json_get "$output" ".uses_timescaledb")" = "True" ] || [ "$(json_get "$output" ".uses_timescaledb")" = "true" ]; then
@@ -734,7 +734,7 @@ timescale_version_gt() {
 
 portable_bridge_required() {
   [ "$PROD_HAS_TIMESCALE" = true ] || return 1
-  if grep -q "detected MariaDB/MySQL logical dump" "$output"; then
+  if grep -q "detected MariaDB/MySQL logical dump" "$WORKDIR/analysis.json"; then return 1; fi
   [ -n "$SOURCE_TS_VERSION" ] || die "Portable Timescale bridge requires an exact source TimescaleDB version."
   [ -n "$PROD_TS_VERSION" ] || die "Portable Timescale bridge requires the destination TimescaleDB version."
   timescale_version_gt "$SOURCE_TS_VERSION" "$PROD_TS_VERSION"
