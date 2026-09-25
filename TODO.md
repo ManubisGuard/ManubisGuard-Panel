@@ -346,4 +346,7 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Verified Node Bridge still has no generic certificate/file upload RPC, while official Node configuration uses node-local certificate paths and Xray TLS accepts either file paths or direct certificate content.
 - [x] Verified upstream panel history documents the `serveOnNode` handling in Xray certificate processing.
 - [ ] Managed certificate deployment remains incomplete until the exact node-side certificate materialization contract is verified in the deployed Node version; no private-key transfer or shared-core mutation has been introduced speculatively.
-- [ ] Next D3 operation: inspect the deployed Node implementation/API for the concrete certificate materialization path, then implement and test only that supported contract.
+- [x] Exact deployed Node contract is now verified: installed `PasarGuardNodeBridge` is v0.9.1, exposes `start(config=...)`, and its REST maintenance surface uses `POST /node/core_update` without a generic certificate/file upload API.
+- [x] The existing node start path transports complete Xray JSON, so managed TLS certificate/key material can be delivered as inline `certificate`/`key` content without a speculative file-transfer API.
+- [x] Current Xray `TLSCertConfig` accepts `certificateFile`/`keyFile` or inline `certificate`/`key`; Rebecca v1.2.0 independently confirms the managed-certificate/SNI architecture used as reference.
+- [ ] Next D3 operation: implement node-specific managed-certificate materialization, deployment verification, and rollback on failure.
