@@ -862,13 +862,7 @@ create_cutover_database() {
   [ "$exists" != "1" ] || die "Cutover database already exists: $CUTOVER_DB"
   psql_prod -d postgres -c "CREATE DATABASE \"$CUTOVER_DB\" TEMPLATE template0 OWNER \"$DB_USER\";" >/dev/null
 
-  CUTOVER_URL="$(docker exec "$PANEL_CONTAINER" python - "$PROD_URL" "$CUTOVER_DB" <<'PY'
-import sys
-from sqlalchemy.engine import make_url
-url = make_url(sys.argv[1]).set(database=sys.argv[2])
-print(url.render_as_string(hide_password=False))
-PY
-)"
+  CUTOVER_URL="$(docker exec "$PANEL_CONTAINER" python -c 'import sys; from sqlalchemy.engine import make_url; print(make_url(sys.argv[1]).set(database=sys.argv[2]).render_as_string(hide_password=False))' "$PROD_URL" "$CUTOVER_DB")"
 }
 
 timescale_prepare_cutover() {
