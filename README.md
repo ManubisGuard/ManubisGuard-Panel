@@ -102,3 +102,18 @@ https://github.com/ManubisGuard/ManubisGuard-Panel
 Branch:
 
 `feature/amnezia-wg`
+
+
+## CLI restore
+
+After installation, the global `manubisguard` command includes the production restore pipeline:
+
+```bash
+# Validate a backup in isolated staging only
+sudo manubisguard restore-check /path/to/backup.zip
+
+# Restore and perform the validated production cutover
+sudo manubisguard restore /path/to/backup.zip
+```
+
+`restore` runs the same safety-first migration pipeline used by the panel: the backup is staged and validated first, the current deployment identity and Compose file are preserved, a production safety dump is created before cutover, and the previous production database is retained for rollback. `restore-check` never changes the production database.
