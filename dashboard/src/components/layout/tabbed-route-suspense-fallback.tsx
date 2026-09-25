@@ -45,6 +45,7 @@ const SETTINGS_SUDO_TABS: TabDef[] = [
   { id: 'telegram', labelKey: 'settings.telegram.title', icon: Send, url: '/settings/telegram' },
   { id: 'webhook', labelKey: 'settings.webhook.title', icon: Webhook, url: '/settings/webhook' },
   { id: 'cleanup', labelKey: 'settings.cleanup.title', icon: Database, url: '/settings/cleanup' },
+  { id: 'backup', labelKey: 'Backup & Restore', icon: Database, url: '/settings/backup' },
   { id: 'theme', labelKey: 'theme.title', icon: Palette, url: '/settings/theme' },
 ]
 

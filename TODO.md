@@ -227,3 +227,17 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Ruff check, Ruff format check and `git diff --check` pass.
 - [x] No real Telegram secret was used.
 - [ ] Telegram real-message test remains intentionally unexecuted because it requires a real production/test secret; mock coverage is the current gate.
+
+## D0.4 Frontend — initial implementation 2026-09-25
+- [x] Added `Settings -> Backup & Restore` route/page with ManubisGuard dark SaaS-compatible cards and dense operational layout.
+- [x] Manual backup UI wired to `/api/admin/backup/create`.
+- [x] ZIP upload UI wired to `/api/admin/backup/upload`.
+- [x] Uploaded-backup validation UI wired to `/api/admin/backup/check/{id}`.
+- [x] Backup history UI wired to `/api/admin/backup/list` with delete action.
+- [x] Telegram configuration UI wired to encrypted backend configuration; token input is password-type and cleared after success.
+- [x] RBAC visibility follows existing Settings permission gating; no new permission bypass was introduced.
+- [x] Production restore/apply is explicitly unavailable in the UI.
+- [x] Scheduler/retention controls are not falsely exposed as functional because the backend API is not implemented yet.
+- [x] Dashboard production build PASS using Bun 1.2.21: Vite build completed successfully; existing chunk-size warnings only.
+- [x] Built artifacts contain the new `/settings/backup` route.
+- [ ] Download endpoint, preview/staging-restore flow, scheduling and retention require their backend milestones before being enabled in UI.

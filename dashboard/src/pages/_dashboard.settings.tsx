@@ -45,6 +45,7 @@ const allTabs: Tab[] = [
   { id: 'telegram', label: 'settings.telegram.title', icon: Send, url: '/settings/telegram' },
   { id: 'webhook', label: 'settings.webhook.title', icon: Webhook, url: '/settings/webhook' },
   { id: 'cleanup', label: 'settings.cleanup.title', icon: Database, url: '/settings/cleanup' },
+  { id: 'backup', label: 'Backup & Restore', icon: Database, url: '/settings/backup' },
   { id: 'theme', label: 'theme.title', icon: Palette, url: '/settings/theme' },
 ]
 
@@ -192,6 +193,8 @@ export default function Settings() {
           // Add webhook specific filtering if needed
           filteredData = { data: data }
           break
+        case 'backup':
+          return
         case 'cleanup':
           // Add cleanup specific filtering if needed
           filteredData = { data: data }

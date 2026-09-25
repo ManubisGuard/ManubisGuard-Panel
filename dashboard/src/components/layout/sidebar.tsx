@@ -372,6 +372,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   url: '/settings/cleanup',
                   icon: Database,
                 },
+                {
+                  title: 'Backup & Restore',
+                  url: '/settings/backup',
+                  icon: Database,
+                },
               ]
             : []),
           {
