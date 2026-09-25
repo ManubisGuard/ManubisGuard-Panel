@@ -11,7 +11,7 @@ DATABASE="timescaledb"
 ASSUME_YES=false
 OVERRIDE=false
 MIN_FREE_MB="${MANUBISGUARD_MIN_FREE_MB:-6144}"
-PANEL_IMAGE="ghcr.io/ManubisGuard/manubisguard-panel:feature-amnezia-wg"
+PANEL_IMAGE="ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg"
 BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
 
 log() { printf '[manubisguard-install] %s\n' "$*"; }
