@@ -288,32 +288,17 @@ PY
 
 prepare_runtime_env() {
   [ -f "$CURRENT_ENV" ] || die "Current ManubisGuard .env not found: $CURRENT_ENV"
-  ENV_CANDIDATE="$WORKDIR/.env.migration"
+  ENV_CANDIDATE="$WORKDIR/.env.pre-restore"
   RUNTIME_ASSET_STAGE="$WORKDIR/runtime-assets"
   mkdir -p "$RUNTIME_ASSET_STAGE"
-  log "Preparing runtime .env and referenced SSL assets from legacy backup..."
-  if ! output="$(python3 /opt/manubisguard-panel/scripts/manubisguard-restore-env.py \
-      "$PANEL_BACKUP" "$CURRENT_ENV" "$ENV_CANDIDATE" \
-      --asset-stage-root "$RUNTIME_ASSET_STAGE" 2>&1)"; then
-    printf '%s\\n' "$output" >"$WORKDIR/env-restore.error"
-    die "Legacy runtime environment preparation failed."
-  fi
-  printf '%s\\n' "$output" >"$WORKDIR/env-restore.log"
+  # The installed ManubisGuard deployment is authoritative.
+  # Backup deployment identity, docker-compose.yml, repo URLs and image settings are never imported.
+  cp -- "$CURRENT_ENV" "$ENV_CANDIDATE"
   cp -- "$CURRENT_ENV" "$WORKDIR/.env.before-migration"
   chmod 600 "$ENV_CANDIDATE" "$WORKDIR/.env.before-migration"
-  if grep -q '^ENV_SOURCE=legacy' "$WORKDIR/env-restore.log" 2>/dev/null; then
-    ENV_IMPORTED=true
-  fi
-  [ -n "$COMPOSE_SHA256" ] || die "Compose integrity fingerprint is missing."
-  [ -f "$COMPOSE_FILE" ] || die "CRITICAL: ManubisGuard compose file disappeared."
-  local current
-  current="$(sha256sum "$COMPOSE_FILE" | awk '{print $1}')"
-  if [ "$current" != "$COMPOSE_SHA256" ]; then
-    printf '%s  %s\n' "$current" "$COMPOSE_FILE" >"$WORKDIR/compose-changed.sha256"
-    die "CRITICAL: migration attempted to change docker-compose.yml. Production deployment was not trusted."
-  fi
+  ENV_IMPORTED=false
+  log "Preserving current ManubisGuard runtime .env; backup deployment environment and docker-compose are not imported."
 }
-
 apply_runtime_env() {
   [ "$ENV_IMPORTED" = true ] || return 0
   [ -s "$ENV_CANDIDATE" ] || die "Prepared .env candidate is missing."
@@ -936,13 +921,17 @@ PY
 production_safety_backup() {
   local out="$WORKDIR/production-safety.dump"
   log "Creating and verifying production safety backup before rename..."
-  docker exec -e PGPASSWORD="$DB_PASS" "$DB_CONTAINER"     pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc --no-owner --no-privileges >"$out"
+  if ! docker exec -e PGPASSWORD="$DB_PASS" "$DB_CONTAINER" pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc --no-owner --no-privileges >"$out"; then
+    rm -f "$out"
+    die "Production safety backup creation failed; cutover aborted."
+  fi
   [ -s "$out" ] || die "Production safety backup is empty; cutover aborted."
-  docker exec -i "$DB_CONTAINER" pg_restore --list - >/dev/null <"$out"
+  if ! docker exec -i "$DB_CONTAINER" pg_restore --list >/dev/null <"$out"; then
+    die "Production safety backup verification failed; cutover aborted."
+  fi
   chmod 600 "$out"
   log "Safety backup verified: $out"
 }
-
 stop_panel() {
   log "Stopping panel for final cutover..."
   docker compose -f "$COMPOSE_FILE" stop "$COMPOSE_SERVICE" >/dev/null
@@ -981,26 +970,32 @@ rename_database() {
 }
 
 health_check() {
-  log "Checking ManubisGuard HTTP health..."
-  local port scheme
+  log "Checking ManubisGuard container health after production cutover..."
+  PANEL_CONTAINER="$(docker compose -f "$COMPOSE_FILE" ps -q "$COMPOSE_SERVICE" 2>/dev/null || true)"
+  [ -n "$PANEL_CONTAINER" ] || return 1
+  local port
   port="$(env_get "$CURRENT_ENV" UVICORN_PORT || true)"
   port="${port:-8000}"
-  scheme="http"
-  local cert key
-  cert="$(env_get "$CURRENT_ENV" UVICORN_SSL_CERTFILE || true)"
-  key="$(env_get "$CURRENT_ENV" UVICORN_SSL_KEYFILE || true)"
-  if [ -n "$cert" ] && [ -n "$key" ]; then scheme="https"; fi
-  local i
-  for i in $(seq 1 45); do
-    if curl -kfsS --max-time 5 "${scheme}://127.0.0.1:${port}/health" >/dev/null 2>&1 ||
-       curl -kfsS --max-time 5 "${scheme}://127.0.0.1:${port}/" >/dev/null 2>&1; then
+  local i state
+  for i in $(seq 1 60); do
+    state="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$PANEL_CONTAINER" 2>/dev/null || true)
+    if [ "$state" = "healthy" ]; then
+      log "Panel container reports healthy."
       return 0
+    fi
+    if [ "$state" = "running" ] && docker exec "$PANEL_CONTAINER" sh -lc "curl -kfsS --max-time 5 http://127.0.0.1:$port/health >/dev/null 2>&1"; then
+      log "Panel internal /health returned HTTP 200."
+      return 0
+    fi
+    if [ "$state" = "exited" ] || [ "$state" = "dead" ]; then
+      docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 "$COMPOSE_SERVICE" >"$WORKDIR/panel-health-failure.log" 2>&1 || true
+      return 1
     fi
     sleep 2
   done
+  docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 "$COMPOSE_SERVICE" >"$WORKDIR/panel-health-failure.log" 2>&1 || true
   return 1
 }
-
 rollback_after_failed_health() {
   FAILED_DB="$DB_NAME"_"failed_"$ID
   warn "Panel did not become healthy; rolling the database back."
