@@ -383,4 +383,6 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Ruff check, Ruff format check and `git diff --check` PASS.
 - [x] Live non-destructive scanner smoke: `example.com:443` tested with multiple SNI candidates; target remained `example.com:443`, feasible candidates were ranked by measured latency, and `www.cloudflare.com` was selected in that run. No inbound/core configuration was persisted and no node was restarted.
 - [x] Frontend TypeScript `--noEmit` and production Vite build PASS; only existing large-chunk and browser-external warnings remain.
-- [ ] Production Panel image/runtime deployment of this source change is intentionally not executed in this milestone; source is committed/pushed for the next normal deployment.
+- [x] Production Panel image/runtime deployment of this source change is intentionally not executed in this milestone; source is committed/pushed for the next normal deployment.
+- [x] Test deployment completed on the authorized server from branch `feature/amnezia-wg` at commit `bb5204a5`: existing TimescaleDB volume preserved, pre-deployment pg_dump saved outside Git, local image rebuilt, Panel recreated, runtime `/health` returned 200, and no production data restore/cutover was performed.
+- [x] HTTPS test endpoint configured for `55.qoqnusradio.top` with Nginx reverse proxy and a real Let's Encrypt certificate; external `/` returned 200 and `/health` returned `{"status":"ok"}`. Certificate is valid through 2026-12-24 and Certbot renewal is scheduled.
