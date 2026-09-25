@@ -157,6 +157,24 @@ async def migrate_mariadb_to_postgres(
         }
 
         async with source_engine.connect() as source_conn, target_engine.begin() as target_conn:
+            # Alembic creates the current schema before the bridge runs. Some
+            # ManubisGuard/PasarGuard forks seed rows such as admin_roles during
+            # migrations, while the source dump also contains those rows. Clear
+            # only the isolated staging application's data first so the source
+            # becomes authoritative and duplicate PKs cannot abort the bridge.
+            data_tables = [
+                table for name, table in target_tables.items()
+                if name != "alembic_version"
+            ]
+            if data_tables:
+                quoted = ", ".join(
+                    f'"public"."{table.name.replace(chr(34), chr(34) + chr(34))}"'
+                    for table in data_tables
+                )
+                await target_conn.execute(
+                    text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE")
+                )
+
             for target in _topological_order(target_tables):
                 name = target.name
                 source = source_tables.get(name)
