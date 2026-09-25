@@ -490,7 +490,9 @@ start_temp_mariadb() {
   docker run -d --name "$MARIADB_CONTAINER" --restart=no --label "manubisguard.migration=$ID" --network host -e MARIADB_ROOT_PASSWORD="$MARIADB_PASSWORD" -e MARIADB_DATABASE=pasarguard -v "$MARIADB_VOLUME:/var/lib/mysql" mariadb:12.3.3 --port="$MARIADB_PORT" >/dev/null
   local i
   for i in $(seq 1 90); do
-    if docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -p"$MARIADB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
+    if docker exec "$MARIADB_CONTAINER" mariadb-admin -uroot ping >/dev/null 2>&1; then
+      break
+    fi
     if [ "$(docker inspect -f '{{.State.Status}}' "$MARIADB_CONTAINER" 2>/dev/null || true)" = "exited" ]; then docker logs "$MARIADB_CONTAINER" >"$WORKDIR/mariadb-container.log" 2>&1 || true; die "Temporary MariaDB exited. See $WORKDIR/mariadb-container.log"; fi
     sleep 2
     [ "$i" -eq 90 ] && die "Temporary MariaDB did not become ready."
