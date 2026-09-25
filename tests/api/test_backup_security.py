@@ -86,3 +86,32 @@ async def test_telegram_notification_mock_does_not_require_real_token(monkeypatc
             {"parse_mode": "HTML", "text": "MANUBISGUARD BACKUP TEST", "chat_id": 123456},
         )
     ]
+
+
+@pytest.mark.parametrize(
+    ("frequency", "weekday", "day_of_month", "expected"),
+    [
+        ("daily", None, None, True),
+        ("weekly", 4, None, True),
+        ("weekly", 1, None, False),
+        ("monthly", None, 25, True),
+        ("monthly", None, 24, False),
+    ],
+)
+def test_backup_schedule_due_rules(frequency, weekday, day_of_month, expected):
+    from datetime import UTC, datetime as dt
+    from types import SimpleNamespace
+
+    from app.jobs.backup_scheduler import _is_due
+
+    now = dt(2026, 9, 25, 2, 0, tzinfo=UTC)
+    schedule = SimpleNamespace(
+        enabled=True,
+        frequency=frequency,
+        hour=2,
+        minute=0,
+        weekday=weekday,
+        day_of_month=day_of_month,
+        last_run_at=None,
+    )
+    assert _is_due(now, schedule) is expected

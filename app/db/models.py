@@ -1032,3 +1032,20 @@ class TempKey(Base):
     expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     used_by_ip: Mapped[str | None] = mapped_column(String(45), default=None)
+
+
+class BackupSchedule(Base, CreatedAtUTCMixin):
+    __tablename__ = "backup_schedules"
+    __table_args__ = (Index("ix_backup_schedules_enabled", "enabled"),)
+
+    enabled: Mapped[bool] = mapped_column(default=False, server_default="0")
+    frequency: Mapped[str] = mapped_column(String(16), nullable=False, default="daily", server_default="daily")
+    hour: Mapped[int] = mapped_column(default=2, server_default="2")
+    minute: Mapped[int] = mapped_column(default=0, server_default="0")
+    weekday: Mapped[int | None] = mapped_column(default=None)
+    day_of_month: Mapped[int | None] = mapped_column(default=None)
+    retention_count: Mapped[int] = mapped_column(default=7, server_default="7")
+    last_run_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    updated_at: Mapped[dt] = mapped_column(
+        DateTime(timezone=True), default=lambda: dt.now(UTC), onupdate=lambda: dt.now(UTC)
+    )

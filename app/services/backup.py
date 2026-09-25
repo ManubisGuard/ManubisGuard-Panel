@@ -190,3 +190,38 @@ def decrypt_telegram_token(backup: Backup) -> str | None:
     from app.security.encryption import decrypt_secret
 
     return decrypt_secret(backup.telegram_bot_token)
+
+
+async def get_backup_schedule(db: AsyncSession):
+    from app.db.models import BackupSchedule
+
+    schedule = (await db.execute(select(BackupSchedule).order_by(BackupSchedule.id))).scalars().first()
+    if schedule is None:
+        schedule = BackupSchedule()
+        db.add(schedule)
+        await db.commit()
+        await db.refresh(schedule)
+    return schedule
+
+
+async def configure_backup_schedule(db: AsyncSession, **values):
+    schedule = await get_backup_schedule(db)
+    for key, value in values.items():
+        setattr(schedule, key, value)
+    schedule.updated_at = dt.now(UTC)
+    await db.commit()
+    await db.refresh(schedule)
+    return schedule
+
+
+async def apply_backup_retention(db: AsyncSession, retention_count: int) -> int:
+    if retention_count < 1:
+        return 0
+    backups = list((await db.execute(select(Backup).order_by(Backup.created_at.desc()))).scalars())
+    deleted = 0
+    for backup in backups[retention_count:]:
+        if backup.status == "telegram_configured":
+            continue
+        await delete_backup(db, backup)
+        deleted += 1
+    return deleted

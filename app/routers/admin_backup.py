@@ -12,10 +12,20 @@ from app.models.backup import (
     BackupCreate,
     BackupListResponse,
     BackupResponse,
+    BackupScheduleConfigure,
+    BackupScheduleResponse,
     BackupTelegramConfigure,
 )
 from app.routers.authentication import require_permission
-from app.services.backup import check_backup, configure_telegram, create_backup, delete_backup, list_backups
+from app.services.backup import (
+    check_backup,
+    configure_backup_schedule,
+    configure_telegram,
+    create_backup,
+    delete_backup,
+    get_backup_schedule,
+    list_backups,
+)
 
 router = APIRouter(prefix="/api/admin/backup", tags=["Admin Backup"])
 UPLOAD_DIR = Path("/var/lib/manubisguard/backups")
@@ -48,6 +58,26 @@ async def configure_backup_telegram(
         return await configure_telegram(db, created_by=admin.id, token=token.strip(), chat_id=chat_id.strip())
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Telegram configuration failed") from exc
+
+
+@router.get("/schedule", response_model=BackupScheduleResponse)
+async def get_schedule(
+    db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("settings", "read"))
+):
+    return await get_backup_schedule(db)
+
+
+@router.put("/schedule", response_model=BackupScheduleResponse)
+async def update_schedule(
+    payload: BackupScheduleConfigure,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("settings", "update")),
+):
+    if payload.frequency == "weekly" and payload.weekday is None:
+        raise HTTPException(status_code=422, detail="weekday is required for weekly schedules")
+    if payload.frequency == "monthly" and payload.day_of_month is None:
+        raise HTTPException(status_code=422, detail="day_of_month is required for monthly schedules")
+    return await configure_backup_schedule(db, **payload.model_dump())
 
 
 @router.post("/upload", response_model=BackupResponse, status_code=status.HTTP_201_CREATED)
@@ -109,8 +139,7 @@ async def check_uploaded_backup(
 
 @router.get("/list", response_model=BackupListResponse)
 async def get_backup_history(
-    db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("settings", "read")),
+    db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("settings", "read"))
 ):
     items, total = await list_backups(db)
     return BackupListResponse(items=items, total=total)

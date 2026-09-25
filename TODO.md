@@ -241,3 +241,16 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Dashboard production build PASS using Bun 1.2.21: Vite build completed successfully; existing chunk-size warnings only.
 - [x] Built artifacts contain the new `/settings/backup` route.
 - [ ] Download endpoint, preview/staging-restore flow, scheduling and retention require their backend milestones before being enabled in UI.
+
+## D0.5 Backup Scheduling & Retention — 2026-09-25
+- [x] Added persisted `backup_schedules` model and Alembic migration `b7c8d9e0f1a5`.
+- [x] Schedule supports opt-in enabled state, daily/weekly/monthly frequency, UTC hour/minute, weekday/day-of-month and retention count.
+- [x] Added admin-only GET/PUT schedule API under `/api/admin/backup/schedule` using existing Settings RBAC.
+- [x] Scheduler remains opt-in: default schedule is disabled; scheduler wakes once per minute and evaluates persisted configuration.
+- [x] Scheduled backup execution records `last_run_at` and applies retention cleanup after successful backup.
+- [x] Disposable SQLite `alembic upgrade head` completed successfully through `b7c8d9e0f1a5`; Production DB was not migrated.
+- [x] Schedule due-rule regression tests pass: `9 passed in 0.48s` including encryption, Telegram security and scheduler rules.
+- [x] Ruff check, Ruff format check and `git diff --check` pass for the changed backend/test files.
+- [x] Dashboard build PASS after exposing schedule controls.
+- [x] Live Panel/TimescaleDB remained healthy and `/health` returned HTTP 200; no Production schema change was executed.
+- [ ] Production runtime must receive migration `b7c8d9e0f1a5` only during the later controlled deployment gate; until then the live backend does not expose the new schedule table/API.

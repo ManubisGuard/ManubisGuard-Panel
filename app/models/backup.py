@@ -58,3 +58,31 @@ class BackupCheckResponse(BaseModel):
 class BackupListResponse(BaseModel):
     items: list[BackupResponse]
     total: int
+
+
+class BackupScheduleConfigure(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    frequency: Literal["daily", "weekly", "monthly"] = "daily"
+    hour: int = Field(default=2, ge=0, le=23)
+    minute: int = Field(default=0, ge=0, le=59)
+    weekday: int | None = Field(default=None, ge=0, le=6)
+    day_of_month: int | None = Field(default=None, ge=1, le=31)
+    retention_count: int = Field(default=7, ge=1, le=1000)
+
+
+class BackupScheduleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    enabled: bool
+    frequency: str
+    hour: int
+    minute: int
+    weekday: int | None
+    day_of_month: int | None
+    retention_count: int
+    last_run_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
