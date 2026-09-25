@@ -268,3 +268,12 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Live Panel/TimescaleDB healthy and `/health` HTTP 200; no Production migration/restore/apply executed.
 - [ ] Authenticated API security suite became non-responsive in this disposable run and was terminated; previous checkpoint had the security suite green. Re-run it in the next test gate before final D0.6 PASS.
 - [ ] Next: add a deterministic end-to-end staging-restore fixture/test and complete D0.6 authenticated regression before moving to D0.7.
+
+## D0.6 Restore Flow — completion evidence 2026-09-25
+- [x] Authenticated Backup API security regression PASS: `9 passed in 0.55s` using disposable test data; no production secret/database was used.
+- [x] Deterministic staging-restore endpoint regression added and PASS: `1 passed in 9.46s`; verifies the endpoint creates an isolated generated staging target, never uses the production database URL as the restore target, and always drops the staging database.
+- [x] Combined migration restore/security targeted regression PASS: `15 passed in 9.89s` across staging, runner and endpoint restore tests.
+- [x] Ruff check PASS for changed Backup/security test files; Ruff format applied only to the new restore test; `git diff --check` PASS.
+- [x] The broad repository format check exposed pre-existing/unrelated formatting drift across 19 files; those unintended formatter changes were reverted and are not included in this milestone.
+- [x] D0.6 authenticated regression and deterministic staging-restore test gates are now green; no production restore/apply was executed.
+- [ ] Next: proceed to D0.7 comprehensive tests/security/build/runtime gate, then record final D0 gate evidence.
