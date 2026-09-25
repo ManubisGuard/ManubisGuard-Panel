@@ -451,6 +451,12 @@ def migrate_manubisguard_staging(
         )
         pre_upgrade_counts_override = _durable_counts(pre_upgrade)
 
+    # Validate the fully migrated/bridged staging database before any cutover.
+    # This is intentionally after Alembic so the validator checks the current
+    # application head and all target-model tables.
+    validation = validate_migrated_database(staging.staging_url)
+    transformations = tuple(pre_transformations)
+
     post_upgrade = validation.snapshot
     if post_upgrade is None:
         raise MigrationSafetyError("Validation produced no schema snapshot.")
