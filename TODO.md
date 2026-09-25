@@ -448,3 +448,9 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Restore action runs the existing isolated staging restore endpoint; it does not modify the production database. Production restore remains an explicit separate action from Backup History.
 - [x] Upload response is now captured instead of discarded, and the UI reports that the archive is ready to restore.
 - [x] Frontend production Vite/PWA build passed; deployed commit `436c7efaf7ac0b6a2b18da5c5efeaac9e6c76f7b`; after normal startup delay, Panel and TimescaleDB are healthy on the test server.
+
+
+## Restore Alembic event-loop bug — 2026-09-25
+- [x] Fixed staging Alembic execution when Restore is triggered from the async API: `command.upgrade()` now runs in a worker thread, so Alembic's internal `asyncio.run()` never nests inside the request event loop.
+- [x] Reused the migration async utility pattern for synchronous Alembic execution; production DB remains protected by the existing staging-target assertions.
+- [ ] Full staging Restore E2E regression after deployment pending.
