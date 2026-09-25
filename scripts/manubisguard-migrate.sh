@@ -495,6 +495,17 @@ start_temp_mariadb() {
     sleep 2
     [ "$i" -eq 90 ] && die "Temporary MariaDB did not become ready."
   done
+  # MariaDB's Docker entrypoint briefly runs a temporary server before it
+  # switches to the final server. Wait for that transition to finish so the
+  # logical import cannot race the shutdown of the bootstrap server.
+  sleep 5
+  for i in $(seq 1 30); do
+    if docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -e "SELECT 1" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+    [ "$i" -eq 30 ] && die "MariaDB final server did not become ready after bootstrap transition."
+  done
   local sql_member
   sql_member="$(unzip -Z1 "$PANEL_BACKUP" | grep -E '(^|/)(db_backup|database|backup)[^/]*\.sql$' | head -n1 || true)"
   [ -n "$sql_member" ] || sql_member="$(unzip -Z1 "$PANEL_BACKUP" | grep -E '\.sql$' | head -n1 || true)"
