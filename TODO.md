@@ -334,18 +334,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Lifecycle regression PASS: `22 passed in 2.25s`; Ruff and `git diff --check` PASS.
 - [ ] Real ACME issuance and real Cloudflare DNS changes remain operational actions; tests use mocks/disposable data only.
 
-## D3 — Node Integration checkpoint — 2026-09-25
-- [ ] Certificate deployment to Node is not marked complete yet: the installed `PasarGuardNodeBridge` exposes start/stop, maintenance, routing and user-sync APIs, but no certificate/file upload primitive. The node runtime expects certificate material/files on the node filesystem; the current panel cannot safely copy a private key to a remote node through an existing supported API.
-- [ ] TLS inbound integration therefore remains pending a supported certificate-delivery mechanism; do not persist private keys into shared `core_configs` as an improvised workaround.
-- [ ] Server Address `additional` / `alias` / `both` generation remains pending because the repository does not define the exact alias semantics or the target subscription/inbound propagation contract; no speculative behavior is being introduced.
-- [x] Upstream architecture check completed: current Node Bridge maintenance API has no certificate/file-transfer method, and upstream node deployment documents node-local certificate paths. citeturn0search0turn0search1
-- [x] D3 blocker is recorded explicitly rather than falsely claiming end-to-end deployment is complete.
-
 ## D3 — Certificate/TLS architecture verification — 2026-09-25
 - [x] Verified existing Xray TLS parser supports `serveOnNode` as an explicit node-side certificate mode; this is an existing upstream contract, not a new invented field.
 - [x] Verified Node Bridge still has no generic certificate/file upload RPC, while official Node configuration uses node-local certificate paths and Xray TLS accepts either file paths or direct certificate content.
 - [x] Verified upstream panel history documents the `serveOnNode` handling in Xray certificate processing.
-- [ ] Managed certificate deployment remains incomplete until the exact node-side certificate materialization contract is verified in the deployed Node version; no private-key transfer or shared-core mutation has been introduced speculatively.
 - [x] Exact deployed Node contract is now verified: installed `PasarGuardNodeBridge` is v0.9.1, exposes `start(config=...)`, and its REST maintenance surface uses `POST /node/core_update` without a generic certificate/file upload API.
 - [x] The existing node start path transports complete Xray JSON, so managed TLS certificate/key material can be delivered as inline `certificate`/`key` content without a speculative file-transfer API.
 - [x] Current Xray `TLSCertConfig` accepts `certificateFile`/`keyFile` or inline `certificate`/`key`; Rebecca v1.2.0 independently confirms the managed-certificate/SNI architecture used as reference.
@@ -354,8 +346,17 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Added durable deployment metadata (`certificate_deployed_at`, `deployment_error`) and a protected manual deployment API for managed certificates.
 - [x] Issue/import paths now trigger node deployment when a managed domain is associated with a node; deployment failures are recorded separately from certificate issuance state.
 - [x] Added failure rollback: when managed TLS runtime application fails, the previous core configuration is re-applied; deployment remains marked failed if rollback succeeds.
-- [x] Renewal scheduler now retries pending certificate deployment on connected nodes without transferring private keys through NATS.
-- [x] Regression PASS: `48 passed in 2.21s`; Ruff and `git diff --check` PASS.
+- [x] Renewal scheduler retries pending and failed deployment states on connected nodes without transferring private keys through NATS.
 - [x] Added focused API deployment and Node start failure→rollback regression tests; protected orchestration does not require a live certificate or production Node.
-- [x] Regression PASS: `50 passed in 2.56s`; Ruff PASS after automatic import cleanup; `git diff --check` PASS.
-- [ ] Next D4 operation: complete Domains & SSL UI lifecycle controls/status presentation without exposing certificate private keys.
+- [x] Regression PASS: `50 passed in 2.56s`; Ruff and `git diff --check` PASS.
+
+- [ ] Server Address `additional` / `alias` / `both` generation remains pending because the repository still lacks an authoritative runtime/subscription contract for those semantics; no speculative propagation is enabled.
+
+## D4 — Domains & SSL UI lifecycle — in progress 2026-09-25
+- [x] Added Issue/Renew controls for Let's Encrypt and Cloudflare-managed certificates.
+- [x] Added Existing Certificate installation UI with local-only private-key form state; private keys are cleared from the UI after successful submission and are never returned by the API.
+- [x] Added manual Deploy/Re-deploy controls and persistent deployment status/error/timestamp presentation.
+- [x] Added expiration, days-remaining, renewal-attempts and next-renewal visibility plus explicit Expired status.
+- [x] Added frontend lifecycle service outside the generated API client so future `gen:api` runs do not overwrite custom certificate hooks.
+- [x] Frontend validation PASS: TypeScript `--noEmit` and Vite production build PASS; Vite emitted only existing bundle-size/browser-compatibility warnings.
+- [ ] Next D4 operation: wire address-mode semantics only after an authoritative generator/contract is identified; then perform final UI/backend regression.

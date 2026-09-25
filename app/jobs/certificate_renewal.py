@@ -28,7 +28,7 @@ async def scheduled_certificate_renewal() -> None:
                 for domain in domains
                 if domain.node_id is not None
                 and domain.status in ("active", "expiring")
-                and domain.deployment_status == "not_deployed"
+                and domain.deployment_status in ("not_deployed", "failed")
                 and service.store.exists(domain.domain)
             }
             if pending_node_ids:
