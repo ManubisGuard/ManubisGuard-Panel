@@ -306,3 +306,12 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Full `pytest -q` was started against disposable/local SQLite and migrations completed successfully; execution reached tests but was terminated after extended CPU-bound progress without a final suite result.
 - [x] This does not invalidate the green feature-scoped gates: `run-local-tests.sh` = 87 passed, Backup/restore/security = 24 passed, Domain/SSL baseline = 51 passed.
 - [x] No production database or secret was used by the full-suite attempt.
+
+## D1-D5 Domains & SSL Completion Plan — 2026-09-25
+- [ ] D1 — Domain Management Foundation: normalize/validate domain records, explicit Domain→Node associations, multi-domain-per-node persistence/API, permission/RBAC coverage, migration safety.
+- [ ] D2 — Certificate Lifecycle: Let's Encrypt, Cloudflare DNS-01, Existing certificates; durable certificate metadata/store; request/install/renew/expire state transitions; renewal scheduler with pre-expiry window, locking/idempotency, failure recording and retry safety.
+- [ ] D3 — Node Integration: certificate deployment to Node, verification/rollback, Managed SSL + Manual TLS inbound integration, and deterministic Server Address generation for `additional`, `alias`, and `both`.
+- [ ] D4 — Dashboard & E2E: complete Settings → Domains & SSL workflows for CRUD/association, certificate lifecycle, health/inspection, deployment/TLS inbound and server-address operations; frontend/backend permission and error-state coverage.
+- [ ] D5 — Final Gate: regression/unit/integration/E2E tests, migration dry-run on disposable DB, frontend production build, security audit, `git diff --check`, clean Docker smoke test, GitHub verification, and final TODO checkpoint.
+- [ ] Rule: after every successful phase operation/test milestone, update this TODO.md, commit, push, and verify the branch before continuing.
+- [ ] Rule: do not execute destructive production restore/cutover or real certificate issuance/deployment against production without explicit operational authorization.
