@@ -50,6 +50,7 @@ MARIADB_CONTAINER=""
 MARIADB_VOLUME=""
 MARIADB_PASSWORD=""
 MARIADB_SOURCE_URL=""
+MARIADB_PORT=""
 TEMP_VOLUME=""
 TEMP_PORT=""
 STAGING_DB=""
@@ -482,12 +483,11 @@ start_temp_mariadb() {
   MARIADB_CONTAINER="manubisguard-migration-mariadb-$ID"
   MARIADB_VOLUME="manubisguard-migration-mariadb-$ID"
   MARIADB_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-  local network
-  network="$(docker inspect -f '{{range $name, $value := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$PANEL_CONTAINER" | head -n1)"
-  [ -n "$network" ] || die "Could not determine the Panel Docker network for MariaDB bridge."
-  log "Starting isolated MariaDB 12.3.3 source runtime..."
+  MARIADB_PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+  [ -n "$MARIADB_PORT" ] || die "Could not allocate an isolated MariaDB host port."
+  log "Starting isolated MariaDB 12.3.3 source runtime on localhost:$MARIADB_PORT..."
   docker volume create --label "manubisguard.migration=$ID" "$MARIADB_VOLUME" >/dev/null
-  docker run -d --name "$MARIADB_CONTAINER" --restart=no --label "manubisguard.migration=$ID" --network "$network" -e MARIADB_ROOT_PASSWORD="$MARIADB_PASSWORD" -e MARIADB_DATABASE=pasarguard -v "$MARIADB_VOLUME:/var/lib/mysql" mariadb:12.3.3 >/dev/null
+  docker run -d --name "$MARIADB_CONTAINER" --restart=no --label "manubisguard.migration=$ID" --network host -e MARIADB_ROOT_PASSWORD="$MARIADB_PASSWORD" -e MARIADB_DATABASE=pasarguard -v "$MARIADB_VOLUME:/var/lib/mysql" mariadb:12.3.3 --port="$MARIADB_PORT" >/dev/null
   local i
   for i in $(seq 1 90); do
     if docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -e "SELECT 1" >/dev/null 2>&1; then break; fi
@@ -505,14 +505,11 @@ start_temp_mariadb() {
     die "MariaDB source dump import failed. See $WORKDIR/mariadb-import.error"
   fi
   docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -e "CREATE USER IF NOT EXISTS 'manubisguard_bridge'@'%' IDENTIFIED BY '$MARIADB_PASSWORD'; GRANT ALL PRIVILEGES ON *.* TO 'manubisguard_bridge'@'%'; FLUSH PRIVILEGES;"
-  local mariadb_ip
-  mariadb_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$MARIADB_CONTAINER" | head -n1)"
-  [ -n "$mariadb_ip" ] || die "Could not determine isolated MariaDB network address."
-  MARIADB_SOURCE_URL="$(python3 - "$MARIADB_PASSWORD" "$mariadb_ip" <<'PY'
+  MARIADB_SOURCE_URL="$(python3 - "$MARIADB_PASSWORD" "$MARIADB_PORT" <<'PY'
 import sys
 from urllib.parse import quote
-password, host = sys.argv[1:]
-print("mysql+asyncmy://manubisguard_bridge:%s@%s:3306/pasarguard" % (quote(password, safe=""), host))
+password, port = sys.argv[1:]
+print("mysql+asyncmy://manubisguard_bridge:%s@127.0.0.1:%s/pasarguard" % (quote(password, safe=""), port))
 PY
 )"
   log "MariaDB source runtime is ready; credentials remain isolated to this migration process."
