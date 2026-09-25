@@ -335,7 +335,7 @@ def _durable_counts(snapshot) -> dict[str, int]:
     }
 
 
-def migrate_pasarguard_staging(
+def migrate_manubisguard_staging(
     backup_path: str | Path,
     staging: StagingDatabase,
     *,

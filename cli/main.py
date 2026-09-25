@@ -5,9 +5,10 @@ from pathlib import Path
 
 import typer
 
+from app.migration.engine import plan_manubisguard_migration
 from app.migration.runner import (
     analyze_backup,
-    migrate_pasarguard_staging,
+    migrate_manubisguard_staging,
     print_json,
     resolve_staging_timescale_version,
     validation_jsonable,
@@ -34,7 +35,7 @@ def _env_or(value: str | None, name: str) -> str | None:
 @app.command("migrate-check")
 def cmd_migrate_check(backup: Path) -> None:
     """Inspect a legacy backup and print the non-destructive migration plan."""
-    plan = __import__("app.migration.engine", fromlist=["plan_pasarguard_migration"]).plan_pasarguard_migration(backup)
+    plan = plan_manubisguard_migration(backup)
     detection = plan.preflight.detection
     console.print(f"[bold]Source:[/bold] {detection.source_product} ({detection.confidence})")
     console.print(f"[bold]Format:[/bold] {detection.format}")
@@ -62,7 +63,7 @@ def cmd_migrate_inspect(
     source_timescale: str | None = typer.Option(None, "--source-timescale"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Analyze a PasarGuard backup without touching any database."""
+    """Analyze a ManubisGuard backup without touching any database."""
     source_timescale = _env_or(source_timescale, "MANUBISGUARD_MIGRATION_SOURCE_TIMESCALE")
     result = analyze_backup(backup, source_timescale_version=source_timescale)
     payload = {
@@ -118,7 +119,7 @@ def cmd_migrate_staging(
     timeout: int = typer.Option(900, "--timeout", min=60, max=7200),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Restore a PasarGuard backup into isolated staging, upgrade, normalize and validate."""
+    """Restore a ManubisGuard backup into isolated staging, upgrade, normalize and validate."""
     staging_url = _env_or(staging_url, "MANUBISGUARD_MIGRATION_STAGING_URL")
     production_url = _env_or(production_url, "MANUBISGUARD_MIGRATION_PRODUCTION_URL")
     source_timescale = _env_or(source_timescale, "MANUBISGUARD_MIGRATION_SOURCE_TIMESCALE")
@@ -134,7 +135,7 @@ def cmd_migrate_staging(
         staging_url=staging_url,
         _production_url=production_url,
     )
-    result = migrate_pasarguard_staging(
+    result = migrate_manubisguard_staging(
         backup,
         staging,
         production_url=production_url,

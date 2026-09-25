@@ -15,7 +15,7 @@ from app.migration.runner import (
     BackupAnalysis,
     MigrationRunResult,
     analyze_backup,
-    migrate_pasarguard_staging,
+    migrate_manubisguard_staging,
     resolve_staging_timescale_version,
 )
 from app.migration.staging import (
@@ -45,7 +45,7 @@ __all__ = [
     "analyze_backup",
     "detect_backup",
     "drop_staging_database",
-    "migrate_pasarguard_staging",
+    "migrate_manubisguard_staging",
     "inspect_database",
     "restore_backup_into_staging",
     "upgrade_staging_database",

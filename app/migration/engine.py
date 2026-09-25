@@ -14,7 +14,7 @@ class MigrationPlan:
     actions: tuple[str, ...]
 
 
-def plan_pasarguard_migration(path: str | Path) -> MigrationPlan:
+def plan_manubisguard_migration(path: str | Path) -> MigrationPlan:
     """Build a non-destructive migration plan for a PasarGuard backup.
 
     The executable migration path lives in runner.py and the host-side
