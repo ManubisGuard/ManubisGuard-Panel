@@ -38,6 +38,8 @@ After installation:
   manubisguard restart
   manubisguard logs
   manubisguard update
+  manubisguard restore /path/to/backup.zip
+  manubisguard restore-check /path/to/backup.zip
 
 Defaults:
   database: timescaledb
@@ -53,6 +55,10 @@ Options:
   --yes|-y      non-interactive safe defaults
   --override    replace the checked-out source with the selected branch;
                 persistent database credentials/data are preserved
+
+Restore:
+  restore       restore a backup with production cutover (--apply)
+  restore-check validate a backup in staging only (no production changes)
 EOF
 }
 
@@ -359,6 +365,20 @@ if [ -f "$INSTALLER" ]; then
     update)
       exec "$INSTALLER" install --yes --override
       ;;
+    restore)
+      [ $# -ge 2 ] || { echo "Usage: manubisguard restore /path/to/backup.zip" >&2; exit 2; }
+      BACKUP_PATH="$2"
+      [ -f "$BACKUP_PATH" ] || { echo "Backup not found: $BACKUP_PATH" >&2; exit 2; }
+      shift 2
+      exec /usr/local/bin/manubisguard-migrate "$BACKUP_PATH" --apply "$@"
+      ;;
+    restore-check)
+      [ $# -ge 2 ] || { echo "Usage: manubisguard restore-check /path/to/backup.zip" >&2; exit 2; }
+      BACKUP_PATH="$2"
+      [ -f "$BACKUP_PATH" ] || { echo "Backup not found: $BACKUP_PATH" >&2; exit 2; }
+      shift 2
+      exec /usr/local/bin/manubisguard-migrate --check "$BACKUP_PATH" "$@"
+      ;;
     install|""|-h|--help)
       exec "$INSTALLER" "${@:-install}"
       ;;
@@ -402,7 +422,7 @@ show_result() {
   if [ "$SSL_MODE" = "none" ]; then echo "Panel:       http://SERVER-IP:8000"; elif [ "$SSL_MODE" = "domain" ]; then echo "Panel:       https://${SSL_DOMAIN}:8000"; else echo "Panel:       https://${SERVER_IP:-SERVER-IP}:8000"; fi
   echo "Username:    admin"
   echo "Password:    $admin_password"
-  echo "CLI:         manubisguard {status|start|stop|restart|logs|update}"
+  echo "CLI:         manubisguard {status|start|stop|restart|logs|update|restore|restore-check}"
   docker compose -f docker-compose.yml ps
   echo "=============================================="
 }
