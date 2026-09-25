@@ -428,3 +428,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] Test-server deployment of this milestone remains pending because the Docker image export did not complete; the running test deployment was not modified.
 - [ ] Real ACME issuance remains intentionally unexecuted; certificate-job UX was validated without contacting ACME/Cloudflare.
 - [ ] Cloudflare UI is intentionally deferred to a later version; backend/infrastructure remains preserved.
+
+
+## Backup & Restore real E2E checkpoint — 2026-09-25
+- [x] Reproduced the reported Backup issue on the deployed server: the panel-generated backup was physically created at `/var/lib/manubisguard/backups/manubisguard-20260925T060417Z.zip` (13,928 bytes) and the DB record was `created`.
+- [x] Root cause for “Download” not working: the frontend button was permanently disabled because no backend download route existed. Added an authenticated ZIP download endpoint with backup-root path confinement and enabled the UI button.
+- [x] Root cause for restore API failure with a panel-generated backup: migration detection treated the native `product=manubisguard` manifest as unknown and the staging pipeline only accepted PasarGuard sources. Native ManubisGuard archives are now recognized from `manifest.json` plus their declared `db.sql`, and staging skips legacy PasarGuard-only normalization for native backups.
+- [x] Fixed `BackupSchedule.updated_at` dataclass default: `MappedAsDataclass` requires `default_factory`; the previous `default=lambda` caused recurring scheduler DB errors (`expected datetime/date, got function`).
+- [x] Regression PASS: migration detector/preflight/staging/backup-restore + Settings tests: 33 passed in 1.53s; `git diff --check` PASS.
+- [x] Real generated backup archive inspected: ZIP CRC/archive structure is readable and contains `manifest.json` + `db.sql`; SQL contains PostgreSQL 16 dump metadata, TimescaleDB objects and current ManubisGuard tables.
+- [x] Non-destructive staging restore is the required next runtime gate; production restore/cutover is not executed in this checkpoint.
+- [ ] Deploy this checkpoint, then run real staging restore against the existing generated backup and verify the staging database is dropped afterward with production DB unchanged.

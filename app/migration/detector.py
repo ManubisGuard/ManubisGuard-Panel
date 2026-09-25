@@ -47,6 +47,14 @@ class BackupDetection:
     def is_pasarguard(self) -> bool:
         return self.source_product == "pasarguard"
 
+    @property
+    def is_manubisguard(self) -> bool:
+        return self.source_product == "manubisguard"
+
+    @property
+    def is_supported_source(self) -> bool:
+        return self.is_pasarguard or self.is_manubisguard
+
 
 def _detect_text(path: Path, text: str) -> BackupDetection:
     sample = text[:5_000_000].lower()
@@ -158,7 +166,27 @@ def detect_backup(path: str | Path) -> BackupDetection:
                         payload = json.load(fh)
                 except OSError, json.JSONDecodeError, UnicodeDecodeError, zipfile.BadZipFile:
                     payload = {"files": archive.namelist()}
-                result = _detect_json(p, payload)
+
+                manifest_product = str(payload.get("product", "")).strip().lower()
+                if manifest_product == "manubisguard":
+                    dump_name = str(payload.get("dump", "db.sql"))
+                    try:
+                        raw = archive.read(dump_name)[:5_000_000]
+                        nested = _detect_text(p, raw.decode("utf-8", errors="replace"))
+                        result = BackupDetection(
+                            path=str(p),
+                            format="zip",
+                            source_product="manubisguard",
+                            confidence="high",
+                            evidence=("manifest product: manubisguard", *nested.evidence),
+                            schema_revision=nested.schema_revision,
+                            source_postgres_major=nested.source_postgres_major,
+                            warnings=nested.warnings,
+                        )
+                    except (KeyError, OSError, RuntimeError, UnicodeDecodeError):
+                        result = _detect_json(p, payload)
+                else:
+                    result = _detect_json(p, payload)
             else:
                 result = _detect_text(p, names)
                 for member in archive.infolist():

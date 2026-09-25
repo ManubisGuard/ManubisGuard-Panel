@@ -1047,5 +1047,5 @@ class BackupSchedule(Base, CreatedAtUTCMixin):
     retention_count: Mapped[int] = mapped_column(default=7, server_default="7")
     last_run_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     updated_at: Mapped[dt] = mapped_column(
-        DateTime(timezone=True), default=lambda: dt.now(UTC), onupdate=lambda: dt.now(UTC)
+        DateTime(timezone=True), default_factory=lambda: dt.now(UTC), onupdate=lambda: dt.now(UTC)
     )

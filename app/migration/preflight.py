@@ -103,9 +103,9 @@ def preflight_backup(path: str | Path) -> PreflightResult:
             )
 
     errors: list[str] = []
-    if not detection.is_pasarguard:
+    if not detection.is_supported_source:
         errors.append(
-            "Backup source could not be positively identified as PasarGuard. "
+            "Backup source could not be positively identified as a supported ManubisGuard/PasarGuard backup. "
             "No restore operation is permitted."
         )
 

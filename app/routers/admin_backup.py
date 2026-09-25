@@ -6,6 +6,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 
 from app.db import AsyncSession, get_db
@@ -232,6 +233,22 @@ async def get_backup_history(
 ):
     items, total = await list_backups(db)
     return BackupListResponse(items=items, total=total)
+
+
+@router.get("/download/{backup_id}")
+async def download_backup(
+    backup_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("settings", "read")),
+):
+    backup = (await db.execute(select(Backup).where(Backup.id == backup_id))).scalar_one_or_none()
+    if backup is None:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    path = Path(backup.backup_path).resolve()
+    root = UPLOAD_DIR.resolve()
+    if root not in path.parents or not path.is_file():
+        raise HTTPException(status_code=404, detail="Backup file not found")
+    return FileResponse(path, media_type="application/zip", filename=backup.filename)
 
 
 @router.delete("/{backup_id}", status_code=status.HTTP_204_NO_CONTENT)

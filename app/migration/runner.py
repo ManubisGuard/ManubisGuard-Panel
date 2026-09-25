@@ -403,8 +403,11 @@ def migrate_manubisguard_staging(
 
     pre_upgrade = inspect_database(staging.staging_url)
 
-    adapter = PasarGuardAdapter()
-    pre_transformations = adapter.prepare(staging.staging_url)
+    pre_transformations: tuple[str, ...] = ()
+    post_transformations: tuple[str, ...] = ()
+    if analysis.detection.is_pasarguard:
+        adapter = PasarGuardAdapter()
+        pre_transformations = adapter.prepare(staging.staging_url)
 
     upgrade_staging_database(
         staging,
@@ -413,7 +416,8 @@ def migrate_manubisguard_staging(
         allow_external_staging=allow_external_staging,
     )
 
-    post_transformations = adapter.apply(staging.staging_url)
+    if analysis.detection.is_pasarguard:
+        post_transformations = adapter.apply(staging.staging_url)
     transformations = (*pre_transformations, *post_transformations)
     validation = validate_migrated_database(staging.staging_url)
     post_upgrade = validation.snapshot

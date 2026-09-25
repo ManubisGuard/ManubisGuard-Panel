@@ -510,8 +510,10 @@ def restore_backup_into_staging(
     try:
         if detection.format == "pg_dump_custom":
             detection = _inspect_pg_dump_custom(source, min(timeout, 120))
-        if not detection.is_pasarguard or detection.confidence not in {"high", "medium"}:
-            raise MigrationSafetyError("Backup is not positively identified as PasarGuard.")
+        if not detection.is_supported_source or detection.confidence not in {"high", "medium"}:
+            raise MigrationSafetyError(
+                "Backup is not positively identified as a supported ManubisGuard/PasarGuard backup."
+            )
         if detection.format in {"sql", "sql.gz"}:
             _assert_sql_dump_complete(source)
 
