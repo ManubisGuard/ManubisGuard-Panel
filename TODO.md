@@ -437,5 +437,7 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Fixed `BackupSchedule.updated_at` dataclass default: `MappedAsDataclass` requires `default_factory`; the previous `default=lambda` caused recurring scheduler DB errors (`expected datetime/date, got function`).
 - [x] Regression PASS: migration detector/preflight/staging/backup-restore + Settings tests: 33 passed in 1.53s; `git diff --check` PASS.
 - [x] Real generated backup archive inspected: ZIP CRC/archive structure is readable and contains `manifest.json` + `db.sql`; SQL contains PostgreSQL 16 dump metadata, TimescaleDB objects and current ManubisGuard tables.
-- [x] Non-destructive staging restore is the required next runtime gate; production restore/cutover is not executed in this checkpoint.
-- [ ] Deploy this checkpoint, then run real staging restore against the existing generated backup and verify the staging database is dropped afterward with production DB unchanged.
+- [x] Non-destructive staging restore gate completed; production restore/cutover is intentionally not executed in this checkpoint.
+- [x] Deployed commit `74800874` to the test server; Panel and TimescaleDB are healthy and the external `/health` endpoint returns `{"status":"ok"}`.
+- [x] Real staging restore PASS against the existing panel-generated ZIP: staging `manubisguard_migration_3225b66550b4` restored, Alembic/validation completed with `valid=true`, durable pre/post counts matched, and the staging database was dropped afterward.
+- [x] Production database was not used as the restore target and no production cutover was executed.
