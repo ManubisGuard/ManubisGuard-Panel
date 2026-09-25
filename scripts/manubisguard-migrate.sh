@@ -1162,6 +1162,27 @@ main() {
   local uses_ts stage_version
   uses_ts="$(json_get "$(cat "$WORKDIR/analysis.json")" ".uses_timescaledb")"
   if [ "$PROD_HAS_TIMESCALE" = true ]; then
+    local is_mariadb
+    is_mariadb="$(json_get "$(cat "$WORKDIR/analysis.json")" ".detection.is_mariadb")"
+    if [ "$is_mariadb" = "True" ] || [ "$is_mariadb" = "true" ]; then
+      SOURCE_PG_MAJOR="$PG_MAJOR"
+      stage_version="$PROD_TS_VERSION"
+      log "MariaDB source has no PostgreSQL/Timescale compatibility runtime; using an isolated destination-compatible PostgreSQL/Timescale staging runtime."
+      start_temp_timescale "$stage_version"
+      create_staging_database
+      start_temp_mariadb
+    elif portable_bridge_required; then
+      stage_version="$SOURCE_TS_VERSION"
+      log "Source TimescaleDB $SOURCE_TS_VERSION is newer than destination $PROD_TS_VERSION; enabling Portable Timescale Bridge."
+    else
+      stage_version="$(json_get "$(cat "$WORKDIR/analysis.json")" ".staging_timescale_version")"
+      stage_version="${stage_version:-$PROD_TS_VERSION}"
+    fi
+    [ -n "$stage_version" ] || die "No compatible TimescaleDB staging version was selected."
+    if [ "$is_mariadb" != "True" ] && [ "$is_mariadb" != "true" ]; then
+      start_temp_timescale "$stage_version"
+      create_staging_database
+    fi
     if portable_bridge_required; then
       stage_version="$SOURCE_TS_VERSION"
       log "Source TimescaleDB $SOURCE_TS_VERSION is newer than destination $PROD_TS_VERSION; enabling Portable Timescale Bridge."
