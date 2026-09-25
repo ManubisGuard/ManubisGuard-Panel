@@ -734,7 +734,7 @@ timescale_version_gt() {
 
 portable_bridge_required() {
   [ "$PROD_HAS_TIMESCALE" = true ] || return 1
-  if [ "$(grep -q "detected MariaDB/MySQL logical dump" "$WORKDIR/analysis.json" && echo true || echo false)" = "True" ] || [ "$(json_get "$(cat "$WORKDIR/analysis.json")" ".detection.is_mariadb")" = "true" ]; then return 1; fi
+  if grep -q "detected MariaDB/MySQL logical dump" "$output"; then
   [ -n "$SOURCE_TS_VERSION" ] || die "Portable Timescale bridge requires an exact source TimescaleDB version."
   [ -n "$PROD_TS_VERSION" ] || die "Portable Timescale bridge requires the destination TimescaleDB version."
   timescale_version_gt "$SOURCE_TS_VERSION" "$PROD_TS_VERSION"
@@ -1157,7 +1157,7 @@ main() {
   uses_ts="$(json_get "$(cat "$WORKDIR/analysis.json")" ".uses_timescaledb")"
   if [ "$PROD_HAS_TIMESCALE" = true ]; then
     local is_mariadb
-    is_mariadb="$(json_get "$(cat "$WORKDIR/analysis.json")" ".detection.is_mariadb")"
+    is_mariadb="$(grep -q "detected MariaDB/MySQL logical dump" "$WORKDIR/analysis.json" && echo true || echo false)"
     if [ "$is_mariadb" = "True" ] || [ "$is_mariadb" = "true" ]; then
       SOURCE_PG_MAJOR="$PG_MAJOR"
       stage_version="$PROD_TS_VERSION"
