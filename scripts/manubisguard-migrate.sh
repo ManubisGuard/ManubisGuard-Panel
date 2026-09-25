@@ -694,15 +694,7 @@ validate_after_timescale_upgrade() {
 }
 
 timescale_version_gt() {
-  docker exec "$PANEL_CONTAINER" python - "$1" "$2" <<'PY'
-import sys
-from app.migration.compatibility import version_tuple
-left = version_tuple(sys.argv[1])
-right = version_tuple(sys.argv[2])
-if left is None or right is None:
-    raise SystemExit(2)
-raise SystemExit(0 if left > right else 1)
-PY
+  docker exec "$PANEL_CONTAINER" python -c 'import sys; from app.migration.compatibility import version_tuple; left=version_tuple(sys.argv[1]); right=version_tuple(sys.argv[2]); raise SystemExit(2 if left is None or right is None else (0 if left > right else 1))' "$1" "$2"
 }
 
 portable_bridge_required() {
