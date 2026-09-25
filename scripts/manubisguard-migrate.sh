@@ -450,7 +450,7 @@ copy_backup_to_workspace() {
 analyze_backup() {
   log "Analyzing backup without touching production..."
   local output
-  if ! output="$(docker exec "$PANEL_CONTAINER"       pasarguard-cli migrate-inspect "$PANEL_BACKUP"       --live-timescale "$PROD_TS_VERSION"       ${MANUBISGUARD_SOURCE_TIMESCALE:+--source-timescale "$MANUBISGUARD_SOURCE_TIMESCALE"}       --json 2>&1)"; then
+  if ! output="$(docker exec "$PANEL_CONTAINER"       manubisguard-cli migrate-inspect "$PANEL_BACKUP"       --live-timescale "$PROD_TS_VERSION"       ${MANUBISGUARD_SOURCE_TIMESCALE:+--source-timescale "$MANUBISGUARD_SOURCE_TIMESCALE"}       --json 2>&1)"; then
     printf '%s\n' "$output" >"$WORKDIR/analysis.error"
     die "Backup analysis was blocked. See $WORKDIR/analysis.error"
   fi
@@ -571,7 +571,7 @@ run_staging() {
   log "Restoring -> staging -> Alembic HEAD -> legacy adapter -> validation..."
   local output
   local stderr_file="$WORKDIR/staging.stderr"
-  if output="$(docker exec       -e MANUBISGUARD_MIGRATION_STAGING_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER"       pasarguard-cli migrate-staging "$PANEL_BACKUP"       --external-staging       ${MANUBISGUARD_SOURCE_TIMESCALE:+--source-timescale "$MANUBISGUARD_SOURCE_TIMESCALE"}       --json 2>"$stderr_file")"; then
+  if output="$(docker exec       -e MANUBISGUARD_MIGRATION_STAGING_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER"       manubisguard-cli migrate-staging "$PANEL_BACKUP"       --external-staging       ${MANUBISGUARD_SOURCE_TIMESCALE:+--source-timescale "$MANUBISGUARD_SOURCE_TIMESCALE"}       --json 2>"$stderr_file")"; then
     local json_output
     if ! json_output="$(extract_json_object "$output")"; then
       printf '%s\n' "$output" >"$WORKDIR/staging.error"
@@ -682,7 +682,7 @@ upgrade_temp_timescale_to_target() {
 
 validate_after_timescale_upgrade() {
   local output
-  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" pasarguard-cli migrate-validate --external-staging --json 2>&1)"; then
+  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" manubisguard-cli migrate-validate --external-staging --json 2>&1)"; then
     printf '%s\n' "$output" >"$WORKDIR/staging-post-upgrade.error"
     printf '%s\n' "$output" >&2
     die "Validation failed after TimescaleDB version alignment."
@@ -914,7 +914,7 @@ for raw in sys.stdin:
 validate_cutover() {
   log "Validating cutover database before stopping the live panel..."
   local output
-  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$CUTOVER_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" pasarguard-cli migrate-validate --json 2>&1)"; then
+  if ! output="$(docker exec       -e MANUBISGUARD_MIGRATION_DATABASE_URL="$CUTOVER_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER" manubisguard-cli migrate-validate --json 2>&1)"; then
     printf '%s\n' "$output" >"$WORKDIR/cutover-validation.error"
     printf '%s\n' "$output" >&2
     die "Cutover validation command failed. Production database is unchanged."
