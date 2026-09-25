@@ -71,7 +71,7 @@ async def issue_managed_certificate(
 
         raise HTTPException(status_code=404, detail="Managed domain not found")
     service = ManagedCertificateService()
-    domain = await service.renew_if_due(ManagedDomain.model_validate(target), force=request.force)
+    domain = await service.renew_if_due(ManagedDomain.model_validate(target), force=True)
     if primary and primary.get("id") == request.domain_id:
         general["primary_domain"] = domain.model_dump(mode="json")
     else:

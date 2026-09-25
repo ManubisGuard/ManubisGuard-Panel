@@ -106,6 +106,8 @@ class ManagedCertificateService:
     async def renew_if_due(self, domain: ManagedDomain, *, force: bool = False) -> ManagedDomain:
         expires_at = _parse(domain.certificate_expires_at)
         if domain.certificate_method == "existing":
+            if expires_at and expires_at <= _now():
+                return domain.model_copy(update={"status": "expired"})
             return domain.model_copy(
                 update={
                     "status": "expiring"
@@ -113,7 +115,7 @@ class ManagedCertificateService:
                     else domain.status
                 }
             )
-        due = force or expires_at is None or expires_at <= _now() + timedelta(days=RENEWAL_WINDOW_DAYS)
+        due = force or (expires_at is not None and expires_at <= _now() + timedelta(days=RENEWAL_WINDOW_DAYS))
         if not domain.auto_renew and not force:
             return domain
         if not due:

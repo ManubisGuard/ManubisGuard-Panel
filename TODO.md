@@ -324,3 +324,12 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Domain/certificate regression subset PASS: `40 passed in 11.01s`.
 - [x] `git diff --check` and Python compilation PASS.
 - [x] D1 formatting correction and lint re-run PASS; lifecycle regression re-run remains green after formatting.
+
+## D2 — Certificate Lifecycle — completed 2026-09-25
+- [x] Added durable lifecycle metadata for issue/renew/expire/failure state transitions on managed domains.
+- [x] Added Existing-certificate installation path through the existing certificate validator/store; invalid pairs are rejected before persistence.
+- [x] Added Let's Encrypt / Cloudflare issuance dispatch through the existing ACME engine; scheduler never performs initial issuance for a domain that has no recorded certificate expiration.
+- [x] Added renewal scheduler job (`managed_certificate_renewal_tick`) with 15-minute cadence, single active instance, coalescing and the existing scheduler-role gate.
+- [x] Added renewal locking/idempotency and bounded retry metadata; existing certificates are marked expired when their recorded expiration is past.
+- [x] Lifecycle regression PASS: `22 passed in 2.25s`; Ruff and `git diff --check` PASS.
+- [ ] Real ACME issuance and real Cloudflare DNS changes remain operational actions; tests use mocks/disposable data only.

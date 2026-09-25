@@ -86,3 +86,40 @@ def test_managed_domain_lifecycle_metadata_defaults():
     assert item.deployment_status == "not_deployed"
     assert item.certificate_error is None
     assert item.next_renewal_at is None
+
+
+@pytest.mark.asyncio
+async def test_certificate_service_does_not_initially_issue_without_expiry(monkeypatch):
+    from app.core.managed_certificates import ManagedCertificateService
+
+    service = ManagedCertificateService()
+    called = False
+
+    async def fake_issue(domain):
+        nonlocal called
+        called = True
+        return domain
+
+    monkeypatch.setattr(service, "issue", fake_issue)
+    domain = ManagedDomain(id="d1", domain="edge.example.com", auto_renew=True)
+    updated = await service.renew_if_due(domain)
+    assert updated == domain
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_certificate_service_marks_expired_existing_certificate():
+    from datetime import UTC, datetime, timedelta
+
+    from app.core.managed_certificates import ManagedCertificateService
+
+    service = ManagedCertificateService()
+    domain = ManagedDomain(
+        id="d1",
+        domain="edge.example.com",
+        certificate_method="existing",
+        certificate_expires_at=(datetime.now(UTC) - timedelta(days=1)).isoformat(),
+        status="active",
+    )
+    updated = await service.renew_if_due(domain)
+    assert updated.status == "expired"
