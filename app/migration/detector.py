@@ -52,6 +52,10 @@ class BackupDetection:
         return self.source_product == "manubisguard"
 
     @property
+    def is_mariadb(self) -> bool:
+        return any("mariadb" in item.lower() or "mysql" in item.lower() for item in self.evidence)
+
+    @property
     def is_supported_source(self) -> bool:
         return self.is_pasarguard or self.is_manubisguard
 
@@ -68,6 +72,8 @@ def _detect_text(path: Path, text: str) -> BackupDetection:
     else:
         fmt = "text"
 
+    if "mariadb dump" in sample or "mysql dump" in sample:
+        evidence.append("detected MariaDB/MySQL logical dump")
     if "alembic_version" in sample:
         evidence.append("contains alembic_version")
     for table in sorted(KNOWN_TABLES):
@@ -164,7 +170,7 @@ def detect_backup(path: str | Path) -> BackupDetection:
                 try:
                     with archive.open("manifest.json") as fh:
                         payload = json.load(fh)
-                except OSError, json.JSONDecodeError, UnicodeDecodeError, zipfile.BadZipFile:
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError, zipfile.BadZipFile):
                     payload = {"files": archive.namelist()}
 
                 manifest_product = str(payload.get("product", "")).strip().lower()
@@ -199,7 +205,7 @@ def detect_backup(path: str | Path) -> BackupDetection:
                         with archive.open(member) as fh:
                             raw = fh.read(5_000_000)
                         candidate = _detect_text(p, raw.decode("utf-8", errors="replace"))
-                    except OSError, RuntimeError, zipfile.BadZipFile, UnicodeDecodeError:
+                    except (OSError, RuntimeError, zipfile.BadZipFile, UnicodeDecodeError):
                         continue
                     if candidate.source_product == "pasarguard" or candidate.evidence:
                         result = candidate
