@@ -16,3 +16,9 @@ class ExistingCertificateInstallRequest(BaseModel):
 
 class CertificateLifecycleResponse(BaseModel):
     domain: ManagedDomain
+
+
+class CertificateDeploymentResponse(BaseModel):
+    domain: ManagedDomain
+    deployed_domains: list[str] = Field(default_factory=list)
+    skipped_domains: list[str] = Field(default_factory=list)

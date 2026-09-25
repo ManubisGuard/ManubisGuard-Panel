@@ -410,6 +410,8 @@ class ManagedDomain(BaseModel):
     renewal_attempts: int = Field(default=0, ge=0)
     next_renewal_at: str | None = Field(default=None, max_length=64)
     deployment_status: Literal["not_deployed", "deployed", "failed"] = Field(default="not_deployed")
+    certificate_deployed_at: str | None = Field(default=None, max_length=64)
+    deployment_error: str | None = Field(default=None, max_length=1024)
     last_checked_at: str | None = Field(default=None, max_length=64)
 
     @field_validator("domain")

@@ -349,4 +349,6 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Exact deployed Node contract is now verified: installed `PasarGuardNodeBridge` is v0.9.1, exposes `start(config=...)`, and its REST maintenance surface uses `POST /node/core_update` without a generic certificate/file upload API.
 - [x] The existing node start path transports complete Xray JSON, so managed TLS certificate/key material can be delivered as inline `certificate`/`key` content without a speculative file-transfer API.
 - [x] Current Xray `TLSCertConfig` accepts `certificateFile`/`keyFile` or inline `certificate`/`key`; Rebecca v1.2.0 independently confirms the managed-certificate/SNI architecture used as reference.
-- [ ] Next D3 operation: implement node-specific managed-certificate materialization, deployment verification, and rollback on failure.
+- [x] Implemented node-specific managed certificate materialization through the existing Xray `start(config=...)` path; certificate/key content remains filesystem-backed on the panel and is injected into runtime config only.
+- [x] Added regression coverage for multi-domain TLS/SNI injection, duplicate prevention, missing/ineligible artifacts, and non-Xray isolation: `42 passed in 4.65s`; `git diff --check` PASS.
+- [ ] Next D3 operation: add deployment result persistence/API wiring and failure rollback around node runtime application.

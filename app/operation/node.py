@@ -9,6 +9,8 @@ from PasarGuardNodeBridge.storage import LifecycleStatus
 from sqlalchemy.exc import IntegrityError
 
 from app import notification
+from app.core.managed_certificate_runtime import ManagedCertificateRuntime, build_runtime_core
+from app.core.managed_certificates import ManagedCertificateService
 from app.core.manager import core_manager
 from app.db import AsyncSession, GetDB
 from app.db.crud.node import (
@@ -727,6 +729,13 @@ class NodeOperation(BaseOperation):
 
         core_ids = {node.core_config_id or 1 for node in nodes}
         cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids)
+        managed_service = ManagedCertificateService()
+        managed_domains = await managed_service.list_domains(db)
+        domains_by_node: dict[int, list] = {}
+        for domain in managed_domains:
+            if domain.node_id is not None:
+                domains_by_node.setdefault(domain.node_id, []).append(domain)
+        runtime_by_node: dict[int, ManagedCertificateRuntime] = {}
         sem = asyncio.Semaphore(CONNECT_CONCURRENCY)
 
         async def connect_single(node: Node) -> dict | None:
@@ -734,6 +743,12 @@ class NodeOperation(BaseOperation):
                 return
 
             async with sem:
+                core_id = node.core_config_id or 1
+                runtime = build_runtime_core(
+                    cores_by_id.get(core_id),
+                    domains_by_node.get(node.id, []),
+                )
+                runtime_by_node[node.id] = runtime
                 try:
                     await node_manager.update_node(node)
                 except NodeAPIError as e:
@@ -746,9 +761,11 @@ class NodeOperation(BaseOperation):
                         "old_status": node.status,
                     }
 
-                core_id = node.core_config_id or 1
                 return await self.connect_node(
-                    node, cores_by_id.get(core_id), users_by_core.get(core_id, []), force_start=force_start
+                    node,
+                    runtime.core,
+                    users_by_core.get(core_id, []),
+                    force_start=force_start,
                 )
 
         results = await asyncio.gather(*[connect_single(node) for node in nodes])
@@ -784,6 +801,19 @@ class NodeOperation(BaseOperation):
         # Bulk update all statuses in ONE query
         await bulk_update_node_status(db, valid_results)
 
+        for result in valid_results:
+            runtime = runtime_by_node.get(result["node_id"])
+            if runtime is None or not runtime.injected_domain_ids:
+                continue
+            deploy_ok = result["status"] == NodeStatus.connected
+            await managed_service.mark_deployment(
+                db,
+                runtime.injected_domain_ids,
+                status="deployed" if deploy_ok else "failed",
+                error=None if deploy_ok else (result.get("message") or "Node deployment failed"),
+            )
+        await db.commit()
+
         # Send notifications using pre-built objects
         for notif in notifications_to_send:
             if notif["status"] == NodeStatus.connected and notif["old_status"] != NodeStatus.connected:
@@ -814,6 +844,10 @@ class NodeOperation(BaseOperation):
         cores_by_id, users_by_core = await self._get_core_users_map(db, {core_id})
         core = cores_by_id.get(core_id)
         users = users_by_core.get(core_id, [])
+        managed_service = ManagedCertificateService()
+        managed_domains = await managed_service.list_node_domains(db, node_id)
+        runtime = build_runtime_core(core, managed_domains)
+        core = runtime.core
 
         # Update node manager
         old_status = db_node.status
@@ -852,6 +886,16 @@ class NodeOperation(BaseOperation):
             xray_version=result.get("xray_version", ""),
             node_version=result.get("node_version", ""),
         )
+
+        if runtime.injected_domain_ids:
+            deploy_ok = result["status"] == NodeStatus.connected
+            await managed_service.mark_deployment(
+                db,
+                runtime.injected_domain_ids,
+                status="deployed" if deploy_ok else "failed",
+                error=None if deploy_ok else (result.get("message") or "Node deployment failed"),
+            )
+            await db.commit()
 
         # Send appropriate notification
         if result["status"] == NodeStatus.connected and result["old_status"] != NodeStatus.connected:

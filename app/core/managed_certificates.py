@@ -81,6 +81,9 @@ class ManagedCertificateService:
                 "certificate_error": None,
                 "renewal_attempts": 0,
                 "next_renewal_at": _iso(expires_at - timedelta(days=RENEWAL_WINDOW_DAYS)) if expires_at else None,
+                "deployment_status": "not_deployed",
+                "certificate_deployed_at": None,
+                "deployment_error": None,
             }
         )
 
@@ -100,8 +103,56 @@ class ManagedCertificateService:
                 "certificate_error": None,
                 "renewal_attempts": 0,
                 "next_renewal_at": _iso(expires_at - timedelta(days=RENEWAL_WINDOW_DAYS)) if expires_at else None,
+                "deployment_status": "not_deployed",
+                "certificate_deployed_at": None,
+                "deployment_error": None,
             }
         )
+
+    async def list_domains(self, db: AsyncSession) -> list[ManagedDomain]:
+        settings = (await db.execute(select(Settings))).scalar_one_or_none()
+        if settings is None:
+            return []
+        general = settings.general or {}
+        domains = [ManagedDomain.model_validate(item) for item in (general.get("domains") or [])]
+        primary = general.get("primary_domain")
+        if primary:
+            domains.append(ManagedDomain.model_validate(primary))
+        return domains
+
+    async def list_node_domains(self, db: AsyncSession, node_id: int) -> list[ManagedDomain]:
+        return [domain for domain in await self.list_domains(db) if domain.node_id == node_id]
+
+    async def mark_deployment(
+        self,
+        db: AsyncSession,
+        domain_ids: tuple[str, ...] | list[str],
+        *,
+        status: str,
+        error: str | None = None,
+    ) -> None:
+        settings = (await db.execute(select(Settings))).scalar_one_or_none()
+        if settings is None:
+            return
+        general = dict(settings.general or {})
+        domains = [ManagedDomain.model_validate(item) for item in (general.get("domains") or [])]
+        primary = general.get("primary_domain")
+        if primary:
+            domains.append(ManagedDomain.model_validate(primary))
+        now = _iso(_now()) if status == "deployed" else None
+        for domain in domains:
+            if domain.id in domain_ids:
+                _put_domain(
+                    general,
+                    domain.model_copy(
+                        update={
+                            "deployment_status": status,
+                            "certificate_deployed_at": now if status == "deployed" else domain.certificate_deployed_at,
+                            "deployment_error": None if status == "deployed" else error,
+                        }
+                    ),
+                )
+        settings.general = general
 
     async def renew_if_due(self, domain: ManagedDomain, *, force: bool = False) -> ManagedDomain:
         expires_at = _parse(domain.certificate_expires_at)
