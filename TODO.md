@@ -513,3 +513,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Corrected the literal `\\x27` rendering in the SSL menu so `Let's Encrypt` is displayed normally.
 - [x] This specifically targets the reported `curl | sudo bash` behavior where the menu appeared but the installer returned to the shell before accepting option 2/4.
 - [x] Fix commit: `9784bebf85334cf41820e4b9ab4ca74bbff05fea`.
+
+
+## Panel + Node installer documentation — 2026-09-25
+- [x] Corrected ManubisGuard Node installer source/repository and canonical install paths; installer no longer clones the upstream PasarGuard Node repository by default.
+- [x] Correct Node one-command install documented in `ManubisGuard/ManubisGuard-Node/README.md` using the actual `main/install.sh` entrypoint.
+- [x] Panel README corrected to use the interactive SSL installer by default instead of forcing `--yes`.
+- [x] Panel README now documents domain, IP self-signed, custom and no-SSL modes plus unattended examples.
