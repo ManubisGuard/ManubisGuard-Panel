@@ -2,7 +2,7 @@
 
 ## Scope
 
-Feature branch: `feature/amnezia-wg`.
+Feature branch: `feature/amnezia-wg`
 
 Production cutover/apply was not executed.
 
@@ -20,7 +20,7 @@ Production cutover/apply was not executed.
 - Bridge integrity: PASS; devices=3, usage=48, hypertable usage=48 on both sides, CAGG=48.
 - Migration suite: PASS; 86 tests passed.
 - Ruff lint/format: PASS.
-- Staging logical dump/integrity: PASS; validated staging dump completed and integrity marker was present.
+- Staging logical dump/integrity: PASS; prior validated staging dump retained in migration workspace.
 - Disposable rollback: PASS; cutover rename/rollback simulation restored the original database name and preserved validation markers.
 - Clean image artifact: PASS; `/code/dashboard/build/index.html` exists and is non-empty.
 - Clean image import: PASS; `import app`.
@@ -32,4 +32,4 @@ Production database was not modified by these gates. No `--apply` was executed.
 
 ## Remaining
 
-The production `--apply` cutover remains intentionally unexecuted. The Restore/Migration gates are checkpointed; the next project phase is Domains & SSL Intelligence according to the roadmap, without performing production cutover in this checkpoint.
+The production `--apply` cutover remains intentionally unexecuted. The next project phase after this checkpoint is Domains & SSL, subject to the project's production-cutover policy.
