@@ -11,7 +11,8 @@ DATABASE="timescaledb"
 ASSUME_YES=false
 OVERRIDE=false
 MIN_FREE_MB="${MANUBISGUARD_MIN_FREE_MB:-6144}"
-PANEL_IMAGE="ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg"
+PANEL_IMAGE="ghcr.io/ManubisGuard/manubisguard-panel:feature-amnezia-wg"
+BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
 
 log() { printf '[manubisguard-install] %s\n' "$*"; }
 die() { printf '[manubisguard-install] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -25,6 +26,14 @@ ManubisGuard installer
 Usage:
   install-manubisguard.sh install [--database sqlite|timescaledb] [--yes] [--override]
 
+After installation:
+  manubisguard status
+  manubisguard start
+  manubisguard stop
+  manubisguard restart
+  manubisguard logs
+  manubisguard update
+
 Defaults:
   database: timescaledb
   branch:   feature/amnezia-wg
@@ -34,8 +43,8 @@ Defaults:
 Options:
   --database sqlite|timescaledb
   --yes|-y      non-interactive safe defaults
-  --override    replace the checked-out source with the selected branch; persistent
-                database credentials/data are preserved
+  --override    replace the checked-out source with the selected branch;
+                persistent database credentials/data are preserved
 EOF
 }
 
@@ -242,6 +251,64 @@ verify_stack() {
 
 install_helper() {
   install -m 0755 "$INSTALL_DIR/scripts/manubisguard-migrate.sh" /usr/local/bin/manubisguard-migrate
+  cat > /usr/local/bin/manubisguard <<'EOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+INSTALLER="/opt/manubisguard-panel/install-manubisguard.sh"
+BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
+
+if [ -f "$INSTALLER" ]; then
+  case "${1:-}" in
+    status)
+      cd /opt/manubisguard-panel
+      exec docker compose ps
+      ;;
+    start)
+      cd /opt/manubisguard-panel
+      exec docker compose up -d
+      ;;
+    stop)
+      cd /opt/manubisguard-panel
+      exec docker compose stop
+      ;;
+    restart)
+      cd /opt/manubisguard-panel
+      exec docker compose restart
+      ;;
+    logs)
+      cd /opt/manubisguard-panel
+      exec docker compose logs --tail="${MANUBISGUARD_LOG_TAIL:-100}" -f manubisguard
+      ;;
+    update)
+      exec "$INSTALLER" install --yes --override
+      ;;
+    install|""|-h|--help)
+      exec "$INSTALLER" "${@:-install}"
+      ;;
+    *)
+      echo "Unknown command: $1" >&2
+      echo "Use: manubisguard {install|status|start|stop|restart|logs|update}" >&2
+      exit 2
+      ;;
+  esac
+else
+  command="${1:-install}"
+  case "$command" in
+    install|--help|-h)
+      tmp="$(mktemp)"
+      trap 'rm -f "$tmp"' EXIT
+      curl -fsSL "$BOOTSTRAP_URL" -o "$tmp"
+      exec bash "$tmp" "${@:-install}"
+      ;;
+    *)
+      echo "ManubisGuard is not installed. Run: manubisguard install" >&2
+      exit 1
+      ;;
+  esac
+fi
+EOF
+  chmod 0755 /usr/local/bin/manubisguard
 }
 
 show_result() {
@@ -259,6 +326,7 @@ show_result() {
   echo "Panel:       http://SERVER-IP:8000"
   echo "Username:    admin"
   echo "Password:    $admin_password"
+  echo "CLI:         manubisguard {status|start|stop|restart|logs|update}"
   docker compose -f docker-compose.yml ps
   echo "=============================================="
 }
