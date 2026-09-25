@@ -421,7 +421,7 @@ def migrate_manubisguard_staging(
         from app.migration.inspector import inspect_database
         from app.migration.mariadb_bridge import migrate_mariadb_to_postgres
 
-        bridge = migrate_mariadb_to_postgres(source_url, staging.staging_url)
+        bridge = await migrate_mariadb_to_postgres(source_url, staging.staging_url)
         mariadb_bridge_report = bridge.as_dict()
         pre_upgrade = inspect_database(staging.staging_url)
         pre_upgrade_counts_override = {
