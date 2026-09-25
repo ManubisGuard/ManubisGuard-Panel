@@ -520,3 +520,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Correct Node one-command install documented in `ManubisGuard/ManubisGuard-Node/README.md` using the actual `main/install.sh` entrypoint.
 - [x] Panel README corrected to use the interactive SSL installer by default instead of forcing `--yes`.
 - [x] Panel README now documents domain, IP self-signed, custom and no-SSL modes plus unattended examples.
+
+
+## CLI restore command — 2026-09-25
+- [x] Added `manubisguard restore /path/to/backup.zip` to invoke the validated production restore pipeline with `--apply`.
+- [x] Added `manubisguard restore-check /path/to/backup.zip` for staging-only validation without production cutover.
+- [x] Added restore commands to installer help and project README.
+- [x] Restore keeps the existing migration safety model: backup deployment identity/Compose are not imported, staging is validated first, and production safety/previous DB retention remain handled by `manubisguard-migrate`.
