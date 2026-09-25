@@ -475,3 +475,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Latest production safety database retained as manubisguard_pre_migration_d113ca30bdef; failed/older migration databases were not deleted automatically.
 - [x] Restore UI already exposes a dedicated Restore Logs panel for the latest staging/production operation, including explicit error output; uploaded ZIP restore uses the exact uploaded backup ID.
 - [x] Current branch HEAD before this TODO commit: f1826d4fd25064f55ddff11098f4af5fe904ae69.
+
+## Reality Auto SNI persistence fix — 2026-09-25
+- [x] Fixed Reality "Auto Select Best SNI" to merge against the latest inbound draft/store state instead of a potentially stale React prop, preventing the selected `serverNames` from being overwritten before persistence.
+- [x] Added a safe fallback to the first returned certificate server name when the scan result does not echo the requested `sni` field.
+- [x] Dashboard TypeScript check passed.
+- [x] Panel rebuilt/restarted and production health verified: `/health` returned `{"status":"ok"}`; Panel and TimescaleDB are healthy.
+- [x] Fix commit: `9c6f874f43cda92d32d6ee6df9890e05bb46ac96`.
