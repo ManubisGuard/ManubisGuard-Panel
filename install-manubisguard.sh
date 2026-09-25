@@ -9,6 +9,11 @@ BACKUP_DIR="/opt/manubisguard/backup"
 ENV_FILE="$INSTALL_DIR/.env"
 DATABASE="timescaledb"
 ASSUME_YES=false
+SSL_MODE=""
+SSL_DOMAIN=""
+SSL_CERTFILE=""
+SSL_KEYFILE=""
+SERVER_IP=""
 OVERRIDE=false
 MIN_FREE_MB="${MANUBISGUARD_MIN_FREE_MB:-6144}"
 PANEL_IMAGE="ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg"
@@ -24,7 +29,7 @@ usage() {
 ManubisGuard installer
 
 Usage:
-  install-manubisguard.sh install [--database sqlite|timescaledb] [--yes] [--override]
+  install-manubisguard.sh install [--database sqlite|timescaledb] [--ssl-mode domain|ip|custom|none] [--ssl-domain DOMAIN] [--yes] [--override]
 
 After installation:
   manubisguard status
@@ -42,6 +47,9 @@ Defaults:
 
 Options:
   --database sqlite|timescaledb
+  --ssl-mode domain|ip|custom|none
+  --ssl-domain DOMAIN
+  --ssl-cert FILE --ssl-key FILE
   --yes|-y      non-interactive safe defaults
   --override    replace the checked-out source with the selected branch;
                 persistent database credentials/data are preserved
@@ -63,6 +71,14 @@ parse_args() {
     case "$1" in
       --database) [ $# -ge 2 ] || die "--database requires a value"; DATABASE="$2"; shift 2 ;;
       --database=*) DATABASE="${1#*=}"; shift ;;
+      --ssl-mode) [ $# -ge 2 ] || die "--ssl-mode requires a value"; SSL_MODE="$2"; shift 2 ;;
+      --ssl-mode=*) SSL_MODE="${1#*=}"; shift ;;
+      --ssl-domain) [ $# -ge 2 ] || die "--ssl-domain requires a value"; SSL_DOMAIN="$2"; shift 2 ;;
+      --ssl-domain=*) SSL_DOMAIN="${1#*=}"; shift ;;
+      --ssl-cert) [ $# -ge 2 ] || die "--ssl-cert requires a value"; SSL_CERTFILE="$2"; shift 2 ;;
+      --ssl-cert=*) SSL_CERTFILE="${1#*=}"; shift ;;
+      --ssl-key) [ $# -ge 2 ] || die "--ssl-key requires a value"; SSL_KEYFILE="$2"; shift 2 ;;
+      --ssl-key=*) SSL_KEYFILE="${1#*=}"; shift ;;
       --yes|-y) ASSUME_YES=true; shift ;;
       --override) OVERRIDE=true; shift ;;
       -h|--help) usage; exit 0 ;;
@@ -74,6 +90,9 @@ parse_args() {
     sqlite|timescaledb) ;;
     *) die "unsupported database '$DATABASE' (use sqlite or timescaledb)" ;;
   esac
+  if [ -n "$SSL_MODE" ]; then
+    case "$SSL_MODE" in domain|ip|custom|none) ;; *) die "unsupported SSL mode: $SSL_MODE" ;; esac
+  fi
 }
 
 ensure_base_tools() {
