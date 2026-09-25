@@ -210,7 +210,11 @@ verify_stack() {
   [ -n "$container" ] || die "ManubisGuard container was not created."
   docker inspect -f '{{.State.Status}}' "$container" | grep -qx running || die "ManubisGuard container is not running."
   docker exec "$container" python -c 'import app; print("IMPORT_OK")' | grep -qx IMPORT_OK || die "Python import check failed."
-  curl -kfsS --max-time 10 https://127.0.0.1:8000/health >/dev/null || die "Panel HTTPS health check failed."
+  if grep -Eq "^[[:space:]]*PASARGUARD_SSL_ENABLED=(True|true|1)[[:space:]]*$" "$ENV_FILE"; then
+    curl -kfsS --max-time 10 https://127.0.0.1:8000/health >/dev/null || die "Panel HTTPS health check failed."
+  else
+    curl -fsS --max-time 10 http://127.0.0.1:8000/health >/dev/null || die "Panel HTTP health check failed."
+  fi
 }
 
 install_helper() {
