@@ -356,4 +356,6 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Added failure rollback: when managed TLS runtime application fails, the previous core configuration is re-applied; deployment remains marked failed if rollback succeeds.
 - [x] Renewal scheduler now retries pending certificate deployment on connected nodes without transferring private keys through NATS.
 - [x] Regression PASS: `48 passed in 2.21s`; Ruff and `git diff --check` PASS.
-- [ ] Next D3 operation: add focused API/rollback regression tests, then complete UI lifecycle controls and deployment status presentation.
+- [x] Added focused API deployment and Node start failure→rollback regression tests; protected orchestration does not require a live certificate or production Node.
+- [x] Regression PASS: `50 passed in 2.56s`; Ruff PASS after automatic import cleanup; `git diff --check` PASS.
+- [ ] Next D4 operation: complete Domains & SSL UI lifecycle controls/status presentation without exposing certificate private keys.

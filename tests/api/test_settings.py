@@ -186,3 +186,34 @@ def test_domain_certificate_api_rejects_invalid_domain(access_token):
     )
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+def test_managed_certificate_deploy_endpoint_reapplies_node_config(access_token, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import app.routers.settings as settings_router
+    from app.models.settings import ManagedDomain
+
+    target = ManagedDomain(id="deploy-1", domain="edge.example.com", node_id=7, status="active")
+    deployed = target.model_copy(
+        update={"deployment_status": "deployed", "certificate_deployed_at": "2030-01-01T00:00:00+00:00"}
+    )
+    service = SimpleNamespace(
+        list_domains=AsyncMock(side_effect=[[target], [deployed]]),
+        store=SimpleNamespace(exists=lambda _: True),
+    )
+    connect = AsyncMock()
+    monkeypatch.setattr(settings_router, "ManagedCertificateService", lambda: service)
+    monkeypatch.setattr(settings_router.node_operator, "connect_single_node", connect)
+
+    response = client.post(
+        "/api/settings/domains/certificate/deploy",
+        headers=auth_headers(access_token),
+        json={"domain_id": "deploy-1"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["domain"]["deployment_status"] == "deployed"
+    connect.assert_awaited_once()
+    assert connect.await_args.args[1] == 7
+    assert connect.await_args.kwargs["force_start"] is True

@@ -257,3 +257,66 @@ async def test_connect_node_skips_when_already_healthy(monkeypatch: pytest.Monke
     assert result is None
     start_or_attach.assert_not_awaited()
     pg_node.start.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_bulk_managed_certificate_deployment_rolls_back_after_start_failure(monkeypatch: pytest.MonkeyPatch):
+    domain = SimpleNamespace(id="managed-1", node_id=7, status="active", domain="edge.example.com")
+    original_core = SimpleNamespace(name="original")
+    runtime_core = SimpleNamespace(name="managed")
+    runtime = SimpleNamespace(
+        core=runtime_core,
+        injected_domain_ids=("managed-1",),
+        skipped_domain_ids=(),
+    )
+    service = SimpleNamespace(
+        list_domains=AsyncMock(return_value=[domain]),
+        mark_deployment=AsyncMock(),
+    )
+    node = SimpleNamespace(id=7, core_config_id=1, status=NodeStatus.connected, name="node-7")
+
+    monkeypatch.setattr(node_operation_module, "ManagedCertificateService", lambda: service)
+    monkeypatch.setattr(
+        node_operation_module.NodeOperation,
+        "_get_core_users_map",
+        AsyncMock(return_value=({1: original_core}, {1: []})),
+    )
+    monkeypatch.setattr(node_operation_module, "build_runtime_core", lambda core, domains: runtime)
+    monkeypatch.setattr(node_operation_module.node_manager, "update_node", AsyncMock())
+    monkeypatch.setattr(node_operation_module, "bulk_update_node_status", AsyncMock())
+
+    failed = {
+        "node_id": 7,
+        "status": NodeStatus.error,
+        "message": "new managed config rejected",
+        "xray_version": "",
+        "node_version": "",
+        "old_status": NodeStatus.connected,
+    }
+    rolled_back = {
+        "node_id": 7,
+        "status": NodeStatus.connected,
+        "message": "",
+        "xray_version": "26.0.0",
+        "node_version": "0.9.1",
+        "old_status": NodeStatus.error,
+    }
+    start = AsyncMock(side_effect=[failed, rolled_back])
+    monkeypatch.setattr(node_operation_module.NodeOperation, "connect_node", start)
+
+    db = SimpleNamespace(commit=AsyncMock())
+    operation = NodeOperation.__new__(NodeOperation)
+    await operation._connect_nodes_bulk_local(db, [node], force_start=True)
+
+    assert start.await_count == 2
+    first_core = start.await_args_list[0].args[1]
+    second_core = start.await_args_list[1].args[1]
+    assert first_core is runtime_core
+    assert second_core is original_core
+    assert start.await_args_list[1].kwargs["force_start"] is True
+    service.mark_deployment.assert_awaited_once_with(
+        db,
+        ("managed-1",),
+        status="failed",
+        error="new managed config rejected",
+    )
