@@ -27,6 +27,7 @@ services:
     network_mode: host
     volumes:
       - /var/lib/manubisguard:/var/lib/manubisguard
+      - /etc/manubisguard/restore-agent.key:/run/secrets/manubisguard_restore_agent_key:ro
     depends_on:
       timescaledb:
         condition: service_healthy

@@ -157,10 +157,13 @@ upsert_env() {
 }
 
 prepare_env() {
-  mkdir -p "$DATA_DIR" "$BACKUP_DIR"
-  chmod 700 "$DATA_DIR" "$BACKUP_DIR"
+  mkdir -p "$DATA_DIR" "$BACKUP_DIR" /etc/manubisguard
+  chmod 700 "$DATA_DIR" "$BACKUP_DIR" /etc/manubisguard
+  touch /etc/manubisguard/restore-agent.key
+  chmod 600 /etc/manubisguard/restore-agent.key
   ensure_secret "$DATA_DIR/.postgres_password" 32
   ensure_secret "$DATA_DIR/.admin_password" 18
+  ensure_secret /etc/manubisguard/restore-agent.key 32
 
   local db_password admin_password
   db_password="$(cat "$DATA_DIR/.postgres_password")"
@@ -186,6 +189,26 @@ prepare_env() {
   upsert_env MANUBISGUARD_DATA_DIR "$DATA_DIR"
   upsert_env PASARGUARD_SSL_ENABLED False
   upsert_env PASARGUARD_SSL_MODE none
+}
+
+install_restore_agent() {
+  install -m 0755 "$INSTALL_DIR/scripts/manubisguard-restore-agent.py" /usr/local/bin/manubisguard-restore-agent
+  cat > /etc/systemd/system/manubisguard-restore-agent.service <<EOF
+[Unit]
+Description=ManubisGuard production restore agent
+After=network.target docker.service
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/manubisguard-restore-agent
+Restart=on-failure
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now manubisguard-restore-agent.service
 }
 
 validate_compose() {
@@ -253,6 +276,7 @@ main() {
 
   prepare_source
   prepare_env
+  install_restore_agent
   validate_compose
   start_stack
   verify_stack

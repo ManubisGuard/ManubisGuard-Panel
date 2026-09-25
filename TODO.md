@@ -288,10 +288,12 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Clean branch Docker image build PASS from current branch source: `manubisguard-panel:feature-amnezia-wg-final`; image ID recorded by execution evidence.
 - [x] Clean image smoke gate PASS: `import app` succeeded; dashboard `/code/dashboard/build/index.html`, `/code/start.sh`, and `/usr/bin/manubisguard-cli` exist and are executable as expected.
 - [x] Feature-scope Ruff check/format and `git diff --check` PASS for Backup/restore/scheduler/security files.
+- [x] Production restore-agent security regression PASS: `12 passed in 1.51s` covering agent authorization/path/confirmation and existing Backup restore security.
 - [x] An attempted whole-repository Ruff check exposed 41 auto-fixable baseline style differences; all such unintended changes were immediately reverted. No unrelated formatter changes remain in the branch.
 - [x] No real Telegram secret was used; no production restore/apply/cutover was executed.
 - [x] D0 software gate is complete: backup, encryption, Telegram mock security, scheduling/retention, frontend, isolated staging restore, migration regression, full local migration E2E, clean image and runtime baseline are green.
-- [ ] Production destructive `--apply` cutover remains intentionally outside this gate and requires a separately authorized controlled deployment with all final operational prerequisites satisfied.
+- [x] Production restore is now exposed from the admin Backup panel through a localhost-only authenticated host restore agent that invokes the same `manubisguard-migrate ... --apply` path; the UI requires explicit `RESTORE_PRODUCTION` confirmation and the API accepts only validated backups.
+- [ ] Actual production restore/cutover of a selected backup remains an operational action; do not execute it without a specifically selected backup and final live-service readiness check.
 - [ ] Domain/SSL Intelligence remains the next non-destructive project phase after D0.
 
 ## Post-D0 Domain / SSL baseline — 2026-09-25

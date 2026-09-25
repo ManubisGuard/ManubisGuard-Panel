@@ -88,6 +88,21 @@ class BackupScheduleResponse(BaseModel):
     updated_at: datetime
 
 
+class BackupProductionRestoreRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    confirmation: Literal["RESTORE_PRODUCTION"]
+
+
+class BackupProductionRestoreResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    backup_id: int
+    ok: bool
+    returncode: int
+    output: str = ""
+
+
 class BackupStagingRestoreResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

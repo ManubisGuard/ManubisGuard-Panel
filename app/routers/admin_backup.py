@@ -1,5 +1,9 @@
+import asyncio
+import json
 from pathlib import Path
 from typing import Annotated
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
@@ -11,6 +15,8 @@ from app.models.backup import (
     BackupCheckResponse,
     BackupCreate,
     BackupListResponse,
+    BackupProductionRestoreRequest,
+    BackupProductionRestoreResponse,
     BackupResponse,
     BackupScheduleConfigure,
     BackupScheduleResponse,
@@ -179,6 +185,45 @@ async def restore_backup_to_staging(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     finally:
         drop_staging_database(staging)
+
+
+@router.post("/restore/production/{backup_id}", response_model=BackupProductionRestoreResponse)
+async def restore_backup_to_production(
+    backup_id: int,
+    payload: BackupProductionRestoreRequest,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("settings", "update")),
+):
+    """Run the same host-side validated --apply restore used by the server CLI."""
+    backup = (await db.execute(select(Backup).where(Backup.id == backup_id))).scalar_one_or_none()
+    if backup is None:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    if backup.status != "valid":
+        raise HTTPException(status_code=409, detail="Backup must be validated before production restore")
+    key_path = Path("/run/secrets/manubisguard_restore_agent_key")
+    if not key_path.is_file():
+        raise HTTPException(status_code=503, detail="Production restore agent is not installed")
+    try:
+        key = key_path.read_text(encoding="utf-8").strip()
+        request = Request(
+            "http://127.0.0.1:8765/restore",
+            data=json.dumps({"backup_path": backup.backup_path, "confirmation": payload.confirmation}).encode(),
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        response = await asyncio.to_thread(urlopen, request, 7200.0)
+        result = json.loads(response.read().decode())
+    except HTTPError as exc:
+        detail = exc.read().decode(errors="replace")[:1000]
+        raise HTTPException(status_code=exc.code, detail=detail) from exc
+    except (URLError, TimeoutError) as exc:
+        raise HTTPException(status_code=502, detail=f"Production restore agent unavailable: {exc}") from exc
+    return BackupProductionRestoreResponse(
+        backup_id=backup.id,
+        ok=bool(result.get("ok")),
+        returncode=int(result.get("returncode", 1)),
+        output=str(result.get("output", "")),
+    )
 
 
 @router.get("/list", response_model=BackupListResponse)
