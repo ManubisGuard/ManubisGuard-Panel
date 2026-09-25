@@ -464,3 +464,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Fixed production safety-dump verification to fail closed when `pg_restore --list` fails.
 - [x] Uploaded `Restore` now validates the ZIP and then executes the real Production Restore flow with explicit `RESTORE_PRODUCTION` confirmation.
 - [x] Fresh Production Restore E2E PASS completed with `/root/backup_20260923210118.zip`: staging validation passed, cutover validation passed, critical durable row counts were preserved, production database swap completed, current Panel restarted, container health passed, and external `/health` returned `{"status":"ok"}`.
+
+## MariaDB/MySQL fork restore bridge + Production E2E — 2026-09-25
+- [x] Added an automatic MariaDB/MySQL → PostgreSQL bridge for forked PasarGuard-family backups: reflected source/target schemas, typed value normalization, legacy column aliases, nodes.certificate -> nodes.server_ca, chunked transfer, and sequence repair.
+- [x] Hardened the bridge so isolated staging application tables are cleared before import, preventing seeded Alembic rows from colliding with source data; alembic_version is intentionally preserved at the ManubisGuard application head instead of importing source migration history.
+- [x] Fixed async execution of the MariaDB bridge by running its synchronous wrapper outside the active FastAPI event loop.
+- [x] Added post-bridge staging validation and durable row-count comparison before any production cutover.
+- [x] Real forked-backup E2E PASS with /root/backup_20260920082459.zip: source detected as MariaDB/MySQL PasarGuard-family SQL, 30 application tables copied, critical counts preserved (admins=25, users=254, nodes=1, hosts=7, inbounds=5, groups=4, core_configs=2, user_templates=4), validation passed with Alembic b7c8d9e0f1a5, cutover validation passed, production DB switched, current Panel restarted healthy, and external /health returned {"status":"ok"}.
+- [x] Production deployment identity remained intact: docker-compose SHA stayed 8bc754a0114e017be124f7e6e064836d5c9fd635fa7ceab9b544b769f22090c7; the backup's deployment Compose/.env were not imported.
+- [x] Latest production safety database retained as manubisguard_pre_migration_d113ca30bdef; failed/older migration databases were not deleted automatically.
+- [x] Restore UI already exposes a dedicated Restore Logs panel for the latest staging/production operation, including explicit error output; uploaded ZIP restore uses the exact uploaded backup ID.
+- [x] Current branch HEAD before this TODO commit: f1826d4fd25064f55ddff11098f4af5fe904ae69.
