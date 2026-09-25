@@ -17,7 +17,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy.engine import URL, make_url
 
-from app.migration.async_utils import run_async
+from app.migration.async_utils import run_async, run_sync_in_worker
 from app.migration.detector import (
     BackupDetection,
     detect_backup,
@@ -637,6 +637,6 @@ def upgrade_staging_database(
     config.set_main_option("sqlalchemy.url", staging.staging_url)
     config.attributes["manubisguard_migration_staging"] = True
     try:
-        command.upgrade(config, revision)
+        run_sync_in_worker(command.upgrade, config, revision)
     except Exception as exc:
         raise MigrationSafetyError(f"ManubisGuard Alembic migration failed in staging: {exc}") from exc
