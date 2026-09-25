@@ -454,3 +454,13 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Fixed staging Alembic execution when Restore is triggered from the async API: `command.upgrade()` now runs in a worker thread, so Alembic's internal `asyncio.run()` never nests inside the request event loop.
 - [x] Reused the migration async utility pattern for synchronous Alembic execution; production DB remains protected by the existing staging-target assertions.
 - [ ] Full staging Restore E2E regression after deployment pending.
+
+## PasarGuard -> ManubisGuard Production Restore hardening — 2026-09-25
+- [x] Reviewed PGClockMG as the reference restore architecture: validated restore, Timescale compatibility handling, staged validation, then live cutover/restart. citeturn394089view0
+- [x] Production restore now preserves the installed ManubisGuard deployment identity. Backup `.env` deployment values, `docker-compose.yml`, repository URLs and image settings are not imported.
+- [x] Fixed the host migration script to invoke the installed `manubisguard-cli` command instead of the legacy `pasarguard-cli` name.
+- [x] Fixed Timescale compatibility helper status handling and explicit validation database URLs.
+- [x] Fixed post-cutover health validation to inspect the newly-created Panel container and its in-container `/health`, preventing a false rollback caused by probing the host socket.
+- [x] Fixed production safety-dump verification to fail closed when `pg_restore --list` fails.
+- [x] Uploaded `Restore` now validates the ZIP and then executes the real Production Restore flow with explicit `RESTORE_PRODUCTION` confirmation.
+- [ ] Fresh Production Restore E2E PASS after these hardening changes is still the final gate.
