@@ -14,6 +14,10 @@ class ExistingCertificateInstallRequest(BaseModel):
     private_key_pem: str = Field(min_length=1)
 
 
+class CertificateDeploymentRequest(BaseModel):
+    domain_id: str = Field(min_length=1, max_length=64)
+
+
 class CertificateLifecycleResponse(BaseModel):
     domain: ManagedDomain
 

@@ -48,7 +48,7 @@ def _ensure_certificate_list(tls_settings: dict[str, Any]) -> list[dict[str, Any
         certificates = [certificates]
         tls_settings["certificates"] = certificates
     if not isinstance(certificates, list):
-        raise ValueError("Xray TLS certificates must be a list or object")
+        raise TypeError("Xray TLS certificates must be a list or object")
     result = [item for item in certificates if isinstance(item, dict)]
     if len(result) != len(certificates):
         tls_settings["certificates"] = result
@@ -100,7 +100,11 @@ def build_runtime_core(
             skipped.append(domain.id)
             continue
 
-        certificate_pem, private_key_pem = store.load(domain.domain)
+        try:
+            certificate_pem, private_key_pem = store.load(domain.domain)
+        except (OSError, UnicodeError):
+            skipped.append(domain.id)
+            continue
         cert_fp = _certificate_fingerprint(certificate_pem)
         entry = {"certificate": _pem_lines(certificate_pem), "key": _pem_lines(private_key_pem)}
         if cert_fp in seen_fingerprints:

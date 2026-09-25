@@ -10,18 +10,22 @@ from app.models.domain_intelligence import (
     DomainIntelligenceResult,
 )
 from app.models.managed_certificates import (
+    CertificateDeploymentRequest,
+    CertificateDeploymentResponse,
     CertificateIssueRequest,
     CertificateLifecycleResponse,
     ExistingCertificateInstallRequest,
 )
 from app.models.settings import General, ManagedDomain, SettingsSchema
 from app.operation import OperatorType
+from app.operation.node import NodeOperation
 from app.operation.settings import SettingsOperation
 from app.utils import responses
 
 from .authentication import require_permission
 
 settings_operator = SettingsOperation(operator_type=OperatorType.API)
+node_operator = NodeOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Settings"], prefix="/api/settings", responses={401: responses._401, 403: responses._403})
 
 
@@ -80,6 +84,9 @@ async def issue_managed_certificate(
         ]
     settings.general = general
     await db.commit()
+    if domain.node_id is not None and domain.status in ("active", "expiring"):
+        await node_operator.connect_single_node(db, domain.node_id, force_start=True)
+        domain = next((item for item in await service.list_domains(db) if item.id == domain.id), domain)
     return {"domain": domain}
 
 
@@ -116,7 +123,48 @@ async def install_existing_certificate(
         ]
     settings.general = general
     await db.commit()
+    if domain.node_id is not None and domain.status in ("active", "expiring"):
+        await node_operator.connect_single_node(db, domain.node_id, force_start=True)
+        domain = next((item for item in await service.list_domains(db) if item.id == domain.id), domain)
     return {"domain": domain}
+
+
+@router.post("/domains/certificate/deploy", response_model=CertificateDeploymentResponse)
+async def deploy_managed_certificates(
+    request: CertificateDeploymentRequest,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_permission("settings", "update")),
+):
+    service = ManagedCertificateService()
+    domains = await service.list_domains(db)
+    target = next((domain for domain in domains if domain.id == request.domain_id), None)
+    if target is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Managed domain not found")
+    if target.node_id is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=422, detail="Managed domain must be associated with a node")
+    if target.status not in ("active", "expiring"):
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=422, detail="Only active or expiring certificates can be deployed")
+
+    if not service.store.exists(target.domain):
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=422, detail="Certificate artifacts are not available for this domain")
+
+    await node_operator.connect_single_node(db, target.node_id, force_start=True)
+    domains = await service.list_domains(db)
+    updated = next((domain for domain in domains if domain.id == target.id), target)
+    node_domains = [domain for domain in domains if domain.node_id == target.node_id]
+    return CertificateDeploymentResponse(
+        domain=updated,
+        deployed_domains=[domain.id for domain in node_domains if domain.deployment_status == "deployed"],
+        skipped_domains=[domain.id for domain in node_domains if domain.deployment_status == "not_deployed"],
+    )
 
 
 @router.put("", response_model=SettingsSchema)

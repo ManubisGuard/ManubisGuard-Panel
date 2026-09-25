@@ -55,6 +55,14 @@ def test_domains_partial_update_preserves_other_general_settings(access_token):
         "auto_renew": True,
         "status": "pending",
         "certificate_expires_at": None,
+        "certificate_issued_at": None,
+        "certificate_renewed_at": None,
+        "certificate_error": None,
+        "renewal_attempts": 0,
+        "next_renewal_at": None,
+        "deployment_status": "not_deployed",
+        "certificate_deployed_at": None,
+        "deployment_error": None,
         "last_checked_at": None,
     }
 

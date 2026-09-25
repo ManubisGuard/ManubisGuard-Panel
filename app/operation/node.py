@@ -744,8 +744,9 @@ class NodeOperation(BaseOperation):
 
             async with sem:
                 core_id = node.core_config_id or 1
+                original_core = cores_by_id.get(core_id)
                 runtime = build_runtime_core(
-                    cores_by_id.get(core_id),
+                    original_core,
                     domains_by_node.get(node.id, []),
                 )
                 runtime_by_node[node.id] = runtime
@@ -761,12 +762,30 @@ class NodeOperation(BaseOperation):
                         "old_status": node.status,
                     }
 
-                return await self.connect_node(
+                result = await self.connect_node(
                     node,
                     runtime.core,
                     users_by_core.get(core_id, []),
                     force_start=force_start,
                 )
+                if result and runtime.injected_domain_ids and result["status"] == NodeStatus.error and original_core is not None:
+                    deployment_error = result.get("message") or "Managed certificate deployment failed"
+                    rollback = await self.connect_node(
+                        node,
+                        original_core,
+                        users_by_core.get(core_id, []),
+                        force_start=True,
+                    )
+                    if rollback and rollback["status"] == NodeStatus.connected:
+                        rollback["managed_deployment_error"] = deployment_error
+                        result = rollback
+                    elif rollback:
+                        result["managed_deployment_error"] = (
+                            f"{deployment_error}; rollback failed: {rollback.get('message') or 'unknown error'}"
+                        )
+                    else:
+                        result["managed_deployment_error"] = f"{deployment_error}; rollback did not complete"
+                return result
 
         results = await asyncio.gather(*[connect_single(node) for node in nodes])
 
@@ -805,12 +824,13 @@ class NodeOperation(BaseOperation):
             runtime = runtime_by_node.get(result["node_id"])
             if runtime is None or not runtime.injected_domain_ids:
                 continue
-            deploy_ok = result["status"] == NodeStatus.connected
+            deployment_error = result.get("managed_deployment_error")
+            deploy_ok = result["status"] == NodeStatus.connected and not deployment_error
             await managed_service.mark_deployment(
                 db,
                 runtime.injected_domain_ids,
                 status="deployed" if deploy_ok else "failed",
-                error=None if deploy_ok else (result.get("message") or "Node deployment failed"),
+                error=None if deploy_ok else (deployment_error or result.get("message") or "Node deployment failed"),
             )
         await db.commit()
 
@@ -888,12 +908,13 @@ class NodeOperation(BaseOperation):
         )
 
         if runtime.injected_domain_ids:
-            deploy_ok = result["status"] == NodeStatus.connected
+            deployment_error = result.get("managed_deployment_error")
+            deploy_ok = result["status"] == NodeStatus.connected and not deployment_error
             await managed_service.mark_deployment(
                 db,
                 runtime.injected_domain_ids,
                 status="deployed" if deploy_ok else "failed",
-                error=None if deploy_ok else (result.get("message") or "Node deployment failed"),
+                error=None if deploy_ok else (deployment_error or result.get("message") or "Node deployment failed"),
             )
             await db.commit()
 

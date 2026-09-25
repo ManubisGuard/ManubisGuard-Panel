@@ -351,4 +351,9 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Current Xray `TLSCertConfig` accepts `certificateFile`/`keyFile` or inline `certificate`/`key`; Rebecca v1.2.0 independently confirms the managed-certificate/SNI architecture used as reference.
 - [x] Implemented node-specific managed certificate materialization through the existing Xray `start(config=...)` path; certificate/key content remains filesystem-backed on the panel and is injected into runtime config only.
 - [x] Added regression coverage for multi-domain TLS/SNI injection, duplicate prevention, missing/ineligible artifacts, and non-Xray isolation: `42 passed in 4.65s`; `git diff --check` PASS.
-- [ ] Next D3 operation: add deployment result persistence/API wiring and failure rollback around node runtime application.
+- [x] Added durable deployment metadata (`certificate_deployed_at`, `deployment_error`) and a protected manual deployment API for managed certificates.
+- [x] Issue/import paths now trigger node deployment when a managed domain is associated with a node; deployment failures are recorded separately from certificate issuance state.
+- [x] Added failure rollback: when managed TLS runtime application fails, the previous core configuration is re-applied; deployment remains marked failed if rollback succeeds.
+- [x] Renewal scheduler now retries pending certificate deployment on connected nodes without transferring private keys through NATS.
+- [x] Regression PASS: `48 passed in 2.21s`; Ruff and `git diff --check` PASS.
+- [ ] Next D3 operation: add focused API/rollback regression tests, then complete UI lifecycle controls and deployment status presentation.
