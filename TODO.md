@@ -447,4 +447,4 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Added a visible `Restore` button to the Restore Preparation card after a ZIP upload; the uploaded backup ID is retained in the UI so the action targets the exact newly uploaded archive.
 - [x] Restore action runs the existing isolated staging restore endpoint; it does not modify the production database. Production restore remains an explicit separate action from Backup History.
 - [x] Upload response is now captured instead of discarded, and the UI reports that the archive is ready to restore.
-- [ ] Frontend build/deploy/runtime validation pending for this UI-only change.
+- [x] Frontend production Vite/PWA build passed; deployed commit `436c7efaf7ac0b6a2b18da5c5efeaac9e6c76f7b`; after normal startup delay, Panel and TimescaleDB are healthy on the test server.
