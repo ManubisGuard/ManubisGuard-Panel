@@ -46,6 +46,12 @@ SOURCE_TS_VERSION=""
 TEMP_CONTAINER=""
 TEMP_VOLUME=""
 TEMP_PORT=""
+MARIADB_CONTAINER=""
+MARIADB_VOLUME=""
+MARIADB_PASSWORD=""
+MARIADB_SOURCE_URL=""
+TEMP_VOLUME=""
+TEMP_PORT=""
 STAGING_DB=""
 STAGING_URL=""
 PANEL_BACKUP=""
@@ -90,6 +96,8 @@ EOF
 
 cleanup() {
   set +e
+  if [ -n "$MARIADB_CONTAINER" ]; then docker rm -f "$MARIADB_CONTAINER" >/dev/null 2>&1 || true; fi
+  if [ -n "$MARIADB_VOLUME" ]; then docker volume rm "$MARIADB_VOLUME" >/dev/null 2>&1 || true; fi
   if [ -n "$TEMP_CONTAINER" ]; then
     docker rm -f "$TEMP_CONTAINER" >/dev/null 2>&1 || true
   fi
@@ -461,9 +469,49 @@ analyze_backup() {
     die "Backup reported an unsafe source TimescaleDB version: $SOURCE_TS_VERSION"
   fi
   log "Accepted source=$(json_get "$output" ".detection.source_product") format=$(json_get "$output" ".detection.format") PostgreSQL=${SOURCE_PG_MAJOR:-unknown} TimescaleDB=${SOURCE_TS_VERSION:-unknown}"
+  if [ "$(json_get "$output" ".detection.is_mariadb")" = "True" ] || [ "$(json_get "$output" ".detection.is_mariadb")" = "true" ]; then
+    log "MariaDB/MySQL logical dump detected; enabling isolated MariaDB -> PostgreSQL bridge."
+  fi
   if [ "$(json_get "$output" ".uses_timescaledb")" = "True" ] || [ "$(json_get "$output" ".uses_timescaledb")" = "true" ]; then
     log "Backup contains TimescaleDB objects."
   fi
+}
+
+start_temp_mariadb() {
+  [ -n "$PANEL_CONTAINER" ] || die "Panel container is required for the isolated MariaDB bridge."
+  MARIADB_CONTAINER="manubisguard-migration-mariadb-$ID"
+  MARIADB_VOLUME="manubisguard-migration-mariadb-$ID"
+  MARIADB_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+  local network
+  network="$(docker inspect -f '{{range $name, $value := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$PANEL_CONTAINER" | head -n1)"
+  [ -n "$network" ] || die "Could not determine the Panel Docker network for MariaDB bridge."
+  log "Starting isolated MariaDB 12.3.3 source runtime..."
+  docker volume create --label "manubisguard.migration=$ID" "$MARIADB_VOLUME" >/dev/null
+  docker run -d --name "$MARIADB_CONTAINER" --restart=no --label "manubisguard.migration=$ID" --network "$network" -e MARIADB_ROOT_PASSWORD="$MARIADB_PASSWORD" -e MARIADB_DATABASE=pasarguard -v "$MARIADB_VOLUME:/var/lib/mysql" mariadb:12.3.3 >/dev/null
+  local i
+  for i in $(seq 1 90); do
+    if docker exec "$MARIADB_CONTAINER" mariadb-admin -uroot -p"$MARIADB_PASSWORD" ping >/dev/null 2>&1; then break; fi
+    if [ "$(docker inspect -f '{{.State.Status}}' "$MARIADB_CONTAINER" 2>/dev/null || true)" = "exited" ]; then docker logs "$MARIADB_CONTAINER" >"$WORKDIR/mariadb-container.log" 2>&1 || true; die "Temporary MariaDB exited. See $WORKDIR/mariadb-container.log"; fi
+    sleep 2
+    [ "$i" -eq 90 ] && die "Temporary MariaDB did not become ready."
+  done
+  local sql_member
+  sql_member="$(unzip -Z1 "$PANEL_BACKUP" | grep -E '(^|/)(db_backup|database|backup)[^/]*\.sql$' | head -n1 || true)"
+  [ -n "$sql_member" ] || sql_member="$(unzip -Z1 "$PANEL_BACKUP" | grep -E '\.sql$' | head -n1 || true)"
+  [ -n "$sql_member" ] || die "MariaDB backup ZIP contains no SQL dump."
+  log "Importing MariaDB source dump into isolated runtime: $sql_member"
+  if ! unzip -p "$PANEL_BACKUP" "$sql_member" | docker exec -i "$MARIADB_CONTAINER" mariadb -uroot -p"$MARIADB_PASSWORD"; then
+    docker logs "$MARIADB_CONTAINER" >"$WORKDIR/mariadb-import.error" 2>&1 || true
+    die "MariaDB source dump import failed. See $WORKDIR/mariadb-import.error"
+  fi
+  MARIADB_SOURCE_URL="$(python3 - "$MARIADB_PASSWORD" "$MARIADB_CONTAINER" <<'PY'
+import sys
+from urllib.parse import quote
+password, host = sys.argv[1:]
+print("mysql+asyncmy://root:%s@%s:3306/pasarguard" % (quote(password, safe=""), host))
+PY
+)"
+  log "MariaDB source runtime is ready; credentials remain isolated to this migration process."
 }
 
 psql_prod() {
@@ -556,7 +604,9 @@ run_staging() {
   log "Restoring -> staging -> Alembic HEAD -> legacy adapter -> validation..."
   local output
   local stderr_file="$WORKDIR/staging.stderr"
-  if output="$(docker exec       -e MANUBISGUARD_MIGRATION_STAGING_URL="$STAGING_URL"       -e MANUBISGUARD_MIGRATION_PRODUCTION_URL="$PROD_URL"       "$PANEL_CONTAINER"       manubisguard-cli migrate-staging "$PANEL_BACKUP"       --external-staging       ${MANUBISGUARD_SOURCE_TIMESCALE:+--source-timescale "$MANUBISGUARD_SOURCE_TIMESCALE"}       --json 2>"$stderr_file")"; then
+  local -a env_args=(-e "MANUBISGUARD_MIGRATION_STAGING_URL=$STAGING_URL" -e "MANUBISGUARD_MIGRATION_PRODUCTION_URL=$PROD_URL")
+  if [ -n "$MARIADB_SOURCE_URL" ]; then env_args+=(-e "MANUBISGUARD_MARIADB_SOURCE_URL=$MARIADB_SOURCE_URL"); fi
+  if output="$(docker exec "${env_args[@]}" "$PANEL_CONTAINER" manubisguard-cli migrate-staging "$PANEL_BACKUP" --external-staging ${MANUBISGUARD_SOURCE_TIMESCALE:+--source-timescale "$MANUBISGUARD_SOURCE_TIMESCALE"} --json 2>"$stderr_file")"; then
     local json_output
     if ! json_output="$(extract_json_object "$output")"; then
       printf '%s\n' "$output" >"$WORKDIR/staging.error"
@@ -684,6 +734,7 @@ timescale_version_gt() {
 
 portable_bridge_required() {
   [ "$PROD_HAS_TIMESCALE" = true ] || return 1
+  if [ "$(json_get "$(cat "$WORKDIR/analysis.json")" ".detection.is_mariadb")" = "True" ] || [ "$(json_get "$(cat "$WORKDIR/analysis.json")" ".detection.is_mariadb")" = "true" ]; then return 1; fi
   [ -n "$SOURCE_TS_VERSION" ] || die "Portable Timescale bridge requires an exact source TimescaleDB version."
   [ -n "$PROD_TS_VERSION" ] || die "Portable Timescale bridge requires the destination TimescaleDB version."
   timescale_version_gt "$SOURCE_TS_VERSION" "$PROD_TS_VERSION"
@@ -864,6 +915,16 @@ restore_dump_to_cutover() {
   log "Restoring validated logical dump into isolated cutover database on the production PostgreSQL server."
   local rc=0
   if [ "$PROD_HAS_TIMESCALE" = true ]; then
+    local is_mariadb
+    is_mariadb="$(json_get "$(cat "$WORKDIR/analysis.json")" ".detection.is_mariadb")"
+    if [ "$is_mariadb" = "True" ] || [ "$is_mariadb" = "true" ]; then
+      SOURCE_PG_MAJOR="$PG_MAJOR"
+      stage_version="$PROD_TS_VERSION"
+      log "MariaDB source has no PostgreSQL/Timescale compatibility runtime; using an isolated destination-compatible PostgreSQL/Timescale staging runtime."
+      start_temp_timescale "$stage_version"
+      create_staging_database
+      start_temp_mariadb
+    elif portable_bridge_required; then
     cat "$PANEL_DUMP" | docker exec -i "$PANEL_CONTAINER" python -c '
 import sys
 from app.migration.timescale import filter_postgresql_compatibility_line, filter_timescaledb_ddl_line
