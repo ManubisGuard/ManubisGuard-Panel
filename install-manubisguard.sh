@@ -125,6 +125,51 @@ ensure_base_tools() {
   docker info >/dev/null 2>&1 || die "Docker daemon is not available."
 }
 
+configure_ssl_choice() {
+  if [ -n "$SSL_MODE" ]; then return 0; fi
+  if [ "$ASSUME_YES" = true ]; then SSL_MODE="none"; return 0; fi
+  echo
+  echo "=============================================="
+  echo " ManubisGuard SSL / TLS Setup"
+  echo "=============================================="
+  echo " 1) Let\x27s Encrypt - Domain"
+  echo " 2) SSL Certificate - Server IP (self-signed)"
+  echo " 3) Custom Certificate"
+  echo " 4) Normal Install - No SSL"
+  echo
+  read -r -p "Select [1-4] (default: 1): " choice
+  choice="${choice:-1}"
+  case "$choice" in
+    1) SSL_MODE="domain"; read -r -p "Domain (example.com): " SSL_DOMAIN; [ -n "$SSL_DOMAIN" ] || die "domain is required" ;;
+    2) SSL_MODE="ip"; SERVER_IP="$(curl -4fsS --max-time 5 https://api.ipify.org || true)"; [ -n "$SERVER_IP" ] || read -r -p "Server public IP: " SERVER_IP; [ -n "$SERVER_IP" ] || die "server IP is required" ;;
+    3) SSL_MODE="custom"; read -r -p "Certificate file: " SSL_CERTFILE; read -r -p "Private key file: " SSL_KEYFILE; [ -f "$SSL_CERTFILE" ] || die "certificate file not found"; [ -f "$SSL_KEYFILE" ] || die "private key file not found" ;;
+    4) SSL_MODE="none" ;;
+    *) die "invalid SSL selection" ;;
+  esac
+}
+
+prepare_ssl() {
+  mkdir -p "$DATA_DIR/certs"; chmod 700 "$DATA_DIR/certs"
+  case "$SSL_MODE" in
+    domain)
+      command -v certbot >/dev/null 2>&1 || { export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y certbot; }
+      log "Requesting Let\x27s Encrypt certificate for $SSL_DOMAIN..."
+      certbot certonly --standalone --non-interactive --agree-tos --register-unsafely-without-email -d "$SSL_DOMAIN" --preferred-challenges http --http-01-port 80
+      cp "/etc/letsencrypt/live/$SSL_DOMAIN/fullchain.pem" "$DATA_DIR/certs/fullchain.pem"
+      cp "/etc/letsencrypt/live/$SSL_DOMAIN/privkey.pem" "$DATA_DIR/certs/privkey.pem"
+      ;;
+    ip)
+      log "Generating self-signed certificate with IP SAN $SERVER_IP..."
+      openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 3650 -keyout "$DATA_DIR/certs/privkey.pem" -out "$DATA_DIR/certs/fullchain.pem" -subj "/CN=$SERVER_IP" -addext "subjectAltName=IP:$SERVER_IP"
+      ;;
+    custom)
+      cp "$SSL_CERTFILE" "$DATA_DIR/certs/fullchain.pem"; cp "$SSL_KEYFILE" "$DATA_DIR/certs/privkey.pem"
+      ;;
+    none) rm -f "$DATA_DIR/certs/fullchain.pem" "$DATA_DIR/certs/privkey.pem" ;;
+  esac
+  [ "$SSL_MODE" = "none" ] || { chmod 644 "$DATA_DIR/certs/fullchain.pem"; chmod 600 "$DATA_DIR/certs/privkey.pem"; }
+}
+
 ensure_disk_space() {
   local available
   available="$(df -Pm / | awk 'NR==2 {print $4}')"
@@ -215,8 +260,18 @@ prepare_env() {
   upsert_env MANUBISGUARD_COMPOSE_SERVICE manubisguard
   upsert_env MANUBISGUARD_DB_SERVICE timescaledb
   upsert_env MANUBISGUARD_DATA_DIR "$DATA_DIR"
-  upsert_env PASARGUARD_SSL_ENABLED False
-  upsert_env PASARGUARD_SSL_MODE none
+  if [ "$SSL_MODE" = "none" ]; then
+    upsert_env PASARGUARD_SSL_ENABLED False
+    upsert_env PASARGUARD_SSL_MODE none
+    upsert_env UVICORN_SSL_CERTFILE ""
+    upsert_env UVICORN_SSL_KEYFILE ""
+  else
+    upsert_env PASARGUARD_SSL_ENABLED True
+    upsert_env PASARGUARD_SSL_MODE "$SSL_MODE"
+    upsert_env UVICORN_SSL_CERTFILE "$DATA_DIR/certs/fullchain.pem"
+    upsert_env UVICORN_SSL_KEYFILE "$DATA_DIR/certs/privkey.pem"
+    if [ "$SSL_MODE" = "ip" ]; then upsert_env UVICORN_SSL_CA_TYPE private; else upsert_env UVICORN_SSL_CA_TYPE public; fi
+  fi
 }
 
 install_restore_agent() {
@@ -342,7 +397,7 @@ show_result() {
   echo "Install:     $INSTALL_DIR"
   echo "Data:        $DATA_DIR"
   echo "Database:    $DATABASE"
-  echo "Panel:       http://SERVER-IP:8000"
+  if [ "$SSL_MODE" = "none" ]; then echo "Panel:       http://SERVER-IP:8000"; elif [ "$SSL_MODE" = "domain" ]; then echo "Panel:       https://${SSL_DOMAIN}:8000"; else echo "Panel:       https://${SERVER_IP:-SERVER-IP}:8000"; fi
   echo "Username:    admin"
   echo "Password:    $admin_password"
   echo "CLI:         manubisguard {status|start|stop|restart|logs|update}"
@@ -361,7 +416,9 @@ main() {
     fi
   fi
 
+  configure_ssl_choice
   prepare_source
+  prepare_ssl
   prepare_env
   install_restore_agent
   validate_compose
