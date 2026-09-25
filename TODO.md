@@ -217,3 +217,13 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Authenticated backup-list secret non-disclosure PASS.
 - [x] Runtime log scan found no disposable plaintext token and no Telegram-token log entries.
 - [x] No production secret was used and no production database was modified.
+
+## D0.3 Telegram Security — 2026-09-25
+- [x] Fernet encrypted Telegram token storage and API secret exclusion verified by authenticated disposable tests.
+- [x] Backup history endpoint verified not to expose `telegram_bot_token`.
+- [x] Runtime log scan found no disposable plaintext Telegram token.
+- [x] Telegram notification path covered with a mocked HTTP client; test does not contact Telegram and uses only `DISPOSABLE_TEST_TOKEN`.
+- [x] Mock notification regression passes together with existing Backup security tests: `4 passed in 0.41s`.
+- [x] Ruff check, Ruff format check and `git diff --check` pass.
+- [x] No real Telegram secret was used.
+- [ ] Telegram real-message test remains intentionally unexecuted because it requires a real production/test secret; mock coverage is the current gate.
