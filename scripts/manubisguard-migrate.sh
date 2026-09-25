@@ -973,21 +973,14 @@ health_check() {
   log "Checking ManubisGuard container health after production cutover..."
   PANEL_CONTAINER="$(docker compose -f "$COMPOSE_FILE" ps -q "$COMPOSE_SERVICE" 2>/dev/null || true)"
   [ -n "$PANEL_CONTAINER" ] || return 1
-  local port
-  port="$(env_get "$CURRENT_ENV" UVICORN_PORT || true)"
-  port="${port:-8000}"
   local i state
   for i in $(seq 1 60); do
-    state="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$PANEL_CONTAINER" 2>/dev/null || true)
+    state="$(docker inspect --format='{{.State.Health.Status}}' "$PANEL_CONTAINER" 2>/dev/null || true)"
     if [ "$state" = "healthy" ]; then
       log "Panel container reports healthy."
       return 0
     fi
-    if [ "$state" = "running" ] && docker exec "$PANEL_CONTAINER" sh -lc "curl -kfsS --max-time 5 http://127.0.0.1:$port/health >/dev/null 2>&1"; then
-      log "Panel internal /health returned HTTP 200."
-      return 0
-    fi
-    if [ "$state" = "exited" ] || [ "$state" = "dead" ]; then
+    if [ "$state" = "unhealthy" ] || [ "$state" = "dead" ]; then
       docker compose -f "$COMPOSE_FILE" logs --no-color --tail 120 "$COMPOSE_SERVICE" >"$WORKDIR/panel-health-failure.log" 2>&1 || true
       return 1
     fi
