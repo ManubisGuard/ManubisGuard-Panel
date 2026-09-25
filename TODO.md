@@ -209,3 +209,11 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Unauthenticated `/api/admin/backup/list`, `/create`, and `/configure-telegram` requests were rejected with HTTP 401; no secret was supplied.
 - [ ] Authenticated automated Backup API regression suite is not yet green: repository test runner stalled during test-module import/Alembic SQLite setup in disposable execution; no production database was used or modified.
 - [ ] Next: isolate/fix test-runner hang, then execute authenticated manual-backup, Telegram mock, list secret non-disclosure and RBAC regression tests in disposable data only.
+
+## D0.2 Runtime/API Regression — completion evidence 2026-09-25
+- [x] Disposable authenticated Backup security regression suite executed successfully: `3 passed in 0.34s`.
+- [x] Fernet encryption/decryption round-trip PASS.
+- [x] Authenticated Telegram configuration PASS; response excludes `telegram_bot_token` and DB stores ciphertext.
+- [x] Authenticated backup-list secret non-disclosure PASS.
+- [x] Runtime log scan found no disposable plaintext token and no Telegram-token log entries.
+- [x] No production secret was used and no production database was modified.
