@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.migration.adapters.pasarguard import PasarGuardAdapter
+from app.migration.async_utils import run_sync_in_worker
 from app.migration.compatibility import TimescaleCompatibility, analyze_timescale_sql, version_tuple
 from app.migration.detector import BackupDetection
 from app.migration.preflight import PreflightResult, preflight_backup
@@ -419,9 +420,9 @@ def migrate_manubisguard_staging(
             allow_external_staging=allow_external_staging,
         )
         from app.migration.inspector import inspect_database
-        from app.migration.mariadb_bridge import migrate_mariadb_to_postgres
+        from app.migration.mariadb_bridge import run_mariadb_to_postgres
 
-        bridge = await migrate_mariadb_to_postgres(source_url, staging.staging_url)
+        bridge = run_sync_in_worker(run_mariadb_to_postgres, source_url, staging.staging_url)
         mariadb_bridge_report = bridge.as_dict()
         pre_upgrade = inspect_database(staging.staging_url)
         pre_upgrade_counts_override = {
