@@ -505,7 +505,10 @@ start_temp_mariadb() {
     die "MariaDB source dump import failed. See $WORKDIR/mariadb-import.error"
   fi
   docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -e "CREATE USER IF NOT EXISTS 'manubisguard_bridge'@'%' IDENTIFIED BY '$MARIADB_PASSWORD'; GRANT ALL PRIVILEGES ON *.* TO 'manubisguard_bridge'@'%'; FLUSH PRIVILEGES;"
-  MARIADB_SOURCE_URL="$(python3 - "$MARIADB_PASSWORD" "$MARIADB_CONTAINER" <<'PY'
+  local mariadb_ip
+  mariadb_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$MARIADB_CONTAINER" | head -n1)"
+  [ -n "$mariadb_ip" ] || die "Could not determine isolated MariaDB network address."
+  MARIADB_SOURCE_URL="$(python3 - "$MARIADB_PASSWORD" "$mariadb_ip" <<'PY'
 import sys
 from urllib.parse import quote
 password, host = sys.argv[1:]
