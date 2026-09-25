@@ -500,11 +500,11 @@ start_temp_mariadb() {
   [ -n "$sql_member" ] || sql_member="$(unzip -Z1 "$PANEL_BACKUP" | grep -E '\.sql$' | head -n1 || true)"
   [ -n "$sql_member" ] || die "MariaDB backup ZIP contains no SQL dump."
   log "Importing MariaDB source dump into isolated runtime: $sql_member"
-  if ! unzip -p "$PANEL_BACKUP" "$sql_member" | docker exec -i "$MARIADB_CONTAINER" mariadb -uroot; then
+  if ! unzip -p "$PANEL_BACKUP" "$sql_member" | docker exec -i "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot; then
     docker logs "$MARIADB_CONTAINER" >"$WORKDIR/mariadb-import.error" 2>&1 || true
     die "MariaDB source dump import failed. See $WORKDIR/mariadb-import.error"
   fi
-  docker exec "$MARIADB_CONTAINER" mariadb -uroot -e "CREATE USER IF NOT EXISTS 'manubisguard_bridge'@'%' IDENTIFIED BY '$MARIADB_PASSWORD'; GRANT ALL PRIVILEGES ON *.* TO 'manubisguard_bridge'@'%'; FLUSH PRIVILEGES;"
+  docker exec "$MARIADB_CONTAINER" mariadb --protocol=SOCKET --skip-ssl -uroot -e "CREATE USER IF NOT EXISTS 'manubisguard_bridge'@'%' IDENTIFIED BY '$MARIADB_PASSWORD'; GRANT ALL PRIVILEGES ON *.* TO 'manubisguard_bridge'@'%'; FLUSH PRIVILEGES;"
   MARIADB_SOURCE_URL="$(python3 - "$MARIADB_PASSWORD" "$MARIADB_CONTAINER" <<'PY'
 import sys
 from urllib.parse import quote
