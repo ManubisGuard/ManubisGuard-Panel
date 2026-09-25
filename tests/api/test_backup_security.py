@@ -1,5 +1,6 @@
 import asyncio
 
+import pytest
 from sqlalchemy import select
 
 from app.db.models import Backup
@@ -51,3 +52,37 @@ def test_backup_list_does_not_expose_token(access_token, monkeypatch):
     response = client.get("/api/admin/backup/list", headers={"Authorization": f"Bearer {access_token}"})
     assert response.status_code == 200, response.text
     assert all("telegram_bot_token" not in item for item in response.json()["items"])
+
+
+@pytest.mark.asyncio
+async def test_telegram_notification_mock_does_not_require_real_token(monkeypatch):
+    from app.notification import client as notification_client
+
+    calls = []
+
+    class FakeResponse:
+        status = 200
+
+    async def fake_post(url, data):
+        calls.append((url, data))
+        return FakeResponse()
+
+    class FakeClient:
+        post = staticmethod(fake_post)
+
+    monkeypatch.setattr(notification_client, "client", FakeClient())
+    result = await notification_client._send_telegram_message_direct(
+        message="MANUBISGUARD BACKUP TEST",
+        chat_id=123456,
+        topic_id=None,
+        max_retries=1,
+        telegram_api_token="DISPOSABLE_TEST_TOKEN",
+    )
+
+    assert result is True
+    assert calls == [
+        (
+            "https://api.telegram.org/botDISPOSABLE_TEST_TOKEN/sendMessage",
+            {"parse_mode": "HTML", "text": "MANUBISGUARD BACKUP TEST", "chat_id": 123456},
+        )
+    ]
