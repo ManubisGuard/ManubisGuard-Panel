@@ -174,3 +174,27 @@
 - [x] Clean branch Docker image build completed successfully: `manubisguard-panel:feature-amnezia-wg-clean` (image id `340bbb479218`).
 - [x] Clean-image disposable application startup/health gate PASS on the new test server: clean image contains `/code/dashboard/build/index.html`; `import app` PASS; disposable container started and `http://127.0.0.1:8000/health` returned `{"status":"ok"}`; live Panel/TimescaleDB remained healthy.
 - [ ] Production `--apply` cutover remains intentionally blocked; no production cutover was executed in this milestone.
+
+## D0 Backup Restore checkpoint 2026-09-25
+- [x] Backup ORM, migration, service, admin API and Fernet encryption implemented.
+- [x] Encryption round-trip and plaintext log-scan tests passed.
+- [x] Telegram token is encrypted in DB and hidden from API responses.
+- [x] SQLite backup-ID regression fixed; Ruff and diff-check passed.
+- [x] Commits: 8e06f568, 46dbff58.
+- [ ] Finish Telegram mock/secret tests, frontend, retention, restore UI flow and final tests/build/runtime.
+
+## NEXT EXECUTION ORDER
+1. Verify feature/amnezia-wg, HEAD, clean tree, compose health and /health.
+2. Verify Backup migration and columns; run authenticated manual-backup and Telegram-config tests in staging/disposable data only.
+3. Verify list never exposes telegram_bot_token and scan logs for plaintext test token.
+4. Finish Settings -> Backup & Restore UI: manual backup, schedule/retention, restore upload/check/staging restore, Telegram config/test, history.
+5. Add retention/auto-delete and unit/API/integration/security tests.
+6. Run Ruff, format, diff-check, full tests, clean Docker build and runtime.
+7. After every real PASS update TODO.md, commit and push to origin feature/amnezia-wg.
+8. Never run production --apply until every migration/cutover gate is green.
+
+## CONTINUATION PROMPT
+Continue MANUBISGUARD from GitHub ManubisGuard/ManubisGuard-Panel, branch feature/amnezia-wg, server /opt/manubisguard-panel. GitHub is source of truth; Remote Desktop Commander is execution source. Never modify main. Never claim PASS without execution evidence. Never commit secrets, tokens, private keys or certificates.
+Restore/Migration gates already passed: real backup check, isolated restore, schema/tables/rows/FK/sequences/identity validation, Timescale upgrade, staging dump/integrity, disposable rollback, PG17/Timescale -> PG16/Timescale portable bridge E2E, 86 migration tests, clean branch image build and disposable runtime health. Production --apply has not been executed.
+Current D0 backend: Backup model/migration/service/admin API; Fernet encryption using BACKUP_TELEGRAM_KEY; token hidden from API/logs; opt-in APScheduler job; SQLite backup-ID regression fix. Commits 8e06f568 and 46dbff58.
+Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure, frontend, retention, restore UI flow, tests, clean build/runtime. On FAIL: evidence -> root cause -> minimal fix -> regression -> PASS -> TODO -> commit -> push.
