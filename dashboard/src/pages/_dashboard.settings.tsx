@@ -153,7 +153,15 @@ export default function Settings() {
       // Only include data relevant to the active tab
       switch (activeTab) {
         case 'domains':
-          filteredData = { general: { domains: data.domains, primary_domain: data.primary_domain, server_addresses: data.server_addresses } }
+          filteredData = {
+            data: {
+              general: {
+                domains: data.domains,
+                primary_domain: data.primary_domain,
+                server_addresses: data.server_addresses,
+              },
+            },
+          }
           break
         case 'notifications':
           if (data.data) {

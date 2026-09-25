@@ -412,3 +412,19 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Initial production-image deployment was intentionally deferred at the code milestone; the later live test deployment checkpoint records the actual image deployment and runtime validation.
 - [x] Test deployment completed on the authorized server from branch `feature/amnezia-wg` at commit `bb5204a5`: existing TimescaleDB volume preserved, pre-deployment pg_dump saved outside Git, local image rebuilt, Panel recreated, runtime `/health` returned 200, and no production data restore/cutover was performed.
 - [x] HTTPS test endpoint configured for `55.qoqnusradio.top` with Nginx reverse proxy and a real Let's Encrypt certificate; external `/` returned 200 and `/health` returned `{"status":"ok"}`. Certificate is valid through 2026-12-24 and Certbot renewal is scheduled.
+
+
+## Domains & SSL — Add Primary Domain / Certificate Jobs — 2026-09-25
+- [x] Root cause of the repeated “Failed to save settings / body: Field required” notification identified: the Domains tab autosave called the generated useModifySettings mutation with the payload directly, while the mutation contract requires { data: SettingsSchema }; this produced an HTTP 422 with a missing request body.
+- [x] Fixed the Settings Domains mutation wrapper to send the existing Settings API contract as { data: { general: { domains, primary_domain, server_addresses } } }; no backend Settings schema was changed.
+- [x] Fixed autosave semantics: Add Primary Domain creates only client-side form state; autosave is now dirty-state driven and starts only after an actual user edit/removal/address change. Certificate-operation response updates are treated as server synchronization and do not trigger a second Settings autosave.
+- [x] Removed Cloudflare from Domains & SSL UI: credential section, token/status controls, save action and Cloudflare certificate-method control/text are gone. Backend Cloudflare infrastructure/API remains intact for the deferred follow-up version.
+- [x] Added in-UI Certificate Jobs list for certificate issue operations with Domain name, start time, last-attempt time and safe visual states: 🟠 running, 🟢 success, 🔴 failure. Failure display uses a fixed safe message and never exposes secrets.
+- [x] Certificate job state is tied to the existing synchronous certificate-issue API request; no new backend job contract, ACME worker or persistence schema was invented.
+- [x] Domains & SSL backend regression: settings, managed domains, managed certificate runtime, certificate store, domain intelligence and ACME tests: 68 passed in 3.23s.
+- [x] Frontend TypeScript tsc --noEmit: PASS.
+- [x] Frontend production Vite/PWA build inside Docker builder: PASS; existing large-chunk warning only. Docker layer export stalled afterward, so no new image was deployed.
+- [x] git diff --check: PASS.
+- [ ] Test-server deployment of this milestone remains pending because the Docker image export did not complete; the running test deployment was not modified.
+- [ ] Real ACME issuance remains intentionally unexecuted; certificate-job UX was validated without contacting ACME/Cloudflare.
+- [ ] Cloudflare UI is intentionally deferred to a later version; backend/infrastructure remains preserved.

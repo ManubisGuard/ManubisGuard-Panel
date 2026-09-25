@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useGetGeneralSettings, useGetNodesSimple, useInspectDomainCertificate, useInspectDomainIntelligence, type ManagedServerAddress as ApiManagedServerAddress } from '@/service/api'
-import { getCloudflareCredentialStatus, useDeployManagedCertificates, useInstallExistingCertificate, useIssueManagedCertificate, useSetCloudflareCredential, type ManagedDomainLifecycle as ApiManagedDomain } from '@/service/domainCertificates'
+import { useDeployManagedCertificates, useInstallExistingCertificate, useIssueManagedCertificate, type ManagedDomainLifecycle as ApiManagedDomain } from '@/service/domainCertificates'
 import { CheckCircle2, Clock3, Globe2, Plus, RefreshCcw, ShieldCheck, Trash2, UploadCloud } from 'lucide-react'
 import { toast } from 'sonner'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -15,6 +15,15 @@ const protocolOptions = ['Xray', 'Reality', 'AmneziaWG', 'Shadowsocks', 'TUIC', 
 const newId = () => crypto.randomUUID()
 
 const normalizeDomain = (value: string) => value.trim().toLowerCase()
+
+type CertificateJob = {
+  domainId: string
+  domain: string
+  status: 'running' | 'succeeded' | 'failed'
+  startedAt: string
+  lastAttemptAt: string
+  error?: string
+}
 
 const emptyDomain = (): ApiManagedDomain => ({
   id: newId(),
@@ -36,11 +45,9 @@ export default function DomainsSettings() {
   const { data: nodesResponse } = useGetNodesSimple()
   const inspectMutation = useInspectDomainIntelligence()
   const certificateMutation = useInspectDomainCertificate()
-  const cloudflareMutation = useSetCloudflareCredential()
-  const [cloudflareToken, setCloudflareToken] = useState('')
-  const [cloudflareConfigured, setCloudflareConfigured] = useState(false)
   const [intelligence, setIntelligence] = useState<Record<string, any>>({})
   const [certificates, setCertificates] = useState<Record<string, any>>({})
+  const [certificateJobs, setCertificateJobs] = useState<Record<string, CertificateJob>>({})
   const nodes = ((nodesResponse as any)?.data?.nodes ?? (nodesResponse as any)?.nodes ?? []) as Array<{ id: number; name: string }>
 
   const general = ((generalSettings as any)?.data ?? generalSettings ?? {}) as {
@@ -55,19 +62,16 @@ export default function DomainsSettings() {
   const storedPrimary = general.primary_domain ?? null
   const storedAddresses = general.server_addresses ?? []
 
-  useEffect(() => {
-    getCloudflareCredentialStatus().then(response => setCloudflareConfigured(Boolean(response?.configured))).catch(() => setCloudflareConfigured(false))
-  }, [])
-
   const { updateSettings } = useSettingsContext()
-  const syncingRef = useRef(true)
-  const autosaveMountedRef = useRef(false)
+  const syncingRef = useRef(false)
+  const dirtyRef = useRef(false)
   const [primary, setPrimary] = useState<ApiManagedDomain | null>(storedPrimary)
   const [domains, setDomains] = useState<ApiManagedDomain[]>(storedDomains)
   const [addresses, setAddresses] = useState<ApiManagedServerAddress[]>(storedAddresses)
 
   useEffect(() => {
     syncingRef.current = true
+    dirtyRef.current = false
     setPrimary(storedPrimary)
     setDomains(storedDomains)
     setAddresses(storedAddresses)
@@ -81,16 +85,12 @@ export default function DomainsSettings() {
   ])
 
   const nodeName = useMemo(() => new Map(nodes.map(node => [node.id, node.name])), [nodes])
-
   useEffect(() => {
     if (syncingRef.current) {
       syncingRef.current = false
       return
     }
-    if (!autosaveMountedRef.current) {
-      autosaveMountedRef.current = true
-      return
-    }
+    if (!dirtyRef.current) return
     const timer = window.setTimeout(() => {
       const cleanDomains = domains.map(item => ({ ...item, domain: normalizeDomain(item.domain) })).filter(item => item.domain)
       const cleanPrimary = primary?.domain ? { ...primary, domain: normalizeDomain(primary.domain) } : null
@@ -101,15 +101,31 @@ export default function DomainsSettings() {
         domains: cleanDomains,
         primary_domain: cleanPrimary,
         server_addresses: addresses.filter(item => item.address.trim()).map(item => ({ ...item, address: item.address.trim() })),
-      }).catch(() => undefined)
+      }).then(() => {
+        dirtyRef.current = false
+      }).catch(() => {
+        dirtyRef.current = true
+      })
     }, 500)
     return () => window.clearTimeout(timer)
   }, [addresses, domains, general.custom_variables, general.default_method, general.reality_sni_pool, primary, updateSettings])
 
+  const markDirty = () => {
+    dirtyRef.current = true
+  }
   const addDomain = () => setDomains(current => [...current, emptyDomain()])
-  const updateDomain = (id: string, patch: Partial<ApiManagedDomain>) => setDomains(current => current.map(item => (item.id === id ? { ...item, ...patch } : item)))
-  const removeDomain = (id: string) => setDomains(current => current.filter(item => item.id !== id))
-  const addAddress = () => setAddresses(current => [...current, { id: newId(), node_id: null, address: '', enabled: true }])
+  const updateDomain = (id: string, patch: Partial<ApiManagedDomain>) => {
+    markDirty()
+    setDomains(current => current.map(item => (item.id === id ? { ...item, ...patch } : item)))
+  }
+  const removeDomain = (id: string) => {
+    markDirty()
+    setDomains(current => current.filter(item => item.id !== id))
+  }
+  const addAddress = () => {
+    markDirty()
+    setAddresses(current => [...current, { id: newId(), node_id: null, address: '', enabled: true }])
+  }
 
   if (isLoading) return <div className="text-muted-foreground w-full p-6 text-sm">Loading Domains & SSL…</div>
 
@@ -124,7 +140,14 @@ export default function DomainsSettings() {
             </div>
             <p className="text-muted-foreground mt-1 text-sm">The main public domain used by your panel and subscriptions.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setPrimary(primary ? null : emptyDomain())}>
+          <Button variant="outline" size="sm" onClick={() => {
+            if (primary) {
+              markDirty()
+              setPrimary(null)
+            } else {
+              setPrimary(emptyDomain())
+            }
+          }}>
             {primary ? 'Remove' : 'Add primary domain'}
           </Button>
         </div>
@@ -132,20 +155,36 @@ export default function DomainsSettings() {
           <>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Domain">
-                <Input value={primary.domain} onChange={e => setPrimary({ ...primary, domain: e.target.value })} placeholder="panel.example.com" />
+                <Input value={primary.domain} onChange={e => {
+                  markDirty()
+                  setPrimary({ ...primary, domain: e.target.value })
+                }} placeholder="panel.example.com" />
               </Field>
               <Field label="Node">
-                <NodeSelect value={primary.node_id} nodes={nodes} onChange={node_id => setPrimary({ ...primary, node_id })} />
+                <NodeSelect value={primary.node_id} nodes={nodes} onChange={node_id => {
+                  markDirty()
+                  setPrimary({ ...primary, node_id })
+                }} />
               </Field>
               <Field label="Certificate method">
-                <CertSelect value={primary.certificate_method} onChange={certificate_method => setPrimary({ ...primary, certificate_method })} />
+                <CertSelect value={primary.certificate_method} onChange={certificate_method => {
+                  markDirty()
+                  setPrimary({ ...primary, certificate_method })
+                }} />
               </Field>
               <Field label="Certificate email (optional)">
-                <Input value={primary.email ?? ''} onChange={e => setPrimary({ ...primary, email: e.target.value })} placeholder="you@example.com" />
+                <Input value={primary.email ?? ''} onChange={e => {
+                  markDirty()
+                  setPrimary({ ...primary, email: e.target.value })
+                }} placeholder="you@example.com" />
               </Field>
             </div>
             <div className="border-border/50 mt-5 border-t pt-5">
-              <CertificateLifecycleActions domain={primary} primary onDomainUpdate={updated => setPrimary(updated)} />
+              <CertificateLifecycleActions domain={primary} primary onDomainUpdate={updated => {
+                syncingRef.current = true
+                dirtyRef.current = false
+                setPrimary(updated)
+              }} onJobUpdate={job => setCertificateJobs(current => ({ ...current, [job.domainId]: job }))} />
             </div>
           </>
         )}
@@ -176,7 +215,7 @@ export default function DomainsSettings() {
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                     <StatusBadge status={domain.status} />
                     <span className="border-border/60 text-muted-foreground rounded-full border px-2 py-1">
-                      {domain.certificate_method === 'letsencrypt' ? "Let's Encrypt" : domain.certificate_method === 'cloudflare' ? 'Cloudflare DNS' : 'Existing certificate'}
+                      {domain.certificate_method === 'letsencrypt' ? "Let's Encrypt" : 'Existing certificate'}
                     </span>
                     {domain.node_id && <span className="text-muted-foreground">Node: {nodeName.get(domain.node_id) ?? domain.node_id}</span>}
                   </div>
@@ -304,40 +343,18 @@ export default function DomainsSettings() {
                 <span>Certificate: {domain.certificate_expires_at ?? 'not issued'}</span>
               </div>
               <div className="border-border/50 mt-4 border-t pt-4">
-                <CertificateLifecycleActions domain={domain} onDomainUpdate={updated => updateDomain(domain.id, updated)} />
+                <CertificateLifecycleActions domain={domain} onDomainUpdate={updated => {
+                  syncingRef.current = true
+                  dirtyRef.current = false
+                  setDomains(current => current.map(item => (item.id === domain.id ? updated : item)))
+                }} onJobUpdate={job => setCertificateJobs(current => ({ ...current, [job.domainId]: job }))} />
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="border-border/60 bg-card/40 rounded-2xl border p-5 shadow-sm">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <div>
-            <div className="text-lg font-semibold">Cloudflare API</div>
-            <p className="text-muted-foreground mt-1 text-sm">Required only for Cloudflare DNS certificate issuance. The token is stored server-side and is never returned.</p>
-          </div>
-          <span className="rounded-full border px-2 py-1 text-xs">{cloudflareConfigured ? 'Configured' : 'Not configured'}</span>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Input type="password" value={cloudflareToken} onChange={event => setCloudflareToken(event.target.value)} placeholder="Cloudflare API Token" autoComplete="new-password" />
-          <Button
-            disabled={!cloudflareToken.trim() || cloudflareMutation.isPending}
-            onClick={async () => {
-              try {
-                await cloudflareMutation.mutateAsync({ data: { api_token: cloudflareToken.trim() } })
-                setCloudflareToken('')
-                setCloudflareConfigured(true)
-                toast.success('Cloudflare API token saved securely.')
-              } catch (error: any) {
-                toast.error(error?.message ?? 'Cloudflare API token could not be saved.')
-              }
-            }}
-          >
-            {cloudflareMutation.isPending ? 'Saving…' : 'Save API token'}
-          </Button>
-        </div>
-      </section>
+      <CertificateJobsList jobs={Object.values(certificateJobs)} />
 
       <section className="border-border/60 bg-card/40 rounded-2xl border p-5 shadow-sm">
         <div className="mb-5 flex items-center justify-between gap-4">
@@ -375,7 +392,7 @@ export default function DomainsSettings() {
   )
 }
 
-function CertificateLifecycleActions({ domain, primary = false, onDomainUpdate }: { domain: ApiManagedDomain; primary?: boolean; onDomainUpdate: (domain: ApiManagedDomain) => void }) {
+function CertificateLifecycleActions({ domain, primary = false, onDomainUpdate, onJobUpdate }: { domain: ApiManagedDomain; primary?: boolean; onDomainUpdate: (domain: ApiManagedDomain) => void; onJobUpdate?: (job: CertificateJob) => void }) {
   const issueMutation = useIssueManagedCertificate()
   const installMutation = useInstallExistingCertificate()
   const deployMutation = useDeployManagedCertificates()
@@ -394,11 +411,25 @@ function CertificateLifecycleActions({ domain, primary = false, onDomainUpdate }
   }
 
   const issue = async () => {
+    const startedAt = new Date().toISOString()
+    onJobUpdate?.({ domainId: domain.id, domain: domain.domain, status: 'running', startedAt, lastAttemptAt: startedAt })
     try {
       const payload = updateFromResponse(await issueMutation.mutateAsync({ data: { domain_id: domain.id, force: true, domain, primary } }))
-      toast.success(payload?.domain?.deployment_status === 'deployed' ? 'Certificate issued and deployed.' : 'Certificate issued; deployment requested.')
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Certificate issuance failed.')
+      const succeeded = payload?.domain?.status === 'active' || payload?.domain?.status === 'expiring'
+      const lastAttemptAt = new Date().toISOString()
+      onJobUpdate?.({
+        domainId: domain.id,
+        domain: payload?.domain?.domain ?? domain.domain,
+        status: succeeded ? 'succeeded' : 'failed',
+        startedAt,
+        lastAttemptAt,
+        error: succeeded ? undefined : 'Certificate issuance failed.',
+      })
+      toast.success(succeeded ? 'Certificate request completed.' : 'Certificate issuance failed.')
+    } catch {
+      const lastAttemptAt = new Date().toISOString()
+      onJobUpdate?.({ domainId: domain.id, domain: domain.domain, status: 'failed', startedAt, lastAttemptAt, error: 'Certificate issuance failed.' })
+      toast.error('Certificate issuance failed.')
     }
   }
 
@@ -502,6 +533,41 @@ function CertificateLifecycleActions({ domain, primary = false, onDomainUpdate }
   )
 }
 
+function CertificateJobsList({ jobs }: { jobs: CertificateJob[] }) {
+  if (jobs.length === 0) return null
+  return (
+    <section className="border-border/60 bg-card/40 rounded-2xl border p-5 shadow-sm">
+      <div className="mb-4">
+        <div className="text-lg font-semibold">Certificate Jobs</div>
+        <p className="text-muted-foreground mt-1 text-sm">Certificate issuance activity for the managed domains.</p>
+      </div>
+      <div className="space-y-2">
+        {jobs.map(job => {
+          const running = job.status === 'running'
+          const failed = job.status === 'failed'
+          const succeeded = job.status === 'succeeded'
+          return (
+            <div key={job.domainId} className="border-border/60 bg-background/30 grid gap-2 rounded-xl border p-3 md:grid-cols-[1fr_auto_auto] md:items-center">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{job.domain || 'New domain'}</div>
+                <div className="text-muted-foreground mt-1 text-xs">
+                  Started: {formatCertificateDate(job.startedAt)} · Last attempt: {formatCertificateDate(job.lastAttemptAt)}
+                </div>
+              </div>
+              <div className={
+                `rounded-full border px-2.5 py-1 text-xs ${running ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' : failed ? 'border-red-500/30 bg-red-500/10 text-red-400' : succeeded ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' : 'border-border/60 text-muted-foreground'}`
+              }>
+                {running ? '🟠 در حال دریافت گواهی' : succeeded ? '🟢 گواهی دریافت شد' : failed ? '🔴 دریافت گواهی ناموفق بود' : '—'}
+              </div>
+              {failed && job.error && <div className="text-xs text-red-400 md:max-w-xs md:text-right">{job.error}</div>}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function formatCertificateDate(value?: string | null) {
   if (!value) return 'not set'
   const date = new Date(value)
@@ -551,7 +617,6 @@ function CertSelect({ value, onChange }: { value: NonNullable<ApiManagedDomain['
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="letsencrypt">Auto with Let's Encrypt</SelectItem>
-        <SelectItem value="cloudflare">Auto with Cloudflare DNS</SelectItem>
         <SelectItem value="existing">Use existing certificate</SelectItem>
       </SelectContent>
     </Select>
