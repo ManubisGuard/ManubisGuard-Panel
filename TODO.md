@@ -340,3 +340,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] Server Address `additional` / `alias` / `both` generation remains pending because the repository does not define the exact alias semantics or the target subscription/inbound propagation contract; no speculative behavior is being introduced.
 - [x] Upstream architecture check completed: current Node Bridge maintenance API has no certificate/file-transfer method, and upstream node deployment documents node-local certificate paths. citeturn0search0turn0search1
 - [x] D3 blocker is recorded explicitly rather than falsely claiming end-to-end deployment is complete.
+
+## D3 — Certificate/TLS architecture verification — 2026-09-25
+- [x] Verified existing Xray TLS parser supports `serveOnNode` as an explicit node-side certificate mode; this is an existing upstream contract, not a new invented field.
+- [x] Verified Node Bridge still has no generic certificate/file upload RPC, while official Node configuration uses node-local certificate paths and Xray TLS accepts either file paths or direct certificate content.
+- [x] Verified upstream panel history documents the `serveOnNode` handling in Xray certificate processing.
+- [ ] Managed certificate deployment remains incomplete until the exact node-side certificate materialization contract is verified in the deployed Node version; no private-key transfer or shared-core mutation has been introduced speculatively.
+- [ ] Next D3 operation: inspect the deployed Node implementation/API for the concrete certificate materialization path, then implement and test only that supported contract.
