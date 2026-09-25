@@ -132,7 +132,7 @@ configure_ssl_choice() {
   echo "=============================================="
   echo " ManubisGuard SSL / TLS Setup"
   echo "=============================================="
-  echo " 1) Let\x27s Encrypt - Domain"
+  echo " 1) Let's Encrypt - Domain"
   echo " 2) SSL Certificate - Server IP (self-signed)"
   echo " 3) Custom Certificate"
   echo " 4) Normal Install - No SSL"
@@ -154,7 +154,7 @@ prepare_ssl() {
   case "$SSL_MODE" in
     domain)
       command -v certbot >/dev/null 2>&1 || { export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y certbot; }
-      log "Requesting Let\x27s Encrypt certificate for $SSL_DOMAIN..."
+      log "Requesting Let's Encrypt certificate for $SSL_DOMAIN..."
       certbot certonly --standalone --non-interactive --agree-tos --register-unsafely-without-email -d "$SSL_DOMAIN" --preferred-challenges http --http-01-port 80
       cp "/etc/letsencrypt/live/$SSL_DOMAIN/fullchain.pem" "$DATA_DIR/certs/fullchain.pem"
       cp "/etc/letsencrypt/live/$SSL_DOMAIN/privkey.pem" "$DATA_DIR/certs/privkey.pem"
