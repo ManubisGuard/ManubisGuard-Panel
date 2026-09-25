@@ -5,8 +5,8 @@ Revises: awg2026091901
 Create Date: 2026-09-25
 
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 from app.db.compiles_types import SqliteCompatibleBigInteger
 
