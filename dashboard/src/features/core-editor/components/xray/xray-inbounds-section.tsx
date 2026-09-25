@@ -2425,7 +2425,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   }
 
   const patchSecurity = (patch: Record<string, unknown>) => {
-    const security = inbound ? getInboundSecurityRecord(inbound) : null
+    // Always merge against the latest draft/store inbound. The component prop can
+    // lag one render behind when an async action (such as Auto Select SNI) updates
+    // the inbound, which previously allowed a stale security object to overwrite
+    // the newly selected Reality serverNames.
+    const latestProfile = useCoreEditorStore.getState().xrayProfile
+    const latestInbound = latestProfile?.inbounds?.[selected] ?? inbound
+    const security = latestInbound ? getInboundSecurityRecord(latestInbound) : null
     if (!security) return
     const merged = { ...security, ...patch } as Record<string, unknown>
     if ('verifyPeerCertByName' in merged) {
@@ -2529,11 +2535,20 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         return
       }
 
-      const selectedSni = typeof best.sni === 'string' ? best.sni.trim() : ''
+      const selectedSni =
+        typeof best.sni === 'string' && best.sni.trim()
+          ? best.sni.trim()
+          : Array.isArray(best.server_names) && typeof best.server_names[0] === 'string'
+            ? best.server_names[0].trim()
+            : ''
       if (!selectedSni) {
         toast.error('The selected Reality SNI candidate did not return a usable SNI.')
         return
       }
+
+      // Apply the chosen value to both RHF and the latest inbound draft. Using the
+      // explicit serverNames array here avoids depending on the textarea parser and
+      // makes the persisted Xray Reality config deterministic.
       applyRealityScanResult(best, 'Auto Select · ' + (best.latency_ms ?? '—') + ' ms', [selectedSni])
     } finally {
       setIsRealityAutoSelecting(false)
