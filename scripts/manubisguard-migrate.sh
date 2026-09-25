@@ -729,8 +729,9 @@ prepare_portable_bridge() {
   docker exec "$PANEL_CONTAINER" mkdir -p "$container_dir"
 
   log "Extracting portable Timescale metadata from source-compatible staging runtime..."
+  local bridge_database_url="${STAGING_URL/postgresql+asyncpg/postgresql}"
   docker exec \
-    -e MANUBISGUARD_BRIDGE_DATABASE_URL="$STAGING_URL" \
+    -e MANUBISGUARD_BRIDGE_DATABASE_URL="$bridge_database_url" \
     "$PANEL_CONTAINER" \
     python -m app.migration.portable_bridge \
     --database-url-env MANUBISGUARD_BRIDGE_DATABASE_URL \
