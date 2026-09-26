@@ -741,3 +741,15 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] NATS/KV remains fallback-only when the database refresh fails, preventing stale prepared host/subscription state from silently overriding current DB Core state.
 - [x] Regression test added for HostManager DB source of truth.
 - [x] Promoted to `feature/amnezia-wg` together with the CoreManager source-of-truth fix; `main` remains untouched.
+
+## UI Branding / Version Check — 2026-09-26
+- [x] Verified current `feature/amnezia-wg` HEAD before TODO update: `8cafd69` (`fix(ui): isolate ManubisGuard release cache from PasarGuard`).
+- [x] Version-check source now targets the ManubisGuard repository release endpoint: `ManubisGuard/ManubisGuard-Panel/releases/latest`.
+- [x] Version-check cache key is isolated as `manubisguard_release_v1`; the previous PasarGuard-style `pg_release` cache is no longer used.
+- [x] React Query version-check key is isolated as `manubisguard-github-release-check`; mount refetch is enabled so stale PasarGuard UI state is not intentionally reused.
+- [x] No production/Main server restart, database change, or production deployment was performed for this UI/version-check correction.
+- [x] Confirmed the repository contains the expected branding asset set under `dashboard/public/statics/favicon/`, including `logo.png` and `logo-dark.png`.
+- [ ] Manubis logo binary assets have NOT yet been replaced in GitHub; current PasarGuard logo assets must not be considered fixed until the supplied Manubis logo is converted to transparent PNG and committed to the correct asset paths.
+- [ ] Verify every UI location that references the old PasarGuard branding and replace it consistently after the logo assets are committed.
+- [ ] Verify displayed product version is exactly `1.0.0` and that the update indicator no longer reports a false PasarGuard update after a clean build/browser cache.
+- [ ] Build and validate these branding/version changes on TEST before any Main/Production promotion.
