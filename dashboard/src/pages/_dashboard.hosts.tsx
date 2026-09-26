@@ -1,18 +1,19 @@
 import MainSection from '@/features/hosts/components/hosts-list'
+import { Group, Server } from 'lucide-react'
+import { Outlet, useLocation, useNavigate } from 'react-router'
+import { cn } from '@/lib/utils'
 import { type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
-import { Separator } from '@/components/ui/separator'
 import { BaseHost, createHost, CreateHost, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
-import { hasPermission } from '@/utils/rbac'
+import { canReadResourcePage, hasPermission } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useCommandCreate } from '@/hooks/use-command-create'
 
-export default function HostsPage() {
+export function HostsPage() {
   const { admin } = useAdmin()
   const canCreateHosts = hasPermission(admin, 'hosts', 'create')
   const canUpdateHosts = hasPermission(admin, 'hosts', 'update')
@@ -261,32 +262,65 @@ export default function HostsPage() {
   }
 
   return (
-    <div className="flex w-full flex-col items-start gap-2 pb-8">
-      <div className="w-full transform-gpu">
-        <PageHeader
-          title="hosts"
-          description="manageHosts"
-          buttonIcon={canCreateHosts ? Plus : undefined}
-          buttonText={canCreateHosts ? 'hostsDialog.addHost' : undefined}
-          onButtonClick={canCreateHosts ? handleCreateClick : undefined}
-        />
-        <Separator />
-      </div>
+    <div className="w-full p-2 sm:p-4">
+      <MainSection
+        data={data}
+        isDialogOpen={isDialogOpen}
+        onDialogOpenChange={handleDialogOpen}
+        onAddHost={onAddHost}
+        onSubmit={handleSubmit}
+        editingHost={editingHost}
+        setEditingHost={setEditingHost}
+        onRefresh={refetch}
+        isRefreshing={isFetching}
+        canCreate={canCreateHosts}
+        canUpdate={canUpdateHosts}
+      />
+    </div>
+  )
+}
 
-      <div className="w-full p-4">
-        <MainSection
-          data={data}
-          isDialogOpen={isDialogOpen}
-          onDialogOpenChange={handleDialogOpen}
-          onAddHost={onAddHost}
-          onSubmit={handleSubmit}
-          editingHost={editingHost}
-          setEditingHost={setEditingHost}
-          onRefresh={refetch}
-          isRefreshing={isFetching}
-          canCreate={canCreateHosts}
-          canUpdate={canUpdateHosts}
-        />
+
+export default function HostsLayout() {
+  const { admin } = useAdmin()
+  const { t } = useTranslation()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const canReadHosts = canReadResourcePage(admin, 'hosts')
+  const canReadGroups = canReadResourcePage(admin, 'groups')
+
+  const tabs = [
+    ...(canReadHosts ? [{ id: 'hosts', label: t('hosts'), icon: Server, url: '/hosts' }] : []),
+    ...(canReadGroups ? [{ id: 'groups', label: t('groups'), icon: Group, url: '/hosts/groups' }] : []),
+  ]
+
+  const activeTab = location.pathname.startsWith('/hosts/groups') ? 'groups' : 'hosts'
+  const activeLabel = tabs.find(tab => tab.id === activeTab)?.label || t('hosts')
+
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-0">
+      <PageHeader title={activeLabel} description="manageHosts" />
+      <div className="scrollbar-hide flex w-full overflow-x-auto border-b px-4 lg:flex-wrap">
+        {tabs.map(tab => {
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => navigate(tab.url)}
+              className={cn(
+                'relative flex shrink-0 items-center gap-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
+                isActive ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <tab.icon className="h-4 w-4" />
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
+      <div className="min-w-0">
+        <Outlet />
       </div>
     </div>
   )

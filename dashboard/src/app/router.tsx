@@ -26,8 +26,9 @@ const BulkGroupsPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.b
 const BulkProxyPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.proxy'))
 const Groups = lazyWithChunkRecovery(() => import('../pages/_dashboard.groups'))
 const Hosts = lazyWithChunkRecovery(() => import('../pages/_dashboard.hosts'))
+const HostsContent = lazyWithChunkRecovery(() => import('../pages/_dashboard.hosts.content'))
 const Nodes = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes'))
-const NodesPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes._index'))
+const NodesIndex = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes._index'))
 const NodeLogs = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.logs'))
 const NodeWireGuard = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.wireguard'))
 const Settings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings'))
@@ -133,10 +134,32 @@ export const router = createHashRouter([
       {
         path: '/hosts',
         element: (
-          <Suspense fallback={<LoadingSpinner />}>
+          <Suspense fallback={<TabbedRouteSuspenseFallback />}>
             <Hosts />
           </Suspense>
         ),
+        children: [
+          {
+            index: true,
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <HostsContent />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/hosts/groups',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <Groups />
+              </Suspense>
+            ),
+          },
+        ],
+      },
+      {
+        path: '/groups',
+        element: <Navigate to="/hosts/groups" replace />,
       },
       {
         path: '/nodes',
@@ -147,10 +170,10 @@ export const router = createHashRouter([
         ),
         children: [
           {
-            path: '/nodes',
+            index: true,
             element: (
               <Suspense fallback={<LoadingSpinner />}>
-                <NodesPage />
+                <NodesIndex />
               </Suspense>
             ),
           },
@@ -197,14 +220,6 @@ export const router = createHashRouter([
             ),
           },
         ],
-      },
-      {
-        path: '/groups',
-        element: (
-          <Suspense fallback={<LoadingSpinner />}>
-            <Groups />
-          </Suspense>
-        ),
       },
       {
         path: '/templates',

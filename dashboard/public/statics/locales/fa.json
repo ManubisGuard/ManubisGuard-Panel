@@ -8,7 +8,13 @@
   "active": "فعال",
   "online": "آنلاین",
   "platform": "پلتفرم",
-  "navigation": { "hostsGroups": "هاست و گروه", "coreInbound": "Core و Inbound", "reseller": "Reseller" },
+  "navigation": {
+    "hostsGroups": "هاست و گروه",
+    "coreInbound": "Core و Inbound",
+    "reseller": "Reseller",
+    "addCore": "افزودن Core",
+    "nodeCore": "Nodes & Cores"
+  },
   "allStatuses": "همه وضعیت‌ها",
   "status": "وضعیت",
   "statistics": "آمار",
@@ -746,6 +752,7 @@
       "admins": "مدیران",
       "roles": "نقش‌ها",
       "apiKeys": "کلیدهای API",
+      "nodeCore": "Nodes & Cores",
       "nodes": "گره‌ها",
       "coreHosts": "هسته و هاست‌ها",
       "groupsTemplates": "گروه‌ها و قالب‌ها",

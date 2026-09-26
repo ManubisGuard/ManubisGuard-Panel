@@ -33,18 +33,16 @@ export function NavMain({ items }: { items: NavItem[] }) {
           return (
             <Collapsible key={item.title} defaultOpen={isItemActive}>
               <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
-                  <NavLink to={item.url} onClick={handleNavigation}>
-                    <SidebarMenuButton
-                      tooltip={t(item.title)}
-                      isActive={isItemActive}
-                      className="relative h-10 rounded-xl border border-transparent px-3 transition-all duration-200 data-[active=true]:border-primary/20 data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:shadow-[0_8px_24px_hsl(var(--primary)/.08)] hover:border-border/60 hover:bg-sidebar-accent/70"
-                    >
-                      <item.icon />
-                      <span>{t(item.title)}</span>
-                    </SidebarMenuButton>
-                  </NavLink>
-                </CollapsibleTrigger>
+                <NavLink to={item.url} onClick={handleNavigation}>
+                  <SidebarMenuButton
+                    tooltip={t(item.title)}
+                    isActive={isItemActive}
+                    className="relative h-10 rounded-xl border border-transparent px-3 transition-all duration-200 data-[active=true]:border-primary/20 data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:shadow-[0_8px_24px_hsl(var(--primary)/.08)] hover:border-border/60 hover:bg-sidebar-accent/70"
+                  >
+                    <item.icon />
+                    <span>{t(item.title)}</span>
+                  </SidebarMenuButton>
+                </NavLink>
 
                 {item.items?.length ? (
                   <>

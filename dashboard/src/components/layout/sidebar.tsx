@@ -31,6 +31,7 @@ import {
   FileUser,
   Fingerprint,
   GithubIcon,
+  Globe2,
   Group,
   Key,
   Layers,
@@ -166,9 +167,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ...(hasPermission(admin, 'nodes', 'stats')
         ? [{ title: 'statistics', url: '/statistics', icon: PieChart }]
         : []),
-      ...(canReadNodes
-        ? [{ title: 'nodes.title', url: '/nodes', icon: Share2Icon }]
-        : []),
       ...(canReadHosts || canReadGroups
         ? [{
             title: 'navigation.hostsGroups',
@@ -180,19 +178,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             ],
           }]
         : []),
-      ...(canReadCores
+      ...(canReadNodes || canReadCores || canReadNodeLogs
         ? [{
-            title: 'navigation.coreInbound',
-            url: canReadCores ? '/nodes/cores' : '/nodes/wireguard',
-            icon: Cpu,
+            title: 'navigation.nodeCore',
+            url: '/nodes',
+            icon: Share2Icon,
             items: [
+              ...(canReadNodes ? [{ title: 'nodes.title', url: '/nodes', icon: Share2Icon }] : []),
               ...(canReadCores ? [{ title: 'settings.cores.title', url: '/nodes/cores', icon: Cpu, matchPrefix: true }] : []),
               ...(canReadCores ? [{ title: 'nodes.wireguard.title', url: '/nodes/wireguard', icon: Network }] : []),
+              ...(canReadNodeLogs ? [{ title: 'nodes.logs.title', url: '/nodes/logs', icon: Logs }] : []),
             ],
           }]
-        : []),
-      ...(canReadNodeLogs
-        ? [{ title: 'nodes.logs.title', url: '/nodes/logs', icon: Logs }]
         : []),
       ...(canReadAdmins || isOwner(admin)
         ? [{
@@ -234,6 +231,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         items: [
           ...(hasPermission(admin, 'settings', 'read_general') && hasPermission(admin, 'settings', 'update') ? [{ title: 'settings.general.title', url: '/settings/general', icon: Settings }] : []),
           ...(hasPermission(admin, 'settings', 'read') && hasPermission(admin, 'settings', 'update') ? [
+            { title: 'Domains & SSL', url: '/settings/domains', icon: Globe2 },
             { title: 'settings.notifications.title', url: '/settings/notifications', icon: Bell },
             { title: 'settings.subscriptions.title', url: '/settings/subscriptions', icon: ListTodo },
             { title: 'settings.hwid.title', url: '/settings/hwid', icon: Fingerprint },
