@@ -704,3 +704,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - **Historical known regression:** Peer identity mismatch in generated subscription versus actual Node Peer was previously fixed and later regressed after subsequent Panel changes.
 - **Secondary known regression:** Subscription could render a plain WireGuard config when stale runtime/cache state reported the AWG Core as non-AmneziaWG; DB must remain authoritative.
 - **Do not mark this blocker fixed based on syntax, unit tests, or service health alone. Real client handshake is required.**
+
+
+## TEST AWG Runtime Prerequisite Blocker — 2026-09-26 08:51 UTC
+- [x] Panel -> TEST Node connectivity was verified from live logs: Panel connected to Node "Aeg" v0.5.4 and the Node received repeated gRPC GetBaseInfo/Start calls.
+- [x] Node Start is currently failing before a usable AWG interface exists: live Panel logs report `failed to initialize interface: failed to add link: operation not supported`.
+- [x] Direct TEST host kernel check reproduced the prerequisite failure independently of Panel: `ip link add awg-dbg0 type amneziawg` returned `Error: Unknown device type.`
+- [x] Host kernel has the standard `wireguard` module loaded, but no AmneziaWG kernel module/type is registered; `ip link help` exposes no AmneziaWG type and `lsmod` shows no AmneziaWG module.
+- [x] TEST Node image contains AmneziaWG userspace tools (`amneziawg-tools v1.0.20260618-2` reported by `awg --version`) and `/usr/bin/awg`; the current Node source intentionally creates a kernel `amneziawg` GenericLink, so the userspace tool alone cannot create the missing kernel interface.
+- [x] TEST Node container has `network_mode: host` and `CAP_NET_ADMIN`; therefore the failure is not explained by ordinary Docker network isolation/capability omission.
+- [ ] This is an environment prerequisite blocker, not yet the Subscription Peer-mapping root cause. Do not mark the AWG client regression fixed or failed on Peer/PSK evidence until a real `WG_51820` interface can be created on TEST.
+- [ ] Next TEST-only gate: provide/load a compatible AmneziaWG kernel module for the TEST host, then restart only the disposable TEST Node if required, verify `ip link add ... type amneziawg`, start `WG_51820`, and continue the documented Subscription/Peer/PSK/packet-capture/handshake sequence.
