@@ -753,3 +753,27 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] Verify every UI location that references the old PasarGuard branding and replace it consistently after the logo assets are committed.
 - [ ] Verify displayed product version is exactly `1.0.0` and that the update indicator no longer reports a false PasarGuard update after a clean build/browser cache.
 - [ ] Build and validate these branding/version changes on TEST before any Main/Production promotion.
+
+## UI Command Center / Navigation / Theme — 2026-09-26
+- [x] Redesigned Dashboard into a Command Center while preserving existing API/data sources and functionality.
+- [x] Added system resource visibility for CPU, memory and disk plus platform/user state summaries.
+- [x] Added dashboard quick actions for Create User, Nodes, Users and Groups without removing existing actions.
+- [x] Rebuilt the theme system with configurable primary/secondary/accent/background/surface/border colors and dark-native defaults.
+- [x] Added advanced theme controls for glow, glass, borders, shadows, chart glow, grid, ambient effects, animation intensity and density.
+- [x] Added multiple visual presets including Cyber Pulse, Midnight Violet, Neon Ocean, Aurora, Quantum and Obsidian.
+- [x] Updated shared layout, cards, tables, inputs, selects, dialogs, sidebar and topbar styling for the new professional dark/glass visual system.
+- [x] Reorganized Nodes & Cores into one page with internal tabs: Nodes, Cores, WireGuard, Logs.
+- [x] Reorganized Hosts & Groups into one page with internal tabs: Hosts, Groups.
+- [x] Added the missing Add Core action to the Cores tab header and wired it to the existing Core dialog flow.
+- [x] Renamed navigation label from Node & Core to Nodes & Cores across supported locales.
+- [x] Reordered Nodes & Cores tabs so WireGuard appears before Logs.
+- [x] Moved Domains & SSL to the second row under Settings.
+- [x] Fixed a sidebar click reliability issue caused by navigation and collapsible trigger interaction on the same parent item.
+- [x] Preserved existing routes, permissions/RBAC and backend endpoints while applying the navigation redesign.
+- [x] TypeScript validation passed.
+- [x] Production dashboard build passed.
+- [x] git diff --check passed.
+- [x] UI changes committed as e4e3d644 and merged into feature/amnezia-wg as 3a7a9ec3.
+- [x] feature/amnezia-wg was pushed to origin with the UI redesign included.
+- [ ] Deploy the latest feature/amnezia-wg UI build from /tmp/ManubisGuard-Panel to the live Panel when deployment is explicitly approved; do not deploy from /opt/manubisguard-panel.
+- [ ] After deployment, verify /nodes, /nodes/cores, /nodes/wireguard, /nodes/logs, /hosts, /hosts/groups, Settings -> Domains & SSL and Add Core interaction in the live build.
