@@ -36,41 +36,45 @@ curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/fea
 curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh | sudo bash -s -- install --database timescaledb --ssl-mode none --yes
 ```
 
+## Native host CLI
 
-After the first installation, the native host CLI is available as:
+The native host CLI uses the short `manubis` command:
 
 ```bash
-manubisguard status
-manubisguard start
-manubisguard stop
-manubisguard restart
-manubisguard logs
-manubisguard update
+sudo manubis status
+sudo manubis start
+sudo manubis stop
+sudo manubis restart
+sudo manubis logs
+sudo manubis update
+sudo manubis edit-env
 ```
 
-`manubisguard update` refreshes the selected branch and reapplies the safe installer configuration while preserving persistent database credentials and data.
+The previous `manubisguard` host command is no longer the documented command.
 
-## Temporary admin key
+### Temporary admin key
 
-After installation, generate a temporary admin key:
+After installation, generate a temporary admin key from the Panel container:
 
 ```bash
 cd /opt/manubisguard-panel
 docker compose exec -T manubisguard /code/.venv/bin/python /code/manubisguard-cli.py generate-temp-key
 ```
 
+The Compose service and container are named `manubisguard`, so the command must not use the old `manubisguard-panel-pasarguard-1` container name.
+
 Use the exact key printed by the command. Do not publish it in the repository.
 
 ## Panel status
 
 ```bash
-manubisguard status
+sudo manubis status
 ```
 
 Check the Panel logs:
 
 ```bash
-manubisguard logs
+sudo manubis logs
 ```
 
 ## Database restore
@@ -79,6 +83,12 @@ The installer also installs the production migration helper:
 
 ```bash
 manubisguard-migrate /path/to/backup.zip --apply
+```
+
+For the normal operator workflow, use the short CLI command. It automatically discovers available backups:
+
+```bash
+sudo manubis restore
 ```
 
 The restore pipeline supports native ManubisGuard backups and PasarGuard-family backups, including automatic MariaDB/MySQL-to-PostgreSQL conversion for the supported legacy schema.
@@ -103,17 +113,16 @@ Branch:
 
 `feature/amnezia-wg`
 
-
 ## CLI restore
 
-After installation, the global `manubisguard` command includes the production restore pipeline:
+After installation, the global `manubis` command includes the production restore pipeline:
 
 ```bash
 # Validate a backup in isolated staging only
-sudo manubisguard restore-check /path/to/backup.zip
+sudo manubis restore-check /path/to/backup.zip
 
-# Restore and perform the validated production cutover
-sudo manubisguard restore /path/to/backup.zip
+# Select an available backup and restore it
+sudo manubis restore
 ```
 
 `restore` runs the same safety-first migration pipeline used by the panel: the backup is staged and validated first, the current deployment identity and Compose file are preserved, a production safety dump is created before cutover, and the previous production database is retained for rollback. `restore-check` never changes the production database.
