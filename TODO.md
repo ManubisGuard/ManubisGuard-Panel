@@ -686,6 +686,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] TODO and commit record updated with actual evidence.
 - [ ] Only then consider one controlled Main deployment/rebuild; no repeated Main restarts.
 
+## ManubisGuard CLI — Temp Key command correction — 2026-09-26
+- [x] Canonical current Panel container CLI entrypoint is `/code/manubisguard-cli.py`.
+- [x] The working Temp Key command for the current ManubisGuard Panel is:
+  `docker exec manubisguard-panel-manubisguard-1 python /code/manubisguard-cli.py generate-temp-key`
+- [x] This command was verified on TEST and successfully generates the temporary key.
+- [x] Do not document or use the legacy PasarGuard host command `python /code/pasarguard-cli.py generate-temp-key` for the current ManubisGuard Panel.
+- [x] Do not change the DB schema or CLI implementation merely to restore the Temp Key command; use the existing ManubisGuard CLI entrypoint above.
+
 ## AI Handoff Checkpoint — 2026-09-26
 - **Project:** ManubisGuard Panel + ManubisGuard Node
 - **Panel branch:** `feature/amnezia-wg`
