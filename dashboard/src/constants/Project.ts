@@ -1,5 +1,5 @@
-export const REPO_URL = 'https://github.com/arsamnikzaad/pasarguard-panel-awg'
-export const ORGANIZATION_URL = 'https://github.com/arsamnikzaad'
+export const REPO_URL = 'https://github.com/ManubisGuard/ManubisGuard-Panel'
+export const ORGANIZATION_URL = 'https://github.com/ManubisGuard'
 export const DONATION_URL = '#'
 export const DISCUSSION_GROUP = '#'
 export const DOCUMENTATION = '#'

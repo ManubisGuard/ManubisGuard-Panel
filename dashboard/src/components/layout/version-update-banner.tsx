@@ -114,13 +114,13 @@ export function VersionUpdateBanner() {
   const handleCopyCommand = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    await copy('pasarguard update')
+    await copy('manubisguard update')
     toast.success(t('usersTable.copied'))
   }
 
   if (!isOwnerAdmin || isLoading || !hasUpdate || !isVisible || !latestVersion || !normalizedVersion) return null
 
-  const releaseLink = releaseUrl || 'https://github.com/PasarGuard/panel/releases/latest'
+  const releaseLink = releaseUrl || 'https://github.com/ManubisGuard/ManubisGuard-Panel/releases/latest'
 
   return (
     <div
@@ -159,7 +159,7 @@ export function VersionUpdateBanner() {
                 onClick={handleCopyCommand}
                 title={t('copy')}
               >
-                pasarguard update
+                manubisguard update
               </code>
             </div>
           </div>
