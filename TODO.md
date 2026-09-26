@@ -586,3 +586,20 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Post-cutover Panel health check passed.
 - [x] Production database verification after cutover: users=261, hosts=7, nodes=1, inbounds=5, admins=30.
 - [x] Source fix is being rebuilt into the Panel image so the `snapshot` field survives future container recreation.
+## Node multi-core assignment + upstream-compatible Node installer — 2026-09-26
+- [x] Inspected `AlirezaNorouzzadeh9/pasarguardNode` multi-core implementation and transferred the relevant runtime architecture into `ManubisGuard/ManubisGuard-Node`: additive Start semantics, per-backend instance tracking, composite backend view, lifecycle tests, and protocol field `Backend.additive=6`.
+- [x] Node implementation committed and pushed to `ManubisGuard/ManubisGuard-Node` branch `feature/amnezia-wg`: `4827f40` (`feat(node): support multiple cores on one node`).
+- [x] Restored the Node installer to the upstream PasarGuard interactive workflow instead of the previous direct-build installer. The Manubis fork now keeps the upstream questions for service port, TLS/certificate mode, API key, transport and related options while redirecting Node artifacts to the Manubis fork.
+- [x] Node installer fix committed and pushed: `84684ff` (`fix(installer): restore upstream interactive node workflow`).
+- [x] Verified the installer with `bash -n`; source inspection confirmed interactive prompts for service port, API key, TLS certificate choice and REST/gRPC choice are present.
+- [x] Panel `install-node.sh` is now only a thin launcher for the canonical Manubis Node installer, preventing the Panel from silently maintaining a second, divergent Node installation workflow.
+- [x] Added persistent `core_config_ids` to Node records while retaining legacy `core_config_id` for backward compatibility; old API payloads with only `core_config_id` are normalized to a single-item selection.
+- [x] Node settings UI now lists all available Core configurations as checkboxes beside the existing Node connection settings; at least one Core must remain selected.
+- [x] Panel Node sync/connect paths now send the selected Core set to the Node, using additive mode for subsequent Core assignments instead of reinstalling one Node per Core.
+- [x] Xray selection is intentionally limited to one Core because the Node runtime uses one Xray process for all Xray inbounds; multiple WireGuard/AmneziaWG Core instances are supported concurrently and are keyed by interface name.
+- [x] Python bridge compatibility layer added for the new `Backend.additive` protobuf field until the published bridge package exposes the same field; the shim is idempotent and runs during the Panel image build.
+- [x] Python syntax, model compatibility and `git diff --check` gates passed; old Node payload validation produced `core_config_ids=[1]`, and multi-Core payload validation produced the selected list.
+- [ ] Complete Docker build gates and run the live Panel/Node multi-Core E2E check before marking this section fully PASS.
+- [x] Panel Docker image build gate passed with the compatibility shim present; Vite transformed 5587 modules and production dashboard build completed successfully.
+- [x] Built Panel image `manubisguard-panel:multicore-test`; the resulting image contains the patched protobuf where `Backend(additive=True)` serializes correctly and the gRPC bridge source exposes the additive parameter.
+- [x] Focused Panel regression suite passed: `47 passed` for `tests/test_node_sync.py`, `tests/test_node_manager_sync.py`, and `tests/api/test_node.py` after updating the API fixture for the new normalized field.

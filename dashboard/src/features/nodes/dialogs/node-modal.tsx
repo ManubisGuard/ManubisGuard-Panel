@@ -1,6 +1,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { DecimalInput } from '@/components/common/decimal-input'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -119,7 +120,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         keep_alive: node.keep_alive,
         keep_alive_unit: 'seconds',
         api_key: (node.api_key as string) || '',
-        core_config_id: node.core_config_id ?? cores?.[0]?.id,
+        core_config_id: node.core_config_id ?? node.core_config_ids?.[0] ?? cores?.[0]?.id,
+        core_config_ids: node.core_config_ids ?? (node.core_config_id ? [node.core_config_id] : cores?.[0]?.id ? [cores[0].id] : []),
         data_limit: dataLimitGB,
         data_limit_reset_strategy: node.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
         reset_time: node.reset_time ?? null,
@@ -175,7 +177,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           keep_alive: nodeData.keep_alive,
           keep_alive_unit: 'seconds',
           api_key: (nodeData.api_key as string) || '',
-          core_config_id: nodeData.core_config_id ?? cores?.[0]?.id,
+          core_config_id: nodeData.core_config_id ?? nodeData.core_config_ids?.[0] ?? cores?.[0]?.id,
+          core_config_ids: nodeData.core_config_ids ?? (nodeData.core_config_id ? [nodeData.core_config_id] : cores?.[0]?.id ? [cores[0].id] : []),
           data_limit: dataLimitGB,
           data_limit_reset_strategy: nodeData.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
           reset_time: nodeData.reset_time ?? null,
@@ -205,7 +208,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               keep_alive: nodeData.keep_alive,
               keep_alive_unit: 'seconds',
               api_key: (nodeData.api_key as string) || '',
-              core_config_id: nodeData.core_config_id ?? cores?.[0]?.id,
+              core_config_id: nodeData.core_config_id ?? nodeData.core_config_ids?.[0] ?? cores?.[0]?.id,
+              core_config_ids: nodeData.core_config_ids ?? (nodeData.core_config_id ? [nodeData.core_config_id] : cores?.[0]?.id ? [cores[0].id] : []),
               data_limit: dataLimitGB,
               data_limit_reset_strategy: nodeData.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
               reset_time: nodeData.reset_time ?? null,
@@ -249,8 +253,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
   useEffect(() => {
     if (isDialogOpen && cores?.[0]?.id) {
-      const currentValue = form.getValues('core_config_id')
-      if (!currentValue || currentValue < 1) {
+      const currentIds = form.getValues('core_config_ids') || []
+      if (currentIds.length === 0) {
+        form.setValue('core_config_ids', [cores[0].id], { shouldValidate: true })
         form.setValue('core_config_id', cores[0].id, { shouldValidate: true })
       }
     }
@@ -495,36 +500,40 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
                   <FormField
                     control={form.control}
-                    name="core_config_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('nodeModal.coreConfig')}</FormLabel>
-                        <Select onValueChange={value => field.onChange(parseInt(value))} value={field.value ? field.value.toString() : t('nodeModal.selectCoreConfig')} disabled={isLoadingCores}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={isLoadingCores ? t('loading', { defaultValue: 'Loading...' }) : t('nodeModal.selectCoreConfig')} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
+                    name="core_config_ids"
+                    render={({ field }) => {
+                      const selected = field.value || []
+                      const toggleCore = (id: number, checked: boolean) => {
+                        const next = checked ? Array.from(new Set([...selected, id])) : selected.filter(value => value !== id)
+                        if (next.length === 0) return
+                        field.onChange(next)
+                        form.setValue('core_config_id', next[0], { shouldValidate: true })
+                      }
+                      return (
+                        <FormItem>
+                          <FormLabel>{t('nodeModal.coreConfig', { defaultValue: 'Core configurations' })}</FormLabel>
+                          <div className="space-y-2 rounded-md border p-3">
                             {isLoadingCores ? (
-                              <SelectItem value="__loading_cores__" disabled>
-                                <span className="flex items-center gap-2">
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                  {t('loading', { defaultValue: 'Loading...' })}
-                                </span>
-                              </SelectItem>
-                            ) : (
-                              cores?.map((core: CoreSimple) => (
-                                <SelectItem key={core.id} value={core.id.toString()}>
-                                  {core.name}
-                                </SelectItem>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                {t('loading', { defaultValue: 'Loading...' })}
+                              </div>
+                            ) : cores?.length ? (
+                              cores.map((core: CoreSimple) => (
+                                <label key={core.id} className="hover:bg-muted flex cursor-pointer items-center gap-3 rounded px-2 py-1.5">
+                                  <Checkbox checked={selected.includes(core.id)} onCheckedChange={checked => toggleCore(core.id, checked === true)} />
+                                  <span className="text-sm">{core.name}</span>
+                                  <span className="text-muted-foreground ml-auto text-xs">{core.type}</span>
+                                </label>
                               ))
+                            ) : (
+                              <span className="text-muted-foreground text-sm">No core configurations available</span>
                             )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
                   />
 
                   <FormField

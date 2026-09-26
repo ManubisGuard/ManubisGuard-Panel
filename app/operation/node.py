@@ -249,6 +249,27 @@ class NodeOperation(BaseOperation):
         return cores_by_id, users_by_core
 
     @staticmethod
+    def _selected_core_ids(db_node: Node) -> list[int]:
+        ids = list(db_node.core_config_ids or [])
+        if not ids:
+            ids = [db_node.core_config_id or 1]
+        # Preserve order while removing accidental duplicates.
+        return list(dict.fromkeys(ids))
+
+    @staticmethod
+    def _union_core_users(users_by_core: dict[int, list]) -> list:
+        seen: set[str] = set()
+        result = []
+        for users in users_by_core.values():
+            for user in users:
+                email = getattr(user, "email", None) or str(user)
+                if email in seen:
+                    continue
+                seen.add(email)
+                result.append(user)
+        return result
+
+    @staticmethod
     async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
         """Attach to an already-started remote core without calling Start RPC."""
         try:
@@ -277,9 +298,9 @@ class NodeOperation(BaseOperation):
 
     @staticmethod
     async def _start_or_attach_node(
-        pg_node: PasarGuardNode, db_node: Node, core, users: list, backend_type, *, force_start: bool = False
+        pg_node: PasarGuardNode, db_node: Node, core, users: list, backend_type, *, force_start: bool = False, additive: bool = False
     ):
-        if not force_start:
+        if not force_start and not additive:
             state = await pg_node.get_lifecycle_state()
             if state is not None and (
                 state.observed in (LifecycleStatus.HEALTHY, LifecycleStatus.STARTING)
@@ -299,6 +320,7 @@ class NodeOperation(BaseOperation):
             "backend_type": backend_type,
             "users": users,
             "keep_alive": db_node.keep_alive,
+            "additive": additive,
         }
         if core.type == CoreType.xray:
             start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
@@ -314,7 +336,7 @@ class NodeOperation(BaseOperation):
         return await pg_node.start(**start_kwargs)
 
     @staticmethod
-    async def connect_node(db_node: Node, core, users: list, *, force_start: bool = False) -> dict | None:
+    async def connect_node(db_node: Node, core, users: list, *, force_start: bool = False, additive: bool = False) -> dict | None:
         """
         Connect to a node and return status result (does NOT update database).
 
@@ -335,7 +357,7 @@ class NodeOperation(BaseOperation):
             return None
 
         old_status = db_node.status
-        if not force_start:
+        if not force_start and not additive:
             try:
                 if await pg_node.get_health() == Health.HEALTHY:
                     if old_status == NodeStatus.connected:
@@ -357,7 +379,7 @@ class NodeOperation(BaseOperation):
 
         try:
             info = await NodeOperation._start_or_attach_node(
-                pg_node, db_node, core, users, type, force_start=force_start
+                pg_node, db_node, core, users, type, force_start=force_start, additive=additive
             )
             if info is None:
                 return None
@@ -438,8 +460,24 @@ class NodeOperation(BaseOperation):
         except Exception as exc:
             logger.error(f"Background node connection failed for node {node_id}: {exc}")
 
+    async def _validate_core_assignments(self, db: AsyncSession, core_ids: list[int]) -> list[int]:
+        selected = list(dict.fromkeys(core_ids or [1]))
+        cores = []
+        for core_id in selected:
+            cores.append(await self.get_validated_core_config(db, core_id))
+        xray_count = sum(core.type == CoreType.xray for core in cores)
+        if xray_count > 1:
+            await self.raise_error(
+                message="A node can run only one Xray core configuration. Select one Xray core; multiple WireGuard/AmneziaWG cores are supported by the node.",
+                code=400,
+            )
+        return selected
+
     async def create_node(self, db: AsyncSession, new_node: NodeCreate, admin: AdminDetails) -> NodeResponse:
-        await self.get_validated_core_config(db, new_node.core_config_id)
+        new_node.core_config_ids = await self._validate_core_assignments(
+            db, new_node.core_config_ids or [new_node.core_config_id]
+        )
+        new_node.core_config_id = new_node.core_config_ids[0]
         try:
             db_node = await create_node(db, new_node)
         except IntegrityError:
@@ -460,8 +498,12 @@ class NodeOperation(BaseOperation):
 
     async def modify_node(self, db: AsyncSession, node_id: int, modified_node: NodeModify, admin: AdminDetails) -> Node:
         db_node = await self.get_validated_node(db=db, node_id=node_id)
-        if modified_node.core_config_id is not None:
-            await self.get_validated_core_config(db, modified_node.core_config_id)
+        if modified_node.core_config_ids is not None or modified_node.core_config_id is not None:
+            selected = await self._validate_core_assignments(
+                db, modified_node.core_config_ids or [modified_node.core_config_id or 1]
+            )
+            modified_node.core_config_ids = selected
+            modified_node.core_config_id = selected[0]
 
         try:
             db_node = await modify_node(db, db_node, modified_node)
@@ -727,7 +769,7 @@ class NodeOperation(BaseOperation):
         if not nodes:
             return
 
-        core_ids = {node.core_config_id or 1 for node in nodes}
+        core_ids = {core_id for node in nodes for core_id in self._selected_core_ids(node)}
         cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids)
         managed_service = ManagedCertificateService()
         managed_domains = await managed_service.list_domains(db)
@@ -743,8 +785,8 @@ class NodeOperation(BaseOperation):
                 return
 
             async with sem:
-                core_id = node.core_config_id or 1
-                original_core = cores_by_id.get(core_id)
+                selected_ids = self._selected_core_ids(node)
+                original_core = cores_by_id.get(selected_ids[0])
                 runtime = build_runtime_core(
                     original_core,
                     domains_by_node.get(node.id, []),
@@ -762,12 +804,20 @@ class NodeOperation(BaseOperation):
                         "old_status": node.status,
                     }
 
-                result = await self.connect_node(
-                    node,
-                    runtime.core,
-                    users_by_core.get(core_id, []),
-                    force_start=force_start,
-                )
+                result = None
+                for index, core_id in enumerate(selected_ids):
+                    selected_core = runtime.core if index == 0 else cores_by_id.get(core_id)
+                    if selected_core is None:
+                        continue
+                    current = await self.connect_node(
+                        node,
+                        selected_core,
+                        users_by_core.get(core_id, []),
+                        force_start=force_start if index == 0 else False,
+                        additive=index > 0,
+                    )
+                    if current is not None:
+                        result = current
                 if result and runtime.injected_domain_ids and result["status"] == NodeStatus.error and original_core is not None:
                     deployment_error = result.get("message") or "Managed certificate deployment failed"
                     rollback = await self.connect_node(
@@ -860,14 +910,12 @@ class NodeOperation(BaseOperation):
         if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             return
 
-        core_id = db_node.core_config_id or 1
-        cores_by_id, users_by_core = await self._get_core_users_map(db, {core_id})
-        core = cores_by_id.get(core_id)
-        users = users_by_core.get(core_id, [])
+        selected_ids = self._selected_core_ids(db_node)
+        cores_by_id, users_by_core = await self._get_core_users_map(db, set(selected_ids))
         managed_service = ManagedCertificateService()
         managed_domains = await managed_service.list_node_domains(db, node_id)
-        runtime = build_runtime_core(core, managed_domains)
-        core = runtime.core
+        primary_core = cores_by_id.get(selected_ids[0])
+        runtime = build_runtime_core(primary_core, managed_domains)
 
         # Update node manager
         old_status = db_node.status
@@ -892,7 +940,17 @@ class NodeOperation(BaseOperation):
             return
 
         # Connect the node
-        result = await NodeOperation.connect_node(db_node, core, users, force_start=force_start)
+        result = None
+        for index, core_id in enumerate(selected_ids):
+            selected_core = runtime.core if index == 0 else cores_by_id.get(core_id)
+            if selected_core is None:
+                continue
+            current = await NodeOperation.connect_node(
+                db_node, selected_core, users_by_core.get(core_id, []),
+                force_start=force_start if index == 0 else False, additive=index > 0,
+            )
+            if current is not None:
+                result = current
 
         if not result:
             return
@@ -1160,9 +1218,9 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="Node is not connected", code=409)
 
         try:
-            core_id = db_node.core_config_id or 1
-            _, users_by_core = await self._get_core_users_map(db, {core_id})
-            users = users_by_core.get(core_id, [])
+            selected_ids = self._selected_core_ids(db_node)
+            _, users_by_core = await self._get_core_users_map(db, set(selected_ids))
+            users = self._union_core_users(users_by_core)
             if await node_manager.sync_full(node_id, users, flush_pending=flush_users) is None:
                 await self.raise_error(message="Node is not connected", code=409)
         except NodeAPIError as e:
@@ -1284,6 +1342,7 @@ class NodeOperation(BaseOperation):
             server_ca=node.server_ca,
             keep_alive=node.keep_alive,
             core_config_id=node.core_config_id,
+            core_config_ids=node.core_config_ids or ([node.core_config_id] if node.core_config_id else None),
             api_key=node.api_key,
             data_limit=node.data_limit,
             data_limit_reset_strategy=node.data_limit_reset_strategy,

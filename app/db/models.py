@@ -638,6 +638,8 @@ class Node(Base, CreatedAtUTCMixin):
     api_key: Mapped[str | None] = mapped_column(String(36))
     node_version: Mapped[str | None] = mapped_column(String(32), nullable=True, init=False)
     core_config_id: Mapped[int | None] = fk_id_column("core_configs.id", ondelete="SET NULL", nullable=True)
+    # New multi-core assignment. `core_config_id` remains for API/backward compatibility.
+    core_config_ids: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)
     user_usages: Mapped[list[NodeUserUsage]] = relationship(
         back_populates="node", cascade="all, delete-orphan", init=False
     )

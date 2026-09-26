@@ -1723,6 +1723,7 @@ export interface NodeCreate {
   server_ca: string;
   keep_alive: number;
   core_config_id: number;
+  core_config_ids?: number[];
   api_key: string;
   data_limit?: number;
   data_limit_reset_strategy?: DataLimitResetStrategy;
@@ -1762,6 +1763,7 @@ export interface NodeModify {
   server_ca?: string | null;
   keep_alive?: number | null;
   core_config_id?: number | null;
+  core_config_ids?: number[] | null;
   api_key?: string | null;
   data_limit?: number | null;
   data_limit_reset_strategy?: DataLimitResetStrategy | null;
@@ -1818,6 +1820,7 @@ export interface NodeResponse {
   server_ca: string;
   keep_alive: number;
   core_config_id: number | null;
+  core_config_ids?: number[] | null;
   api_key: string | null;
   data_limit?: number;
   data_limit_reset_strategy?: DataLimitResetStrategy;

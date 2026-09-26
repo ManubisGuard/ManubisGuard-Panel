@@ -28,6 +28,9 @@ RUN cd /build/dashboard && bun install --frozen-lockfile
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
+# The forked node protocol adds Backend.additive=6 before the published Python bridge catches up.
+RUN /build/.venv/bin/python /build/app/node/patch_node_bridge_multicore.py
+
 # Pre-build the dashboard so production containers do not perform a Vite build at startup.
 RUN cd /build/dashboard && bun run build --outDir build --assetsDir statics && test -s build/index.html
 

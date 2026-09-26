@@ -422,7 +422,11 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
     Returns:
         Node: The newly created Node object.
     """
-    db_node = Node(**node.model_dump())
+    node_data = node.model_dump(exclude={"core_config_ids"})
+    selected_core_ids = node.core_config_ids or [node.core_config_id]
+    node_data["core_config_id"] = selected_core_ids[0]
+    node_data["core_config_ids"] = selected_core_ids
+    db_node = Node(**node_data)
 
     db.add(db_node)
     await db.commit()
@@ -465,6 +469,9 @@ async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
     """
 
     node_data = modify.model_dump(exclude_none=True)
+    if "core_config_ids" in node_data:
+        selected_core_ids = node_data["core_config_ids"]
+        node_data["core_config_id"] = selected_core_ids[0] if selected_core_ids else None
     if "proxy_url" in modify.model_fields_set and modify.proxy_url is None:
         node_data["proxy_url"] = None
 

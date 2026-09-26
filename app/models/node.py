@@ -46,6 +46,7 @@ class Node(BaseModel):
     server_ca: str
     keep_alive: int
     core_config_id: int
+    core_config_ids: list[int] = Field(default_factory=list)
     api_key: str
     data_limit: int = Field(default=0)
     data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
@@ -55,7 +56,15 @@ class Node(BaseModel):
     proxy_url: str | None = Field(default=None, max_length=256)
 
 
+    @field_validator("core_config_ids", mode="before")
+    @classmethod
+    def normalize_core_config_ids(cls, value):
+        return value or []
+
+
 class NodeCreate(Node):
+    core_config_ids: list[int] = Field(default_factory=list, min_length=1)
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -67,6 +76,7 @@ class NodeCreate(Node):
                 "connection_type": "grpc",
                 "keep_alive": 60,
                 "core_config_id": 1,
+                "core_config_ids": [1],
                 "api_key": "valid uuid",
             }
         }
@@ -87,6 +97,14 @@ class NodeCreate(Node):
             if re.match(r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,14}$", v):
                 return v
             raise ValueError("Invalid address format, must be a valid IPv4/IPv6 or domain")
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_core_config_ids(cls, data):
+        if isinstance(data, dict) and not data.get("core_config_ids") and data.get("core_config_id"):
+            data = dict(data)
+            data["core_config_ids"] = [data["core_config_id"]]
+        return data
 
     @field_validator("port")
     @classmethod
@@ -176,6 +194,7 @@ class NodeModify(NodeCreate):
     connection_type: NodeConnectionType | None = Field(default=None)
     keep_alive: int | None = Field(default=None)
     core_config_id: int | None = Field(default=None)
+    core_config_ids: list[int] | None = Field(default=None, min_length=1)
     api_key: str | None = Field(default=None)
     data_limit: int | None = None
     data_limit_reset_strategy: DataLimitResetStrategy | None = None
