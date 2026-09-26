@@ -544,3 +544,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Installer rename policy: preserve the upstream PasarGuard installation method and command flow; do not replace it with a new installer architecture merely for branding.
 - [ ] Audit and revert any CLI/Installer drift that was introduced after the fork, while preserving independently required ManubisGuard panel features and migration/restore internals.
 - [ ] Every compatibility fix must have a real syntax/test execution gate before being marked PASS.
+
+
+## CLI compatibility: short `manubis` + automatic restore discovery — 2026-09-26
+- [x] Replaced the long user-facing host command `manubisguard` with the short `manubis` command in the installer-generated CLI.
+- [x] Preserved the existing restore/migration safety engine; the CLI only selects the backup and passes the selected archive to `manubisguard-migrate --apply`.
+- [x] `manubis restore` now scans `/opt/manubisguard/backup/`, lists available backup archives, prompts for a numbered selection, and does not require the user to type the backup path.
+- [x] `manubis restore-check` remains explicit and non-destructive for validating a specified archive.
+- [x] Removed the old `/usr/local/bin/manubisguard` host command when the installer helper is applied.
+- [x] Remote TEST validation: real backup discovery found `backup_20260923210118.zip`; selection `1` passed `/opt/manubisguard/backup/backup_20260923210118.zip` to the restore engine with `--apply` using a mocked engine, so no production restore was performed.
+- [x] `bash -n` passed for `install-manubisguard.sh`, `manubis`, and `manubisguard-migrate`; `git diff --check` passed.
+- [x] CLI documentation updated to use `manubis` and document automatic restore discovery.

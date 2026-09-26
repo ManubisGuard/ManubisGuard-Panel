@@ -1,43 +1,24 @@
-# ManubisGuard CLI
+# Manubis CLI
 
-A modern, type-safe command-line interface for managing ManubisGuard, built with Typer. ManubisGuard supports both [Xray-core](https://github.com/XTLS/Xray-core) and [WireGuard](https://www.wireguard.com/).
-
-## Features
-
--   🎯 Type-safe CLI with rich output
--   🔒 One-time temp key generation for owner setup
--   ⌨️ Simple project-root and installed-service usage
-
-## Installation
-
-The CLI is included with ManubisGuard and can be used directly:
-
-```bash
-manubisguard-cli --help
-
-# Or from the project root
-uv run manubisguard-cli.py --help
-```
+The host-level Manubis CLI uses the short `manubis` command while preserving the PasarGuard-style command workflow.
 
 ## Usage
 
-### General Commands
-
 ```bash
-# Show version
-manubisguard cli version
-
-# Generate a one-time temp key for owner setup
-manubisguard cli generate-temp-key
-
-# Show help
-manubisguard cli --help
+sudo manubis --help
+sudo manubis status
+sudo manubis backup
+sudo manubis restore
 ```
 
-### Owner Setup
+### Restore
 
-Admin management is handled from the dashboard. For owner setup, reset, delete, or upgrade operations, generate a one-time temp key and use it on the dashboard login page.
+`manubis restore` follows the original backup-discovery workflow. It scans the ManubisGuard backup directory, lists available backup archives, lets the operator select one, and then passes the selected archive to the existing restore/migration safety pipeline. The backup path does not need to be typed manually.
+
+For a non-destructive validation of a specific archive:
 
 ```bash
-manubisguard cli generate-temp-key
+sudo manubis restore-check /path/to/backup.zip
 ```
+
+The project-specific restore engine remains separate from the CLI selector so that backup validation and production safety gates are not bypassed.
