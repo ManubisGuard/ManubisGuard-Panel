@@ -719,16 +719,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Acceptance evidence is based on a real external client handshake, not only syntax/unit/service-health checks.
 - [ ] Keep Main/Production untouched until a separately approved promotion/deployment step; TEST PASS does not itself authorize production deployment.
 
-## AWG TEST E2E PASS — 2026-09-26
-- [x] TEST-only AmneziaWG kernel prerequisite resolved: compatible AmneziaWG kernel module/tools were installed on the disposable TEST host; `ip link add ... type amneziawg` succeeded and the Node could create/use an AWG interface.
-- [x] Disposable local AWG handshake test passed before external validation, proving the TEST kernel/userspace AWG path and J/S/H processing were operational.
-- [x] Fresh real Subscription artifact was inspected: it contains `Jc/Jmin/Jmax/S1-S4/H1-H4`, address, public key, allowed IPs, endpoint and keepalive, so the current artifact is explicitly AmneziaWG rather than plain WireGuard.
-- [x] Real client public-key derivation was checked without exposing the private key; the derived public key matched the registered TEST Peer exactly.
-- [x] PSK was independently checked on the TEST Peer and no PSK is configured in either the current Peer or the generated artifact; no PSK mismatch remains for this test.
-- [x] TEST endpoint/DNS validation passed: `33.qoqnusradio.top` resolves to the TEST public IPv4 address and has no AAAA record; UDP listener was available.
-- [x] Real external client E2E validation passed on TEST using a fresh AWG configuration on UDP `51822`: tcpdump observed inbound client UDP packets and server replies on `95.182.94.135:51822`.
-- [x] `awg show wg0` after the real client connection reported the expected Peer endpoint, a recent `latest handshake`, and non-zero RX/TX transfer counters.
-- [x] This closes the current TEST AWG handshake blocker for the validated path. No Main/Production restart, rebuild, deployment, or cutover was performed as part of this validation.
-- [x] Temporary packet-capture session `screen awg51822cap` was used for validation; no secrets or private keys were written to the project.
-- [x] Acceptance evidence is based on a real external client handshake, not only syntax/unit/service-health checks.
-- [ ] Keep Main/Production untouched until a separately approved promotion/deployment step; TEST PASS does not itself authorize production deployment.
+## AWG HOST RUNTIME INSTALLER — 2026-09-26
+- [x] TEST host runtime was captured and reproduced as installer logic in `ManubisGuard-Node/install-manubisguard-node.sh`.
+- [x] Node installer now provisions the official Amnezia PPA, DKMS/build prerequisites, matching kernel headers, `amneziawg-dkms`, `amneziawg-tools`, boot-time module loading, and a native interface creation smoke test.
+- [x] Node container userspace is pinned to AmneziaWG tools `v3.1.20260812`, matching the validated TEST runtime line.
+- [x] Node installer commit: `f7d14cf` (`fix(installer): install AmneziaWG host runtime`).
+- [x] Host runtime report commit: `8df2d11` (`docs: record AWG host runtime requirements`).
+- [ ] Main/Production remains untouched; promotion requires a separate approved deployment step.
