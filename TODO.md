@@ -726,3 +726,12 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Node installer commit: `f7d14cf` (`fix(installer): install AmneziaWG host runtime`).
 - [x] Host runtime report commit: `8df2d11` (`docs: record AWG host runtime requirements`).
 - [ ] Main/Production remains untouched; promotion requires a separate approved deployment step.
+
+## AWG Subscription Runtime Source-of-Truth Fix — 2026-09-26
+- [x] Root cause confirmed: stale NATS/KV runtime snapshots could reintroduce an older WireGuard/AmneziaWG Core representation after PostgreSQL contained the current Core state.
+- [x] This could make the Node receive stale interface-wide Core state (including PSK/AWG parameters) while the subscription renderer read the current DB state, producing a client/Node configuration mismatch.
+- [x] Fix: PostgreSQL is now the source of truth for CoreManager startup and runtime reload; KV is retained only as fallback if DB refresh fails.
+- [x] Fix: PostgreSQL is now the source of truth for HostManager startup and runtime reload; KV is retained only as fallback if DB refresh fails.
+- [x] Added regression coverage for stale Core KV state, DB reload, HostManager DB source of truth, and native AWG subscription rendering.
+- [x] TEST validation recorded in the source branch: targeted regression tests, Ruff, and git diff checks passed; real external TEST AWG E2E was also recorded as passed separately above.
+- [x] Changes originate from PR #3 `fix: keep AWG core type in subscription runtime state` and are being promoted onto `feature/amnezia-wg` without changing `main`.
