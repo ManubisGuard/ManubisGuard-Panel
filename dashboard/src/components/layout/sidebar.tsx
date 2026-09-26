@@ -75,41 +75,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canReadNodeLogs = hasPermission(admin, 'nodes', 'logs')
   const canBulkCreateFromTemplate = hasPermission(admin, 'users', 'create') && canReadTemplates
   const canBulkUpdateUsers = hasScopeAll(admin, 'users', 'update')
-  const nodeNavItems = [
-    ...(canReadNodes
-      ? [
-          {
-            title: 'nodes.title',
-            url: '/nodes',
-            icon: Share2Icon,
-          },
-        ]
-      : []),
-    ...(canReadCores
-      ? [
-          {
-            title: 'settings.cores.title',
-            url: '/nodes/cores',
-            icon: Cpu,
-            matchPrefix: true,
-          },
-          {
-            title: 'nodes.wireguard.title',
-            url: '/nodes/wireguard',
-            icon: Network,
-          },
-        ]
-      : []),
-    ...(canReadNodeLogs
-      ? [
-          {
-            title: 'nodes.logs.title',
-            url: '/nodes/logs',
-            icon: Logs,
-          },
-        ]
-      : []),
-  ]
   const templateNavItems = [
     ...(canReadTemplates
       ? [
@@ -193,197 +158,91 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     },
     navMain: [
       ...(canReadSystem
-        ? [
-            {
-              title: 'dashboard',
-              url: '/',
-              icon: LayoutDashboardIcon,
-            },
-          ]
+        ? [{ title: 'dashboard', url: '/', icon: LayoutDashboardIcon }]
         : []),
       ...(hasPermission(admin, 'users', 'read')
-        ? [
-            {
-              title: 'users',
-              url: '/users',
-              icon: UsersIcon,
-            },
-          ]
+        ? [{ title: 'users', url: '/users', icon: UsersIcon }]
         : []),
       ...(hasPermission(admin, 'nodes', 'stats')
-        ? [
-            {
-              title: 'statistics',
-              url: '/statistics',
-              icon: PieChart,
-            },
-          ]
+        ? [{ title: 'statistics', url: '/statistics', icon: PieChart }]
         : []),
-      ...(canReadHosts
-        ? [
-            {
-              title: 'hosts',
-              url: '/hosts',
-              icon: ListTodo,
-            },
-          ]
+      ...(canReadNodes
+        ? [{ title: 'nodes.title', url: '/nodes', icon: Share2Icon }]
         : []),
-      ...(canReadGroups
-        ? [
-            {
-              title: 'groups',
-              url: '/groups',
-              icon: Group,
-            },
-          ]
-        : []),
-      ...(canReadAdmins
-        ? [
-            {
-              title: 'admins.title',
-              url: '/admins',
-              icon: UserCog,
-            },
-          ]
-        : []),
-      ...(isOwner(admin)
-        ? [
-            {
-              title: 'adminRoles.title',
-              url: '/admin-roles',
-              icon: UserKey,
-            },
-          ]
-        : []),
-      ...(canReadApiKeys
+      ...(canReadHosts || canReadGroups
         ? [{
-            title: 'apiKeys.title',
-            url: '/api-keys',
-            icon: Key,
+            title: 'navigation.hostsGroups',
+            url: canReadHosts ? '/hosts' : '/groups',
+            icon: Layers,
+            items: [
+              ...(canReadHosts ? [{ title: 'hosts', url: '/hosts', icon: ListTodo }] : []),
+              ...(canReadGroups ? [{ title: 'groups', url: '/groups', icon: Group }] : []),
+            ],
           }]
         : []),
-      ...(nodeNavItems.length > 0
-        ? [
-            {
-              title: 'nodes.title',
-              url: nodeNavItems[0].url,
-              icon: Share2Icon,
-              items: nodeNavItems,
-            },
-          ]
+      ...(canReadCores
+        ? [{
+            title: 'navigation.coreInbound',
+            url: canReadCores ? '/nodes/cores' : '/nodes/wireguard',
+            icon: Cpu,
+            items: [
+              ...(canReadCores ? [{ title: 'settings.cores.title', url: '/nodes/cores', icon: Cpu, matchPrefix: true }] : []),
+              ...(canReadCores ? [{ title: 'nodes.wireguard.title', url: '/nodes/wireguard', icon: Network }] : []),
+            ],
+          }]
+        : []),
+      ...(canReadNodeLogs
+        ? [{ title: 'nodes.logs.title', url: '/nodes/logs', icon: Logs }]
+        : []),
+      ...(canReadAdmins || isOwner(admin)
+        ? [{
+            title: 'navigation.reseller',
+            url: canReadAdmins ? '/admins' : '/admin-roles',
+            icon: UserCog,
+            items: [
+              ...(canReadAdmins ? [{ title: 'admins.title', url: '/admins', icon: UserCog }] : []),
+              ...(isOwner(admin) ? [{ title: 'adminRoles.title', url: '/admin-roles', icon: UserKey }] : []),
+            ],
+          }]
+        : []),
+      ...(canReadApiKeys
+        ? [{ title: 'apiKeys.title', url: '/api-keys', icon: Key }]
         : []),
       ...(templateNavItems.length > 0
-        ? [
-            {
-              title: 'templates.title',
-              url: templateNavItems[0].url,
-              icon: LayoutTemplate,
-              items: templateNavItems,
-            },
-          ]
+        ? [{ title: 'templates.title', url: templateNavItems[0].url, icon: LayoutTemplate, items: templateNavItems }]
         : []),
       ...(canBulkCreateFromTemplate || canBulkUpdateUsers
-        ? [
-            {
-              title: 'bulk.title',
-              url: '/bulk',
-              icon: Layers,
-              items: [
-                ...(canBulkCreateFromTemplate
-                  ? [
-                      {
-                        title: 'bulk.createUsers',
-                        url: '/bulk',
-                        icon: UserPlus,
-                      },
-                    ]
-                  : []),
-                ...(canBulkUpdateUsers
-                  ? [
-                      {
-                        title: 'bulk.groups',
-                        url: '/bulk/groups',
-                        icon: Group,
-                      },
-                      {
-                        title: 'bulk.expireDate',
-                        url: '/bulk/expire',
-                        icon: Calendar,
-                      },
-                      {
-                        title: 'bulk.dataLimit',
-                        url: '/bulk/data',
-                        icon: ArrowUpDown,
-                      },
-                      {
-                        title: 'bulk.proxySettings',
-                        url: '/bulk/proxy',
-                        icon: Lock,
-                      },
-                    ]
-                  : []),
-              ],
-            },
-          ]
+        ? [{
+            title: 'bulk.title',
+            url: '/bulk',
+            icon: Layers,
+            items: [
+              ...(canBulkCreateFromTemplate ? [{ title: 'bulk.createUsers', url: '/bulk', icon: UserPlus }] : []),
+              ...(canBulkUpdateUsers ? [
+                { title: 'bulk.groups', url: '/bulk/groups', icon: Group },
+                { title: 'bulk.expireDate', url: '/bulk/expire', icon: Calendar },
+                { title: 'bulk.dataLimit', url: '/bulk/data', icon: ArrowUpDown },
+                { title: 'bulk.proxySettings', url: '/bulk/proxy', icon: Lock },
+              ] : []),
+            ],
+          }]
         : []),
       {
         title: 'settings.title',
         url: '/settings',
         icon: Settings2,
         items: [
-          ...(hasPermission(admin, 'settings', 'read_general') && hasPermission(admin, 'settings', 'update')
-            ? [
-                {
-                  title: 'settings.general.title',
-                  url: '/settings/general',
-                  icon: Settings,
-                },
-              ]
-            : []),
-          ...(hasPermission(admin, 'settings', 'read') && hasPermission(admin, 'settings', 'update')
-            ? [
-                {
-                  title: 'settings.notifications.title',
-                  url: '/settings/notifications',
-                  icon: Bell,
-                },
-                {
-                  title: 'settings.subscriptions.title',
-                  url: '/settings/subscriptions',
-                  icon: ListTodo,
-                },
-                {
-                  title: 'settings.hwid.title',
-                  url: '/settings/hwid',
-                  icon: Fingerprint,
-                },
-                {
-                  title: 'settings.telegram.title',
-                  url: '/settings/telegram',
-                  icon: Send,
-                },
-                {
-                  title: 'settings.webhook.title',
-                  url: '/settings/webhook',
-                  icon: Webhook,
-                },
-                {
-                  title: 'settings.cleanup.title',
-                  url: '/settings/cleanup',
-                  icon: Database,
-                },
-                {
-                  title: 'Backup & Restore',
-                  url: '/settings/backup',
-                  icon: Database,
-                },
-              ]
-            : []),
-          {
-            title: 'theme.title',
-            url: '/settings/theme',
-            icon: Palette,
-          },
+          ...(hasPermission(admin, 'settings', 'read_general') && hasPermission(admin, 'settings', 'update') ? [{ title: 'settings.general.title', url: '/settings/general', icon: Settings }] : []),
+          ...(hasPermission(admin, 'settings', 'read') && hasPermission(admin, 'settings', 'update') ? [
+            { title: 'settings.notifications.title', url: '/settings/notifications', icon: Bell },
+            { title: 'settings.subscriptions.title', url: '/settings/subscriptions', icon: ListTodo },
+            { title: 'settings.hwid.title', url: '/settings/hwid', icon: Fingerprint },
+            { title: 'settings.telegram.title', url: '/settings/telegram', icon: Send },
+            { title: 'settings.webhook.title', url: '/settings/webhook', icon: Webhook },
+            { title: 'settings.cleanup.title', url: '/settings/cleanup', icon: Database },
+            { title: 'Backup & Restore', url: '/settings/backup', icon: Database },
+          ] : []),
+          { title: 'theme.title', url: '/settings/theme', icon: Palette },
         ],
       },
     ],

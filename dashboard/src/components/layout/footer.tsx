@@ -4,7 +4,7 @@ import { FC } from 'react'
 const FooterContent = () => {
   return (
     <p className="text-muted-foreground inline-block flex-grow text-center text-xs">
-      Made with ❤️ by &nbsp;
+      Developed by &nbsp;
       <a className="text-primary hover:underline" href={REPO_URL}>
         ManubisGuard
       </a>{' '}

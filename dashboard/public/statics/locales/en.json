@@ -8,6 +8,7 @@
   "active": "active",
   "online": "Online",
   "platform": "Platform",
+  "navigation": { "hostsGroups": "Hosts & Groups", "coreInbound": "Core & Inbound", "reseller": "Reseller" },
   "allStatuses": "All Statuses",
   "status": "Status",
   "statistics": "Statistics",

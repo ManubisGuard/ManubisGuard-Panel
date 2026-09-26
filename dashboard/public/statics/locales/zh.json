@@ -1,6 +1,7 @@
 {
   "active": "激活",
   "platform": "平台",
+  "navigation": { "hostsGroups": "主机与群组", "coreInbound": "核心与入站", "reseller": "Reseller" },
   "dashboard": "仪表板",
   "master": "总体",
   "dashboardDescription": "ManubisGuard 管理仪表板",

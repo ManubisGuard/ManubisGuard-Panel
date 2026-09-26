@@ -8,6 +8,7 @@
   "active": "активный",
   "online": "В сети",
   "platform": "Платформа",
+  "navigation": { "hostsGroups": "Хосты и группы", "coreInbound": "Core и Inbound", "reseller": "Reseller" },
   "allStatuses": "Все статусы",
   "status": "Статус",
   "statistics": "Статистика",

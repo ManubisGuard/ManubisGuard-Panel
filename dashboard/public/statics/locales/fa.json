@@ -8,6 +8,7 @@
   "active": "فعال",
   "online": "آنلاین",
   "platform": "پلتفرم",
+  "navigation": { "hostsGroups": "هاست و گروه", "coreInbound": "Core و Inbound", "reseller": "Reseller" },
   "allStatuses": "همه وضعیت‌ها",
   "status": "وضعیت",
   "statistics": "آمار",
