@@ -555,3 +555,25 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Remote TEST validation: real backup discovery found `backup_20260923210118.zip`; selection `1` passed `/opt/manubisguard/backup/backup_20260923210118.zip` to the restore engine with `--apply` using a mocked engine, so no production restore was performed.
 - [x] `bash -n` passed for `install-manubisguard.sh`, `manubis`, and `manubisguard-migrate`; `git diff --check` passed.
 - [x] CLI documentation updated to use `manubis` and document automatic restore discovery.
+
+
+## Main server CLI edit-env + qoqnus SSL certificate paths — 2026-09-26
+- [x] Restored upstream-style `manubis edit-env`: it detects/uses the configured editor and opens `/opt/manubisguard-panel/.env`, matching the original PasarGuard CLI method instead of returning an unwired-command error.
+- [x] Configured Panel SSL to use the existing qoqnus certificate pair: `UVICORN_SSL_CERTFILE=/var/lib/manubisguard/certs/qoqnus/fullchain.pem` and `UVICORN_SSL_KEYFILE=/var/lib/manubisguard/certs/qoqnus/privkey.pem`.
+- [x] Enabled custom SSL mode in the main server `.env`: `PASARGUARD_SSL_ENABLED=True`, `PASARGUARD_SSL_MODE=custom`.
+- [x] Verified both certificate files exist and are readable; the certificate is for `qoqnusradio.top` and issued by Let's Encrypt.
+- [x] Recreated the Panel container with the SSL configuration; Uvicorn reported `https://0.0.0.0:8000` and Docker health returned `{"status":"ok"}`.
+- [x] `manubis edit-env` execution test passed using `EDITOR=/bin/true` without modifying the file through the editor.
+- [x] `bash -n` and `git diff --check` passed.
+- [ ] External `https://55.qoqnusradio.top/health` could not be reached from the server during this check; this is a network/listener path issue to investigate separately and was not treated as a Panel health failure.
+
+
+## Restore analysis CLI compatibility fix — 2026-09-26
+- [x] Root cause confirmed: `manubisguard-migrate` invokes `manubisguard-cli migrate-inspect`, but the earlier CLI simplification had removed the migration subcommands and caused `No such command 'migrate-inspect'`.
+- [x] Restored the internal migration CLI commands required by the existing migration engine: `migrate-inspect`, `migrate-staging`, and `migrate-validate`, while keeping the user-facing CLI name `Manubis` and the existing migration engine unchanged.
+- [x] Verified the actual container CLI entrypoint is `/code/manubisguard-cli.py`; `/code/manubis-cli.py` does not exist and must not be documented.
+- [x] Rebuilt the `manubisguard` image and recreated the Panel container from the corrected source.
+- [x] Remote execution PASS: `migrate-inspect` against `backup_20260926022451.zip` exited 0 and returned `preflight.ok=True`, source `pasarguard`, format `sql`, with no staging Timescale error; this inspection did not restore or modify production.
+- [x] Remote execution PASS: `/code/manubisguard-cli.py generate-temp-key` exited 0; generated key output was not logged or persisted in the project.
+- [x] Panel container returned `running healthy` after recreation.
+- [x] `python3 -m py_compile cli/main.py` and `git diff --check` passed.
