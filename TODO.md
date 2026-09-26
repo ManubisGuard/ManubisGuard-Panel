@@ -735,3 +735,9 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Added regression coverage for stale Core KV state, DB reload, HostManager DB source of truth, and native AWG subscription rendering.
 - [x] TEST validation recorded in the source branch: targeted regression tests, Ruff, and git diff checks passed; real external TEST AWG E2E was also recorded as passed separately above.
 - [x] Changes originate from PR #3 `fix: keep AWG core type in subscription runtime state` and are being promoted onto `feature/amnezia-wg` without changing `main`.
+
+## AWG Host Runtime Source-of-Truth Validation — 2026-09-26
+- [x] HostManager startup and runtime reload now refresh prepared subscription hosts from PostgreSQL first.
+- [x] NATS/KV remains fallback-only when the database refresh fails, preventing stale prepared host/subscription state from silently overriding current DB Core state.
+- [x] Regression test added for HostManager DB source of truth.
+- [x] Promoted to `feature/amnezia-wg` together with the CoreManager source-of-truth fix; `main` remains untouched.
