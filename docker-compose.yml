@@ -17,11 +17,8 @@ services:
       retries: 30
 
   manubisguard:
-    image: ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg
-    build:
-      context: .
-      dockerfile: Dockerfile
-    pull_policy: never
+    image: ghcr.io/manubisguard/manubisguard-panel:latest
+    pull_policy: always
     restart: always
     env_file: .env
     network_mode: host
