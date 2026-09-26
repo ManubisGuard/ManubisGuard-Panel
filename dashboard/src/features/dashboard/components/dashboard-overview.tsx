@@ -31,7 +31,7 @@ export default function DashboardOverview({ usersData, resourceData }: Props) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {items.map(({ label, value, meta, icon: Icon, accent }) => (
-        <Card key={label} className="group overflow-hidden border-border/60 bg-card/55 transition-colors hover:border-primary/25 hover:bg-card/70">
+        <Card key={label} className="group relative overflow-hidden border-border/60 bg-card/50 shadow-[0_14px_40px_hsl(0_0%_0%_/_0.16)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card/65 hover:shadow-[0_18px_50px_hsl(0_0%_0%_/_0.22)]">
           <CardContent className="relative p-4 sm:p-5">
             <div className="pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full bg-primary/5 blur-2xl transition-opacity group-hover:opacity-100" />
             <div className="relative flex items-start justify-between gap-3">
@@ -40,7 +40,7 @@ export default function DashboardOverview({ usersData, resourceData }: Props) {
                 <p dir="ltr" className={`mt-2 text-2xl font-semibold tracking-tight ${accent ? 'text-primary' : 'text-foreground'}`}>{value}</p>
                 <p className="mt-1 text-[11px] text-muted-foreground/80">{meta}</p>
               </div>
-              <div className={`rounded-lg border p-2 ${accent ? 'border-primary/20 bg-primary/10 text-primary' : 'border-border/60 bg-background/40 text-muted-foreground'}`}>
+              <div className={`rounded-xl border p-2.5 ${accent ? 'border-primary/25 bg-primary/10 text-primary shadow-[0_0_22px_hsl(var(--primary)/.12)]' : 'border-border/60 bg-background/40 text-muted-foreground'}`}>
                 <Icon className="h-4 w-4" />
               </div>
             </div>

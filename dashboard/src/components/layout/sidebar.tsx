@@ -419,7 +419,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <>
-      <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border/70 bg-sidebar/95 p-0 shadow-[12px_0_40px_hsl(0_0%_0%_/_0.16)]" side={isRTL ? 'right' : 'left'}>
+      <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border/70 bg-sidebar/80 p-0 shadow-[18px_0_60px_hsl(0_0%_0%_/_0.22)] backdrop-blur-2xl" side={isRTL ? 'right' : 'left'}>
         <SidebarRail />
         <SidebarHeader>
           <SidebarMenu>

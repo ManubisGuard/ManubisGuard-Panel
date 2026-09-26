@@ -109,7 +109,7 @@ export function formatRadius(value: number): Radius {
 
 export function ThemeProvider({
   children,
-  defaultTheme = 'system',
+  defaultTheme = 'dark',
   defaultColorTheme = 'default',
   defaultRadius = '0.5rem',
   storageKey = 'theme',
@@ -164,6 +164,10 @@ export function ThemeProvider({
     root.dataset.density = customizationValue.density
     root.dataset.surface = customizationValue.surface
     root.dataset.style = customizationValue.style
+    root.dataset.backgroundGrid = customizationValue.backgroundGrid ? 'true' : 'false'
+    root.dataset.ambientEffects = customizationValue.ambientEffects ? 'true' : 'false'
+    root.dataset.animation = customizationValue.animationIntensity
+    root.dataset.glass = customizationValue.glassEffect > 0 ? 'true' : 'false'
 
     applyThemeVars({
       ...applyThemeCustomization(composeTheme(customizationValue.baseColor, colorThemeName, themeMode), customizationValue),

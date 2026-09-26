@@ -99,12 +99,13 @@ const Dashboard = () => {
 
   return (
     <div className="flex w-full flex-col items-start">
-      <div className="w-full border-b border-border/50">
+      <div className="relative w-full overflow-hidden border-b border-border/50 bg-card/15">
         <PageHeader title="dashboard" description="dashboardDescription" buttonIcon={Bookmark} buttonText="quickActions.title" onButtonClick={handleOpenQuickActions} />
       </div>
 
-      <div className="w-full px-3 py-4 sm:px-5 lg:px-6">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-5">
+      <div className="relative w-full px-3 py-5 sm:px-5 lg:px-6 lg:py-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_15%_0%,hsl(var(--primary)/.10),transparent_45%),radial-gradient(circle_at_85%_0%,hsl(var(--secondary)/.08),transparent_40%)]" />
+        <div className="mx-auto flex max-w-[1680px] flex-col gap-5">
           <DashboardOverview resourceData={systemResourceStatsData} usersData={systemUsersStatsData} />
           {canReadNodeStats && <WorkersHealthCard />}
           <div className="h-px bg-border/50" />

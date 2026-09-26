@@ -35,7 +35,7 @@ export default function DashboardLayout() {
         <CommandPalette />
         <div className="flex w-full flex-col lg:flex-row">
           <AppSidebar />
-          <SidebarInset className="dashboard-scroll min-w-0 scroll-smooth">
+          <SidebarInset className="dashboard-scroll min-w-0 scroll-smooth bg-background/95">
             <ManubisTopbar />
             <TopbarAd />
             <VersionUpdateBanner />

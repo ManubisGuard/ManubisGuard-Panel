@@ -27,7 +27,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
   const docsUrl = tutorialUrl || getDocsUrl(location.pathname)
 
   return (
-    <div dir={dir} className={cn('bg-background/55 mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden px-3 py-4 backdrop-blur-md sm:px-5 lg:px-6 lg:py-5', className)}>
+    <div dir={dir} className={cn('relative mx-auto flex w-full flex-row items-start justify-between gap-4 overflow-hidden bg-background/45 px-3 py-5 backdrop-blur-xl sm:px-5 lg:px-6 lg:py-6', className)}>
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-y-1">
         <div className="flex min-w-0 items-center gap-2.5">
           <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{t(title)}</h1>

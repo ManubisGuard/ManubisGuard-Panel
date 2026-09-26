@@ -51,7 +51,7 @@ export function NavMain({
               <CollapsibleTrigger asChild>
                 <NavLink to={item.url} onClick={handleNavigation}>
                   {({ isActive }) => (
-                    <SidebarMenuButton tooltip={t(item.title)} isActive={isActive}>
+                    <SidebarMenuButton tooltip={t(item.title)} isActive={isActive} className="relative transition-all duration-200 data-[active=true]:bg-primary/12 data-[active=true]:text-primary data-[active=true]:shadow-[inset_2px_0_0_hsl(var(--primary)),0_0_22px_hsl(var(--primary)/.08)] hover:bg-sidebar-accent/70">
                       <item.icon />
                       <span>{t(item.title)}</span>
                     </SidebarMenuButton>
@@ -73,7 +73,7 @@ export function NavMain({
                         const subActive = location.pathname === subItem.url || (subItem.matchPrefix && (location.pathname === base || location.pathname.startsWith(`${base}/`)))
                         return (
                           <SidebarMenuSubItem key={subItem.title}>
-                            <SidebarMenuSubButton asChild className="flex h-8 items-center gap-2" isActive={subActive}>
+                            <SidebarMenuSubButton asChild className="flex h-8 items-center gap-2 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary" isActive={subActive}>
                               <NavLink to={subItem.url} end={!subItem.matchPrefix} onClick={handleNavigation}>
                                 <subItem.icon />
                                 <span>{t(subItem.title)}</span>

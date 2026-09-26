@@ -10,13 +10,13 @@ export default function ManubisTopbar() {
   const setCommandPaletteOpen = useCommandPaletteStore(s => s.setOpen)
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/60 bg-background/85 px-3 backdrop-blur-xl sm:px-5">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/60 bg-background/70 px-3 backdrop-blur-2xl sm:px-5 lg:px-6">
       <SidebarTriggerWithBadge />
 
       <button
         type="button"
         onClick={() => setCommandPaletteOpen(true)}
-        className="group flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/60 bg-card/35 px-3 text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:bg-card/60 hover:text-foreground sm:max-w-md"
+        className="group flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border/60 bg-card/45 px-3.5 text-sm text-muted-foreground shadow-[0_8px_30px_hsl(0_0%_0%_/_0.18)] transition-all hover:border-primary/35 hover:bg-card/70 hover:shadow-[0_0_24px_hsl(var(--primary)/.08)] sm:max-w-xl"
       >
         <Search className="h-4 w-4 shrink-0" />
         <span className="truncate">{t('search', { defaultValue: 'Search' })}</span>

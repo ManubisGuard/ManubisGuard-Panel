@@ -90,7 +90,7 @@ const WorkersHealthCard = () => {
   if (!isLoading && !isError && workersDisabled) return null
 
   return (
-    <Card className="bg-card/80 border" dir={dir}>
+    <Card className="border-border/60 bg-card/55 shadow-[0_14px_40px_hsl(0_0%_0%_/_0.14)] backdrop-blur-xl" dir={dir}>
       <CardHeader className="p-2">
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-2 p-2 text-left sm:items-center">
