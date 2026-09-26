@@ -19,7 +19,7 @@ interface UseVersionCheckOptions {
 }
 
 const GITHUB_API_URL = 'https://api.github.com/repos/ManubisGuard/ManubisGuard-Panel/releases/latest'
-const CACHE_KEY = 'pg_release'
+const CACHE_KEY = 'manubisguard_release_v1'
 const CACHE_DURATION = 10 * 60 * 1000
 
 function compareVersions(current: string, latest: string): number {
@@ -68,7 +68,7 @@ async function fetchLatestRelease(): Promise<{ version: string; url: string } | 
     })
 
     if (!response.ok) {
-      return cached ? { version: cached.version, url: cached.url } : null
+      return null
     }
 
     const data = await response.json()
@@ -76,22 +76,22 @@ async function fetchLatestRelease(): Promise<{ version: string; url: string } | 
     const url = data.html_url || ''
 
     if (version) setCache(version, url)
-    return { version, url }
+    return version ? { version, url } : null
   } catch {
-    return cached ? { version: cached.version, url: cached.url } : null
+    return null
   }
 }
 
 export function useVersionCheck(currentVersion: string | null, options: UseVersionCheckOptions = {}): VersionCheckResult {
   const enabled = options.enabled ?? true
   const { data, isLoading } = useQuery({
-    queryKey: ['github-release-check'],
+    queryKey: ['manubisguard-github-release-check'],
     queryFn: fetchLatestRelease,
     enabled,
     staleTime: CACHE_DURATION,
     gcTime: CACHE_DURATION * 2,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: true,
     refetchInterval: CACHE_DURATION,
     retry: 1,
   })
