@@ -604,3 +604,13 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Panel Docker image build gate passed with the compatibility shim present; Vite transformed 5587 modules and production dashboard build completed successfully.
 - [x] Built Panel image `manubisguard-panel:multicore-test`; the resulting image contains the patched protobuf where `Backend(additive=True)` serializes correctly and the gRPC bridge source exposes the additive parameter.
 - [x] Focused Panel regression suite passed: `47 passed` for `tests/test_node_sync.py`, `tests/test_node_manager_sync.py`, and `tests/api/test_node.py` after updating the API fixture for the new normalized field.
+
+## AWG Subscription Native-Config Regression — 2026-09-26
+- Root cause: `CoreManager.initialize()` returned early when a KV snapshot loaded successfully, making cached core type/config authoritative over PostgreSQL.
+- A stale snapshot could reconstruct `WG_51820` as `WireGuardConfig`, so `SubscriptionInboundData.protocol` became `wireguard` and `amneziawg=False`; the renderer then correctly emitted plain WireGuard without J/S/H.
+- Fix: KV is now treated as an optimization only; startup always reloads core type/config from PostgreSQL and rebuilds `inbounds_by_tag` from the DB source of truth.
+- Added regression test proving a cached state cannot hide an `amneziawg` DB core.
+- Added renderer regression test proving Jc/Jmin/Jmax/S1-S4/H1-H4 are emitted when the inbound is AmneziaWG.
+- TEST validation: 24 targeted tests passed; Ruff passed; `git diff --check` passed; Docker image build reached successful dashboard compilation. Existing TEST runtime remains affected by an unrelated `Node.start(additive=...)` compatibility error and was not used as evidence for production deployment.
+- Commit: `0e76feb048721dc12e9903271772781f47f15f9f` on `fix/awg-peer-key-consistency`.
+- Main server was not restarted or changed during this TEST phase.
