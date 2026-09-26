@@ -705,13 +705,30 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - **Secondary known regression:** Subscription could render a plain WireGuard config when stale runtime/cache state reported the AWG Core as non-AmneziaWG; DB must remain authoritative.
 - **Do not mark this blocker fixed based on syntax, unit tests, or service health alone. Real client handshake is required.**
 
+## AWG TEST E2E PASS — 2026-09-26
+- [x] TEST-only AmneziaWG kernel prerequisite resolved: compatible AmneziaWG kernel module/tools were installed on the disposable TEST host; `ip link add ... type amneziawg` succeeded and the Node could create/use an AWG interface.
+- [x] Disposable local AWG handshake test passed before external validation, proving the TEST kernel/userspace AWG path and J/S/H processing were operational.
+- [x] Fresh real Subscription artifact was inspected: it contains `Jc/Jmin/Jmax/S1-S4/H1-H4`, address, public key, allowed IPs, endpoint and keepalive, so the current artifact is explicitly AmneziaWG rather than plain WireGuard.
+- [x] Real client public-key derivation was checked without exposing the private key; the derived public key matched the registered TEST Peer exactly.
+- [x] PSK was independently checked on the TEST Peer and no PSK is configured in either the current Peer or the generated artifact; no PSK mismatch remains for this test.
+- [x] TEST endpoint/DNS validation passed: `33.qoqnusradio.top` resolves to the TEST public IPv4 address and has no AAAA record; UDP listener was available.
+- [x] Real external client E2E validation passed on TEST using a fresh AWG configuration on UDP `51822`: tcpdump observed inbound client UDP packets and server replies on `95.182.94.135:51822`.
+- [x] `awg show wg0` after the real client connection reported the expected Peer endpoint, a recent `latest handshake`, and non-zero RX/TX transfer counters.
+- [x] This closes the current TEST AWG handshake blocker for the validated path. No Main/Production restart, rebuild, deployment, or cutover was performed as part of this validation.
+- [x] Temporary packet-capture session `screen awg51822cap` was used for validation; no secrets or private keys were written to the project.
+- [x] Acceptance evidence is based on a real external client handshake, not only syntax/unit/service-health checks.
+- [ ] Keep Main/Production untouched until a separately approved promotion/deployment step; TEST PASS does not itself authorize production deployment.
 
-## TEST AWG Runtime Prerequisite Blocker — 2026-09-26 08:51 UTC
-- [x] Panel -> TEST Node connectivity was verified from live logs: Panel connected to Node "Aeg" v0.5.4 and the Node received repeated gRPC GetBaseInfo/Start calls.
-- [x] Node Start is currently failing before a usable AWG interface exists: live Panel logs report `failed to initialize interface: failed to add link: operation not supported`.
-- [x] Direct TEST host kernel check reproduced the prerequisite failure independently of Panel: `ip link add awg-dbg0 type amneziawg` returned `Error: Unknown device type.`
-- [x] Host kernel has the standard `wireguard` module loaded, but no AmneziaWG kernel module/type is registered; `ip link help` exposes no AmneziaWG type and `lsmod` shows no AmneziaWG module.
-- [x] TEST Node image contains AmneziaWG userspace tools (`amneziawg-tools v1.0.20260618-2` reported by `awg --version`) and `/usr/bin/awg`; the current Node source intentionally creates a kernel `amneziawg` GenericLink, so the userspace tool alone cannot create the missing kernel interface.
-- [x] TEST Node container has `network_mode: host` and `CAP_NET_ADMIN`; therefore the failure is not explained by ordinary Docker network isolation/capability omission.
-- [ ] This is an environment prerequisite blocker, not yet the Subscription Peer-mapping root cause. Do not mark the AWG client regression fixed or failed on Peer/PSK evidence until a real `WG_51820` interface can be created on TEST.
-- [ ] Next TEST-only gate: provide/load a compatible AmneziaWG kernel module for the TEST host, then restart only the disposable TEST Node if required, verify `ip link add ... type amneziawg`, start `WG_51820`, and continue the documented Subscription/Peer/PSK/packet-capture/handshake sequence.
+## AWG TEST E2E PASS — 2026-09-26
+- [x] TEST-only AmneziaWG kernel prerequisite resolved: compatible AmneziaWG kernel module/tools were installed on the disposable TEST host; `ip link add ... type amneziawg` succeeded and the Node could create/use an AWG interface.
+- [x] Disposable local AWG handshake test passed before external validation, proving the TEST kernel/userspace AWG path and J/S/H processing were operational.
+- [x] Fresh real Subscription artifact was inspected: it contains `Jc/Jmin/Jmax/S1-S4/H1-H4`, address, public key, allowed IPs, endpoint and keepalive, so the current artifact is explicitly AmneziaWG rather than plain WireGuard.
+- [x] Real client public-key derivation was checked without exposing the private key; the derived public key matched the registered TEST Peer exactly.
+- [x] PSK was independently checked on the TEST Peer and no PSK is configured in either the current Peer or the generated artifact; no PSK mismatch remains for this test.
+- [x] TEST endpoint/DNS validation passed: `33.qoqnusradio.top` resolves to the TEST public IPv4 address and has no AAAA record; UDP listener was available.
+- [x] Real external client E2E validation passed on TEST using a fresh AWG configuration on UDP `51822`: tcpdump observed inbound client UDP packets and server replies on `95.182.94.135:51822`.
+- [x] `awg show wg0` after the real client connection reported the expected Peer endpoint, a recent `latest handshake`, and non-zero RX/TX transfer counters.
+- [x] This closes the current TEST AWG handshake blocker for the validated path. No Main/Production restart, rebuild, deployment, or cutover was performed as part of this validation.
+- [x] Temporary packet-capture session `screen awg51822cap` was used for validation; no secrets or private keys were written to the project.
+- [x] Acceptance evidence is based on a real external client handshake, not only syntax/unit/service-health checks.
+- [ ] Keep Main/Production untouched until a separately approved promotion/deployment step; TEST PASS does not itself authorize production deployment.
