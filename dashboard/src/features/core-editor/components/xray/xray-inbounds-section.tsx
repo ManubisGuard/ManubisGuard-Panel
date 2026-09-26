@@ -2430,7 +2430,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     // the inbound, which previously allowed a stale security object to overwrite
     // the newly selected Reality serverNames.
     const latestProfile = useCoreEditorStore.getState().xrayProfile
-    const latestInbound = latestProfile?.inbounds?.[selected] ?? inbound
+    // In edit mode the UI works on draftInbound until Save. Reading only from the
+    // persisted store here can resurrect the old security type (for example TLS)
+    // while editing a REALITY inbound. Generator actions must use the active draft first.
+    const latestInbound = draftInbound ?? latestProfile?.inbounds?.[selected] ?? inbound
     const security = latestInbound ? getInboundSecurityRecord(latestInbound) : null
     if (!security) return
     const merged = { ...security, ...patch } as Record<string, unknown>
