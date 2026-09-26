@@ -247,12 +247,15 @@ def _ensure_wireguard_keys(db_user: User) -> bool:
     proxy_settings = dict(db_user.proxy_settings or {})
     wg = dict(proxy_settings.get("wireguard") or {})
     private_key = wg.get("private_key")
-    if private_key and wg.get("public_key"):
-        return False
     if private_key:
-        wg["public_key"] = get_wireguard_public_key(private_key)
-    else:
-        wg["private_key"], wg["public_key"] = generate_wireguard_keypair()
+        derived_public_key = get_wireguard_public_key(private_key)
+        if wg.get("public_key") != derived_public_key:
+            wg["public_key"] = derived_public_key
+            proxy_settings["wireguard"] = wg
+            db_user.proxy_settings = proxy_settings
+            return True
+        return False
+    wg["private_key"], wg["public_key"] = generate_wireguard_keypair()
     proxy_settings["wireguard"] = wg
     db_user.proxy_settings = proxy_settings
     return True

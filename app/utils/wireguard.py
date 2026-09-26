@@ -55,8 +55,6 @@ async def prepare_wireguard_keys(
     if not await user_has_wireguard_access(db, groups):
         return proxy_settings
 
-    await ensure_unique_wireguard_public_key(db, proxy_settings, exclude_user_id=exclude_user_id)
-
     if proxy_settings.wireguard.public_key and not proxy_settings.wireguard.private_key:
         raise ValueError("wireguard private_key is required when user is assigned to a WireGuard interface")
 
@@ -64,7 +62,10 @@ async def prepare_wireguard_keys(
         private_key, public_key = generate_wireguard_keypair()
         proxy_settings.wireguard.private_key = private_key
         proxy_settings.wireguard.public_key = public_key
-    elif not proxy_settings.wireguard.public_key:
+    else:
+        # The private key is the source of truth for the client identity.
+        # Never allow a stale/mismatched public_key to reach the Node peer.
         proxy_settings.wireguard.public_key = get_wireguard_public_key(proxy_settings.wireguard.private_key)
 
+    await ensure_unique_wireguard_public_key(db, proxy_settings, exclude_user_id=exclude_user_id)
     return proxy_settings
