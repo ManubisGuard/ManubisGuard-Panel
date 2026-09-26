@@ -120,6 +120,17 @@ def migrate_validate(
         "warnings": list(result.warnings),
         "missing_target_tables": list(result.missing_target_tables),
         "orphan_checks": [asdict(item) for item in result.orphan_checks],
+        "snapshot": (
+            {
+                "tables": list(result.snapshot.tables),
+                "row_counts": result.snapshot.row_counts,
+                "alembic_versions": list(result.snapshot.alembic_versions),
+                "core_type_counts": result.snapshot.core_type_counts,
+                "settings_invalid_rows": result.snapshot.settings_invalid_rows,
+            }
+            if result.snapshot
+            else None
+        ),
     }
     if json_output:
         print_json(payload)
