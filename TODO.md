@@ -577,3 +577,12 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Remote execution PASS: `/code/manubisguard-cli.py generate-temp-key` exited 0; generated key output was not logged or persisted in the project.
 - [x] Panel container returned `running healthy` after recreation.
 - [x] `python3 -m py_compile cli/main.py` and `git diff --check` passed.
+
+## Restore cutover validation snapshot fix — 2026-09-26
+- [x] Root cause confirmed from a real `--apply` run: the validated cutover database contained the restored records, but `migrate-validate --json` omitted `snapshot.row_counts`; the safety comparison therefore interpreted every critical table as zero and correctly aborted the cutover rather than risking data loss.
+- [x] Restored the `snapshot` payload in `migrate-validate`, including tables, row counts, Alembic revision, core type counts, and invalid-settings count.
+- [x] Re-ran the real backup `backup_20260926022451.zip` with `--apply`; cutover validation then reported `critical durable row counts preserved`.
+- [x] Production cutover completed successfully; previous production database was preserved as `manubisguard_pre_migration_5b60b965d2aa` and a verified safety dump was created at `/var/lib/manubisguard/migration/5b60b965d2aa/production-safety.dump`.
+- [x] Post-cutover Panel health check passed.
+- [x] Production database verification after cutover: users=261, hosts=7, nodes=1, inbounds=5, admins=30.
+- [x] Source fix is being rebuilt into the Panel image so the `snapshot` field survives future container recreation.
