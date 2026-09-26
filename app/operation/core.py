@@ -36,7 +36,7 @@ from app.models.core import (
 )
 from app.models.reality_scan import RealityScanRequest, RealityScanResult
 from app.node.sync import sync_users
-from app.operation import BaseOperation
+from app.operation import BaseOperation, OperatorType
 from app.utils.logger import get_logger
 from app.utils.reality_scan import RealityScanError, scan_reality_target
 
@@ -137,6 +137,7 @@ class CoreOperation(BaseOperation):
         self, db: AsyncSession, core_id: int, modified_core: CoreCreate, admin: AdminDetails
     ) -> CoreResponse:
         db_core = await self.get_validated_core_config(db, core_id)
+        old_core_config = dict(db_core.config or {})
         was_wg = db_core.type in (CoreType.wg, CoreType.amneziawg)
         if modified_core.type in (CoreType.wg, CoreType.amneziawg):
             await self._validate_wireguard_subnet(db, modified_core.config, exclude_core_id=db_core.id)
@@ -159,6 +160,16 @@ class CoreOperation(BaseOperation):
             await self.raise_error(message=e, code=400, db=db)
 
         await core_manager.update_core(db_core, validated_core)
+
+        # WireGuard/AmneziaWG peer configuration contains interface-wide state
+        # such as the core PSK and AWG parameters. Updating the DB/core manager
+        # alone does not rewrite peers already running on remote nodes. Restart
+        # only when the actual core config changed, so a metadata-only edit does
+        # not cause an unnecessary node restart.
+        if (was_wg or db_core.type in (CoreType.wg, CoreType.amneziawg)) and old_core_config != dict(db_core.config or {}):
+            from app.operation.node import NodeOperation
+
+            await NodeOperation(OperatorType.API).restart_all_node(db, admin, core_id=db_core.id)
 
         logger.info(f'Core config "{db_core.name}" modified by admin "{admin.username}"')
 
@@ -188,38 +199,3 @@ class CoreOperation(BaseOperation):
         if was_wg:
             await self._reconcile_wireguard(db)
         await self._refresh_hosts_from_db(db)
-
-    async def bulk_remove_cores(
-        self, db: AsyncSession, bulk_cores: BulkCoreSelection, admin: AdminDetails
-    ) -> RemoveCoresResponse:
-        """Remove multiple cores by ID"""
-        ids_list = list(bulk_cores.ids)
-        db_cores_list, _ = await get_core_configs(db, CoreListQuery(ids=ids_list, limit=len(ids_list)))
-
-        found_ids = {c.id for c in db_cores_list}
-        missing = set(ids_list) - found_ids
-        if missing:
-            await self.raise_error(message="Core not found", code=404)
-
-        for db_core in db_cores_list:
-            if db_core.id == 1:
-                await self.raise_error(message="Cannot delete default core config", code=403)
-
-        core_ids = [c.id for c in db_cores_list]
-        core_names = [c.name for c in db_cores_list]
-        any_wg = any(c.type in (CoreType.wg, CoreType.amneziawg) for c in db_cores_list)
-
-        # Batch delete using CRUD function
-        await remove_cores(db, core_ids)
-
-        # Remove from core manager and notify
-        for core_id, core_name in zip(core_ids, core_names):
-            await core_manager.remove_core(core_id)
-            asyncio.create_task(notification.remove_core(core_id, admin.username))
-            logger.info(f'core config "{core_name}" deleted by admin "{admin.username}"')
-
-        if any_wg:
-            await self._reconcile_wireguard(db)
-        await self._refresh_hosts_from_db(db)
-
-        return RemoveCoresResponse(cores=core_names, count=len(db_cores_list))
