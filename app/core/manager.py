@@ -203,9 +203,10 @@ class CoreManager:
         if self._nats_enabled:
             self._nc, self._js, self._kv = await setup_nats_kv(self.KV_BUCKET_NAME)
 
-        cached_loaded = await self._load_state_from_cache()
-        if cached_loaded:
-            return
+        # KV state is an optimization only. The database is the source of truth
+        # for core type/config, because a stale snapshot can silently downgrade
+        # an AmneziaWG inbound to the plain WireGuard renderer.
+        await self._load_state_from_cache()
 
         core_configs, _ = await get_core_configs(db, CoreListQuery())
         cores: dict[int, AbstractCore] = {}
