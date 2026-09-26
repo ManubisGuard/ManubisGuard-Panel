@@ -552,6 +552,15 @@ class HostManager:
             return False
 
     async def _reload_from_cache(self):
+        """Refresh prepared subscription hosts from PostgreSQL; use KV only as fallback."""
+        try:
+            async with GetDB() as db:
+                db_hosts = await get_hosts(db)
+                await self._add_hosts_local(db, db_hosts)
+                return
+        except Exception as exc:
+            self._logger.warning("Failed to refresh HostManager from DB, falling back to KV: %s", exc)
+
         loaded = await self._load_state_from_cache()
         if loaded:
             self._logger.debug("HostManager state reloaded from JetStream KV cache")
@@ -586,11 +595,16 @@ class HostManager:
         if self._nats_enabled:
             self._nc, self._js, self._kv = await setup_nats_kv(self.KV_BUCKET_NAME)
 
-        if await self._load_state_from_cache():
+        # PostgreSQL is the source of truth. KV is only a startup fallback
+        # when the database cannot be refreshed.
+        try:
+            db_hosts = await get_hosts(db)
+            await self._add_hosts_local(db, db_hosts)
             return
+        except Exception as exc:
+            self._logger.warning("Failed to initialize HostManager from DB, falling back to KV: %s", exc)
 
-        db_hosts = await get_hosts(db)
-        await self.add_hosts(db, db_hosts)
+        await self._load_state_from_cache()
 
     async def setup_local(self, db: AsyncSession):
         db_hosts = await get_hosts(db)
