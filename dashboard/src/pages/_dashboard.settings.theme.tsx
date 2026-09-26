@@ -56,6 +56,205 @@ function Section({
   )
 }
 
+type AppearancePreset = {
+  name: string
+  description: string
+  primaryColor: string
+  secondaryColor: string
+  accentColor: string
+  backgroundColor: string
+  surfaceColor: string
+  glowIntensity: number
+  glassEffect: number
+}
+
+const APPEARANCE_PRESETS: AppearancePreset[] = [
+  { name: 'Cyber Pulse', description: 'Electric violet with mint telemetry energy.', primaryColor: '#6667FD', secondaryColor: '#66F0D1', accentColor: '#9B5CFF', backgroundColor: '#05060B', surfaceColor: '#111522', glowIntensity: 32, glassEffect: 55 },
+  { name: 'Midnight Violet', description: 'Deep violet command center with restrained glow.', primaryColor: '#8B5CF6', secondaryColor: '#A78BFA', accentColor: '#C084FC', backgroundColor: '#07050D', surfaceColor: '#151020', glowIntensity: 28, glassEffect: 48 },
+  { name: 'Neon Ocean', description: 'Cool cyan telemetry with a dark ocean foundation.', primaryColor: '#22D3EE', secondaryColor: '#67E8F9', accentColor: '#60A5FA', backgroundColor: '#03090D', surfaceColor: '#0B1720', glowIntensity: 30, glassEffect: 52 },
+  { name: 'Aurora', description: 'Balanced violet and aqua for dense operational screens.', primaryColor: '#7C83FF', secondaryColor: '#5EEAD4', accentColor: '#A78BFA', backgroundColor: '#05080C', surfaceColor: '#101923', glowIntensity: 24, glassEffect: 60 },
+  { name: 'Quantum', description: 'Sharper contrast for technical and developer workflows.', primaryColor: '#818CF8', secondaryColor: '#2DD4BF', accentColor: '#C4B5FD', backgroundColor: '#04050A', surfaceColor: '#0D111D', glowIntensity: 20, glassEffect: 42 },
+  { name: 'Obsidian', description: 'Minimal black surfaces with precision accents.', primaryColor: '#A5B4FC', secondaryColor: '#5EEAD4', accentColor: '#C4B5FD', backgroundColor: '#020305', surfaceColor: '#0B0E14', glowIntensity: 14, glassEffect: 34 },
+]
+
+const APPEARANCE_COLORS = [
+  ['primaryColor', 'Primary', '#6667FD'],
+  ['secondaryColor', 'Secondary', '#66F0D1'],
+  ['accentColor', 'Accent', '#9B5CFF'],
+  ['backgroundColor', 'Background', '#05060B'],
+  ['surfaceColor', 'Surface', '#111522'],
+] as const
+
+function AppearanceControlCenter() {
+  const { customization, setCustomization } = useTheme()
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
+  const applyPreset = (preset: AppearancePreset) => {
+    setCustomization({
+      ...preset,
+      borderColor: '#FFFFFF',
+      borderIntensity: 10,
+      shadowIntensity: 30,
+      backgroundGrid: true,
+      ambientEffects: true,
+      animationIntensity: 'standard',
+      chartGlow: 35,
+      density: 'comfortable',
+      surface: 'subtle',
+      neutral: 'cool',
+      style: 'vega',
+    })
+  }
+
+  return (
+    <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-card/60 p-4 shadow-[0_20px_60px_hsl(230_40%_2%_/_var(--shadow-opacity))] backdrop-blur-xl sm:p-6">
+      <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -left-20 size-64 rounded-full bg-secondary/8 blur-3xl" />
+
+      <div className="relative space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+              <span className="size-1.5 rounded-full bg-primary shadow-[0_0_10px_hsl(var(--primary)/.8)]" />
+              Appearance Engine
+            </div>
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Command Center Theme</h2>
+            <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-relaxed">
+              Shape the entire visual language from one place. Changes are previewed immediately and persisted locally.
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-background/45 px-3 py-2 text-xs text-muted-foreground">
+            <span className="text-foreground font-medium">Dark-native</span>
+            <span className="mx-1.5">•</span>
+            Live preview
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold">Presets</p>
+              <p className="text-muted-foreground text-xs">Complete visual identities, not single-color swaps.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {APPEARANCE_PRESETS.map(preset => (
+              <button
+                key={preset.name}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                className="group relative overflow-hidden rounded-xl border border-border/70 bg-background/45 p-3 text-start transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background/70"
+              >
+                <div className="mb-3 flex items-center gap-1.5">
+                  <span className="size-3 rounded-full" style={{ background: preset.primaryColor }} />
+                  <span className="size-3 rounded-full" style={{ background: preset.secondaryColor }} />
+                  <span className="size-3 rounded-full" style={{ background: preset.accentColor }} />
+                </div>
+                <p className="text-sm font-semibold">{preset.name}</p>
+                <p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-relaxed">{preset.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
+          <div className="rounded-xl border border-border/70 bg-background/35 p-4">
+            <div className="mb-4">
+              <p className="text-sm font-semibold">Identity colors</p>
+              <p className="text-muted-foreground text-xs">All values feed the global design tokens.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {APPEARANCE_COLORS.map(([key, label]) => (
+                <label key={key} className="group flex items-center gap-3 rounded-lg border border-border/60 bg-card/45 p-2.5">
+                  <input
+                    type="color"
+                    value={customization[key]}
+                    onChange={event => setCustomization({ [key]: event.target.value })}
+                    className="size-9 shrink-0 cursor-pointer rounded-lg border-0 bg-transparent p-0"
+                    aria-label={label}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-medium">{label}</span>
+                    <span className="text-muted-foreground font-mono text-[10px] uppercase">{customization[key]}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/70 bg-background/35 p-4">
+            <div className="mb-4">
+              <p className="text-sm font-semibold">Live visual controls</p>
+              <p className="text-muted-foreground text-xs">Keep effects purposeful and readable.</p>
+            </div>
+            <div className="space-y-4">
+              {([
+                ['glowIntensity', 'Glow', customization.glowIntensity],
+                ['glassEffect', 'Glass', customization.glassEffect],
+                ['borderIntensity', 'Borders', customization.borderIntensity],
+                ['shadowIntensity', 'Shadows', customization.shadowIntensity],
+                ['chartGlow', 'Chart glow', customization.chartGlow],
+              ] as const).map(([key, label, value]) => (
+                <label key={key} className="block">
+                  <span className="mb-1.5 flex items-center justify-between text-xs">
+                    <span className="font-medium">{label}</span>
+                    <span className="text-muted-foreground font-mono">{value}%</span>
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={value}
+                    onChange={event => setCustomization({ [key]: Number(event.target.value) })}
+                    className="h-1.5 w-full accent-[hsl(var(--primary))]"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/35 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold">Interface behavior</p>
+            <p className="text-muted-foreground text-xs">Density and motion are global, not page-specific.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-border/60 bg-card/40 p-1">
+            {(['compact', 'comfortable', 'spacious'] as const).map(value => (
+              <button key={value} type="button" onClick={() => setCustomization({ density: value })} className={cn('rounded-md px-3 py-1.5 text-xs capitalize transition-colors', customization.density === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground')}>
+                {value}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant={customization.backgroundGrid ? 'default' : 'outline'} size="sm" onClick={() => setCustomization({ backgroundGrid: !customization.backgroundGrid })}>
+              Grid {customization.backgroundGrid ? 'On' : 'Off'}
+            </Button>
+            <Button type="button" variant={customization.ambientEffects ? 'default' : 'outline'} size="sm" onClick={() => setCustomization({ ambientEffects: !customization.ambientEffects })}>
+              Ambient {customization.ambientEffects ? 'On' : 'Off'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowAdvanced(value => !value)}>
+              {showAdvanced ? 'Hide advanced' : 'Advanced controls'}
+            </Button>
+          </div>
+          {showAdvanced && (
+            <div className="flex flex-wrap gap-1.5 rounded-lg border border-border/60 bg-background/45 p-1">
+              {(['reduced', 'standard', 'enhanced'] as const).map(value => (
+                <button key={value} type="button" onClick={() => setCustomization({ animationIntensity: value })} className={cn('rounded-md px-2.5 py-1.5 text-xs capitalize', customization.animationIntensity === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground')}>
+                  {value} motion
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function ThemeSettings() {
   const { t, i18n } = useTranslation()
   const {
@@ -186,6 +385,8 @@ export default function ThemeSettings() {
 
   return (
     <div className="space-y-6 p-4 pb-10 sm:space-y-8 sm:py-6 lg:space-y-10 lg:py-8">
+        <AppearanceControlCenter />
+
         <Section
           icon={<SunMoon className="text-primary h-4 w-4" />}
           title={t('theme.mode')}

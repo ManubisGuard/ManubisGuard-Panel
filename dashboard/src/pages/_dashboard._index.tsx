@@ -8,7 +8,9 @@ import { useAdmin } from '@/hooks/use-admin'
 import { useClipboard } from '@/hooks/use-clipboard'
 import type { AdminDetails, UserResponse } from '@/service/api'
 import { useGetSystemResourceStats, useGetSystemUsersStats } from '@/service/api'
-import { Bookmark } from 'lucide-react'
+import { ArrowUpRight, Bookmark, Plus, Server, Users, Layers } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Link } from 'react-router'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -99,12 +101,21 @@ const Dashboard = () => {
 
   return (
     <div className="flex w-full flex-col items-start">
-      <div className="w-full border-b border-border/50">
+      <div className="relative w-full overflow-hidden border-b border-border/50 bg-card/15">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,hsl(var(--primary)/.12),transparent_30%),radial-gradient(circle_at_90%_0%,hsl(var(--secondary)/.08),transparent_28%)]" />
         <PageHeader title="dashboard" description="dashboardDescription" buttonIcon={Bookmark} buttonText="quickActions.title" onButtonClick={handleOpenQuickActions} />
+        <div className="relative mx-auto flex max-w-[1680px] flex-wrap items-center gap-2 px-3 pb-4 sm:px-5 lg:px-6">
+          <div className="mr-auto flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/60"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-secondary" /> Command Center</div>
+          {canCreateUsers && <Button asChild size="sm" className="h-9 rounded-xl px-3 shadow-[0_8px_24px_hsl(var(--primary)/.18)]"><Link to="/users"><Plus className="mr-1.5 h-3.5 w-3.5" />Create User<ArrowUpRight className="ml-1.5 h-3 w-3" /></Link></Button>}
+          {canReadNodeStats && <Button asChild variant="outline" size="sm" className="h-9 rounded-xl border-border/60 bg-background/25 px-3"><Link to="/nodes"><Server className="mr-1.5 h-3.5 w-3.5" />Nodes</Link></Button>}
+          {hasPermission(currentAdmin, 'users', 'read') && <Button asChild variant="outline" size="sm" className="h-9 rounded-xl border-border/60 bg-background/25 px-3"><Link to="/users"><Users className="mr-1.5 h-3.5 w-3.5" />Users</Link></Button>}
+          {hasPermission(currentAdmin, 'groups', 'read') && <Button asChild variant="outline" size="sm" className="h-9 rounded-xl border-border/60 bg-background/25 px-3"><Link to="/groups"><Layers className="mr-1.5 h-3.5 w-3.5" />Groups</Link></Button>}
+        </div>
       </div>
 
-      <div className="w-full px-3 py-4 sm:px-5 lg:px-6">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-5">
+      <div className="relative w-full px-3 py-5 sm:px-5 lg:px-6 lg:py-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_15%_0%,hsl(var(--primary)/.10),transparent_45%),radial-gradient(circle_at_85%_0%,hsl(var(--secondary)/.08),transparent_40%)]" />
+        <div className="mx-auto flex max-w-[1680px] flex-col gap-5">
           <DashboardOverview resourceData={systemResourceStatsData} usersData={systemUsersStatsData} />
           {canReadNodeStats && <WorkersHealthCard />}
           <div className="h-px bg-border/50" />

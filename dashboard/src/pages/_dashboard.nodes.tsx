@@ -1,165 +1,63 @@
 import PageHeader from '@/components/layout/page-header'
-import PageTransition from '@/components/layout/page-transition'
+import { cn } from '@/lib/utils'
+import { Cpu, Logs, Network, Share2Icon } from 'lucide-react'
 import { useAdmin } from '@/hooks/use-admin'
-import { getDocsUrl } from '@/utils/docs-url'
-import { hasPermission } from '@/utils/rbac'
-import { Cpu, LucideIcon, Share2, Plus, Logs, Network } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { hasPermission, canReadResourcePage } from '@/utils/rbac'
+import { useLocation, useNavigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Outlet, useLocation, useNavigate } from 'react-router'
-import { useCommandCreate } from '@/hooks/use-command-create'
 
-interface Tab {
-  id: string
-  label: string
-  icon: LucideIcon
-  url: string
-}
-
-const tabs: Tab[] = [
-  { id: 'nodes.title', label: 'nodes.title', icon: Share2, url: '/nodes' },
-  { id: 'core', label: 'core', icon: Cpu, url: '/nodes/cores' },
-  { id: 'nodes.wireguard.title', label: 'nodes.wireguard.title', icon: Network, url: '/nodes/wireguard' },
-  { id: 'nodes.logs.title', label: 'nodes.logs.title', icon: Logs, url: '/nodes/logs' },
-]
-
-const Settings = () => {
+export default function NodesLayout() {
+  const { admin } = useAdmin()
+  const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
-  const { t } = useTranslation()
-  const { admin } = useAdmin()
-  const canReadNodes = hasPermission(admin, 'nodes', 'read')
-  const canCreateNodes = hasPermission(admin, 'nodes', 'create')
-  const canReadCores = hasPermission(admin, 'cores', 'read')
-  const canCreateCores = hasPermission(admin, 'cores', 'create')
+  const canReadNodes = canReadResourcePage(admin, 'nodes')
+  const canReadCores = canReadResourcePage(admin, 'cores')
   const canReadNodeLogs = hasPermission(admin, 'nodes', 'logs')
-  const visibleTabs = tabs.filter(tab => {
-    if (tab.url === '/nodes') return canReadNodes
-    if (tab.url === '/nodes/cores') return canReadCores
-    if (tab.url === '/nodes/wireguard') return canReadCores
-    if (tab.url === '/nodes/logs') return canReadNodeLogs
-    return false
-  })
-  const [activeTab, setActiveTab] = useState<string>(tabs[0].id)
-  const isCoreEditorPage = /^\/nodes\/cores\/[^/]+$/.test(location.pathname)
+  const canReadWireGuard = canReadCores
+  const canCreateCores = hasPermission(admin, 'cores', 'create')
 
-  const handleCreateNode = useCallback(() => {
-    if (!canCreateNodes) return
-    window.dispatchEvent(new CustomEvent('openNodeDialog'))
-  }, [canCreateNodes])
+  const tabs = [
+    ...(canReadNodes ? [{ id: 'nodes', label: t('navigation.nodeCore'), icon: Share2Icon, url: '/nodes' }] : []),
+    ...(canReadCores ? [{ id: 'cores', label: t('settings.cores.title'), icon: Cpu, url: '/nodes/cores' }] : []),
+    ...(canReadWireGuard ? [{ id: 'wireguard', label: t('nodes.wireguard.title'), icon: Network, url: '/nodes/wireguard' }] : []),
+    ...(canReadNodeLogs ? [{ id: 'logs', label: t('nodes.logs.title'), icon: Logs, url: '/nodes/logs' }] : []),
+  ]
 
-  const handleCreateCore = useCallback(() => {
-    if (!canCreateCores) return
-    navigate('/nodes/cores/new')
-  }, [canCreateCores, navigate])
-
-  useCommandCreate('node', handleCreateNode)
-  useCommandCreate('core', handleCreateCore)
-
-  useEffect(() => {
-    if (location.pathname.startsWith('/nodes/cores')) {
-      setActiveTab('core')
-      return
-    }
-    const currentTab = tabs.find(tab => location.pathname === tab.url)
-    if (currentTab) {
-      setActiveTab(currentTab.id)
-    }
-  }, [location.pathname])
-
-  useEffect(() => {
-    if (isCoreEditorPage || visibleTabs.length === 0) return
-    const currentTab = visibleTabs.find(tab => location.pathname === tab.url)
-    if (!currentTab) {
-      navigate(visibleTabs[0].url, { replace: true })
-    }
-  }, [isCoreEditorPage, location.pathname, navigate, visibleTabs])
-
-  const getPageHeaderProps = () => {
-    if (location.pathname.startsWith('/nodes/cores')) {
-      return {
-        title: 'settings.cores.title',
-        description: 'settings.cores.description',
-        buttonIcon: canCreateCores ? Plus : undefined,
-        buttonText: canCreateCores ? 'settings.cores.addCore' : undefined,
-        onButtonClick: canCreateCores
-          ? () => {
-              navigate('/nodes/cores/new')
-            }
-          : undefined,
-      }
-    }
-    if (location.pathname === '/nodes/wireguard') {
-      return {
-        title: 'nodes.wireguard.title',
-        description: 'nodes.wireguard.description',
-        buttonIcon: undefined,
-        buttonText: undefined,
-        onButtonClick: undefined,
-      }
-    }
-    if (location.pathname === '/nodes/logs') {
-      return {
-        title: 'nodes.logs.title',
-        description: 'nodes.logs.description',
-        buttonIcon: undefined,
-        buttonText: undefined,
-        onButtonClick: undefined,
-      }
-    }
-    return {
-      title: 'nodes.title',
-      description: 'manageNodes',
-      buttonIcon: canCreateNodes ? Plus : undefined,
-      buttonText: canCreateNodes ? 'nodes.addNode' : undefined,
-      onButtonClick: canCreateNodes
-        ? () => {
-            const event = new CustomEvent('openNodeDialog')
-            window.dispatchEvent(event)
-          }
-        : undefined,
-    }
-  }
+  const activeTab = tabs.find(tab => location.pathname === tab.url || (tab.id === 'cores' && location.pathname.startsWith('/nodes/cores/')))?.id || 'nodes'
+  const activeLabel = tabs.find(tab => tab.id === activeTab)?.label || t('nodes.title')
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col items-start gap-0">
-      {!isCoreEditorPage && (
-        <PageTransition isContentTransition={true}>
-          <PageHeader {...getPageHeaderProps()} tutorialUrl={getDocsUrl(location.pathname)} />
-        </PageTransition>
-      )}
-      <div className="flex min-h-0 w-full flex-1 flex-col">
-        {!isCoreEditorPage && (
-          <div className="scrollbar-hide flex overflow-x-auto border-b border-border/50 bg-card/20 px-4 lg:flex-wrap">
-            {visibleTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => navigate(tab.url)}
-                className={`relative flex-shrink-0 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
-                  activeTab === tab.id ? 'border-primary bg-primary/5 text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <tab.icon className="h-4 w-4" />
-                  {tab.id === 'core' ? (
-                    <>
-                      <span className="hidden sm:inline">{t(tab.label)}</span>
-                      <span className="sm:hidden">{t('settings.cores.title')}</span>
-                    </>
-                  ) : (
-                    <span>{t(tab.label)}</span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-        <PageTransition isContentTransition={true} className="flex min-h-0 flex-1 flex-col">
-          <Outlet />
-        </PageTransition>
+    <div className="flex w-full min-w-0 flex-col gap-0">
+      <PageHeader
+        title={activeLabel}
+        description="manageNodes"
+        buttonIcon={activeTab === 'cores' && canCreateCores ? Cpu : undefined}
+        buttonText={activeTab === 'cores' && canCreateCores ? 'navigation.addCore' : undefined}
+        onButtonClick={activeTab === 'cores' && canCreateCores ? () => window.dispatchEvent(new Event('openCoreDialog')) : undefined}
+      />
+      <div className="scrollbar-hide flex w-full overflow-x-auto border-b px-4 lg:flex-wrap">
+        {tabs.map(tab => {
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => navigate(tab.url)}
+              className={cn(
+                'relative flex shrink-0 items-center gap-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
+                isActive ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <tab.icon className="h-4 w-4" />
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
+      <div className="min-w-0 p-1 sm:p-2">
+        <Outlet />
       </div>
     </div>
   )
 }
-
-export default Settings

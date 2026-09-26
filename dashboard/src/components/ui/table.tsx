@@ -3,14 +3,14 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement> & { containerClassName?: string }>(({ className, containerClassName, ...props }, ref) => (
-  <div className={cn('relative w-full overflow-x-auto', containerClassName)}>
+  <div className={cn('relative w-full overflow-x-auto rounded-2xl border border-border/60 bg-card/35 backdrop-blur-xl', containerClassName)}>
     <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
   </div>
 ))
 Table.displayName = 'Table'
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn('[&_tr]:border-b', className)} {...props} />
+  <thead ref={ref} className={cn('[&_tr]:border-b [&_tr]:border-border/50 [&_thead]:bg-muted/25', className)} {...props} />
 ))
 TableHeader.displayName = 'TableHeader'
 
@@ -25,7 +25,7 @@ const TableFooter = React.forwardRef<HTMLTableSectionElement, React.HTMLAttribut
 TableFooter.displayName = 'TableFooter'
 
 const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(({ className, ...props }, ref) => (
-  <tr ref={ref} className={cn('data-[state=selected]:!bg-primary/10 md:hover:bg-muted border-b transition-colors', className)} {...props} />
+  <tr ref={ref} className={cn('data-[state=selected]:!bg-primary/10 md:hover:bg-primary/[0.035] border-b border-border/50 transition-colors duration-200', className)} {...props} />
 ))
 TableRow.displayName = 'TableRow'
 

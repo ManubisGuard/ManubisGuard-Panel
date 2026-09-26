@@ -73,7 +73,7 @@ const AdminStatisticsCard = ({
 
   if (showAdminInfo)
     return (
-      <div className="flex flex-col gap-6 rounded-lg py-4">
+      <div className="flex flex-col gap-6 rounded-2xl border border-border/60 bg-card/25 p-4 shadow-[0_16px_45px_hsl(0_0%_0%_/_0.12)] backdrop-blur-xl sm:p-5">
         <div className="flex flex-row items-center justify-between">
           <div className="flex min-w-0 flex-row items-center gap-2">
             {admin.username === 'Total' ? <Users className="text-muted-foreground size-6 md:size-7" /> : <UserCog className="text-muted-foreground size-6 md:size-7" />}
