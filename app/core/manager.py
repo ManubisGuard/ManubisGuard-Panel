@@ -111,6 +111,34 @@ class CoreManager:
             return False
 
     async def _reload_from_cache(self):
+        """Refresh runtime core state from PostgreSQL, using KV only as fallback."""
+        try:
+            async with GetDB() as db:
+                core_configs, _ = await get_core_configs(db, CoreListQuery())
+                cores: dict[int, AbstractCore] = {}
+                for config in core_configs:
+                    try:
+                        cores[config.id] = self.validate_core(
+                            config.config,
+                            config.exclude_inbound_tags,
+                            config.fallbacks_inbound_tags,
+                            config.type,
+                        )
+                    except Exception as exc:
+                        self._logger.error(
+                            "Skipping broken core id=%s type=%s during DB refresh: %s",
+                            getattr(config, "id", None),
+                            getattr(config, "type", None),
+                            exc,
+                        )
+                async with self._lock:
+                    self._cores = cores
+                await self.update_inbounds()
+                await self._persist_state()
+                return
+        except Exception as exc:
+            self._logger.warning("Failed to refresh CoreManager from DB, falling back to KV: %s", exc)
+
         loaded = await self._load_state_from_cache()
         if loaded:
             self._logger.debug("CoreManager state reloaded from JetStream KV cache")
