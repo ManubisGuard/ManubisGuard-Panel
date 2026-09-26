@@ -537,3 +537,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] External Panel health PASS: https://55.qoqnusradio.top/health returned {"status":"ok"}.
 - [x] UI code-path check confirms the Nodes list/modal renders connected separately from connecting; with backend state now connected, the stale Connecting state is no longer expected after data refresh.
 - [x] git diff --check PASS was executed before the TODO update.
+
+## Fork Compatibility Rule — NON-NEGOTIABLE — 2026-09-26
+- [x] **Scope locked:** ManubisGuard is a PasarGuard fork. Existing PasarGuard CLI command structure, arguments, options, behavior and installation workflow must be preserved.
+- [x] CLI rename policy: only the user-facing PasarGuard command/branding is renamed to Manubis/ManubisGuard; do not redesign, regroup, or replace existing CLI commands and methods.
+- [x] Installer rename policy: preserve the upstream PasarGuard installation method and command flow; do not replace it with a new installer architecture merely for branding.
+- [ ] Audit and revert any CLI/Installer drift that was introduced after the fork, while preserving independently required ManubisGuard panel features and migration/restore internals.
+- [ ] Every compatibility fix must have a real syntax/test execution gate before being marked PASS.
