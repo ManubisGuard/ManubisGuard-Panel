@@ -614,3 +614,13 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - TEST validation: 24 targeted tests passed; Ruff passed; `git diff --check` passed; Docker image build reached successful dashboard compilation. Existing TEST runtime remains affected by an unrelated `Node.start(additive=...)` compatibility error and was not used as evidence for production deployment.
 - Commit: `0e76feb048721dc12e9903271772781f47f15f9f` on `fix/awg-peer-key-consistency`.
 - Main server was not restarted or changed during this TEST phase.
+
+## AWG Subscription Regression — TEST validation 2026-09-26
+
+- Root cause confirmed: `HostManager` could restore stale prepared `SubscriptionInboundData` from NATS KV after `CoreManager` had been corrected to load `amneziawg` state from PostgreSQL.
+- Result: `WG_51820` could be `amneziawg` in the core runtime while the cached host/subscription object still had `protocol=wireguard`, so generated native subscriptions omitted J/S/H parameters.
+- Fix: PostgreSQL is now the HostManager source of truth during startup and `_reload_from_cache()`; NATS KV remains fallback only when DB refresh fails.
+- Regression test added: `tests/test_host_manager_db_source_of_truth.py`.
+- Validation: 20 targeted tests passed; Ruff passed; `git diff --check` passed; Docker image built successfully; TEST panel restarted once and is healthy.
+- Main server was OFF during this validation and was not modified.
+- Real external AWG handshake is still not claimed on TEST because the TEST Node endpoint is unavailable; the subscription/state regression itself is covered and validated.
