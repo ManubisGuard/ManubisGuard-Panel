@@ -317,9 +317,9 @@ export const convertWireGuardUrlToConfig = (value: string) => {
   lines.push('[Peer]')
   lines.push(`PublicKey = ${parsed.publicKey}`)
 
-  // AmneziaWG uses its own interface-level obfuscation parameters; the
-  // Panel's AWG profile does not export a WireGuard PSK into the client file.
-  if (!isAmneziaWg && parsed.preSharedKey) {
+  // AmneziaWG also supports the standard WireGuard peer PSK; the
+  // client PSK must match the registered Node Peer when configured.
+  if (parsed.preSharedKey) {
     lines.push(`PresharedKey = ${parsed.preSharedKey}`)
   }
 
