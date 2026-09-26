@@ -427,7 +427,22 @@ if [ -f "$INSTALLER" ]; then
     install|""|-h|--help) exec "$INSTALLER" "${@:-install}" ;;
     install-script) exec "$INSTALLER" install --yes ;;
     install-node) exec "$INSTALLER" install-node ;;
-    backup|backup-service|cli|tui|edit|edit-env|version-script|completion)
+    edit)
+      shift
+      cd "$PROJECT_DIR"
+      editor="${EDITOR:-nano}"
+      command -v "$editor" >/dev/null 2>&1 || { echo "Editor not found: $editor" >&2; exit 1; }
+      [ -f "$PROJECT_DIR/docker-compose.yml" ] || { echo "Compose file not found: $PROJECT_DIR/docker-compose.yml" >&2; exit 1; }
+      exec "$editor" "$PROJECT_DIR/docker-compose.yml"
+      ;;
+    edit-env)
+      shift
+      editor="${EDITOR:-nano}"
+      command -v "$editor" >/dev/null 2>&1 || { echo "Editor not found: $editor" >&2; exit 1; }
+      [ -f "$PROJECT_DIR/.env" ] || { echo "Environment file not found: $PROJECT_DIR/.env" >&2; exit 1; }
+      exec "$editor" "$PROJECT_DIR/.env"
+      ;;
+    backup|backup-service|cli|tui|version-script|completion)
       echo "Command '$1' is reserved for the upstream Manubis CLI workflow and is not yet wired in this installer build." >&2
       exit 2
       ;;
