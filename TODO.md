@@ -604,3 +604,95 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Panel Docker image build gate passed with the compatibility shim present; Vite transformed 5587 modules and production dashboard build completed successfully.
 - [x] Built Panel image `manubisguard-panel:multicore-test`; the resulting image contains the patched protobuf where `Backend(additive=True)` serializes correctly and the gRPC bridge source exposes the additive parameter.
 - [x] Focused Panel regression suite passed: `47 passed` for `tests/test_node_sync.py`, `tests/test_node_manager_sync.py`, and `tests/api/test_node.py` after updating the API fixture for the new normalized field.
+
+## AWG Client Subscription / Handshake Regression — 2026-09-26
+
+### Current user-visible failure
+- [ ] **OPEN / NOT FIXED:** A newly generated AmneziaWG client subscription/config still does not establish a connection; client RX remains 0 and no real handshake has been confirmed.
+- [x] The current failure is explicitly NOT the earlier Panel -> Node `Connection Refused` problem. Node installation/running and Panel/Node connectivity must be treated as separate concerns.
+- [x] Main/Production server is currently OFFLINE by user instruction. **Do not touch, boot, restart, recreate, or deploy to Main while this TEST investigation is incomplete.**
+- [x] Investigation continues on disposable TEST only.
+
+### Known historical root cause that must not be forgotten
+- [x] This exact class of AWG client failure happened previously in this project and was fixed once.
+- [x] Previous real diagnosis: the client configuration was syntactically valid, but the client `PublicKey` / peer identity did not correspond to the actual Peer registered on the Node for the selected user/interface. Result: no handshake.
+- [x] Previous report explicitly separated the Peer/PSK mismatch from the AWG J/S/H parameter issue.
+- [x] PSK mismatch had also existed as a separate subscription issue and was fixed separately; **do not conflate PSK with Peer identity.**
+- [x] Previous successful validation reportedly showed a real AWG handshake after the Peer mapping fix.
+- [x] After later Panel/Core/Node changes, the same regression returned. Treat this as a regression until proven otherwise, not as a new AWG protocol problem.
+
+### Earlier evidence from the current regression
+- [x] A real client config captured during this investigation contained standard WireGuard-only fields: `PrivateKey`, `Address`, `DNS`, `MTU`, `PublicKey`, `PresharedKey`, `AllowedIPs`, `Endpoint`, `PersistentKeepalive`.
+- [x] That captured subscription artifact did **not** contain the AmneziaWG `Jc/Jmin/Jmax/S1-S4/H1-H4` fields.
+- [x] At that point the active Core in DB was `WG_51820`, type `amneziawg`, listen port `51820`, with AWG parameters present in DB.
+- [x] Therefore the subscription rendering path was at one point treating the selected Core as plain WireGuard instead of AmneziaWG.
+- [x] The runtime path identified for investigation is: `User -> Subscription/Native Config -> CoreManager/HostManager -> selected Node/Core -> actual Peer registration -> Node/WG_51820`.
+- [x] A cache/source-of-truth regression was identified during TEST work: stale runtime/KV state could reintroduce a WireGuard interpretation after DB state was correct. DB must remain authoritative for AWG protocol metadata.
+- [ ] The latest end-to-end generated artifact must still be inspected after all current TEST changes; do not assume the prior cache fix is sufficient until the actual downloaded config contains the expected AWG fields and maps to the actual registered Peer.
+
+### Network / handshake evidence
+- [x] `WG_51820` was observed listening on UDP `51820` on the earlier Main investigation.
+- [x] During a real client Connect attempt, `tcpdump` on Main observed **0 UDP packets arriving on port 51820**. This was before Main was shut down and is historical evidence only.
+- [x] The user reports the current TEST client also shows RX unchanged at 0 and does not connect.
+- [ ] Do not conclude that the current TEST failure is purely network/endpoint related until the current TEST client artifact is captured and the exact endpoint is packet-captured.
+- [ ] Required next test: capture UDP traffic on TEST `51820` during one real Connect attempt, then inspect `awg show WG_51820` before/after for latest-handshake and transfer counters.
+
+### TEST reset / Node state
+- [x] TEST Panel was reset to a clean database for this investigation; the previous TEST DB was retained as a backup rather than treated as production data.
+- [x] TEST Panel SSL environment was configured for the requested qoqnus certificate paths; TEST uses the disposable environment and must not be treated as Main configuration.
+- [x] The old TEST Node installation was removed before reinstall.
+- [x] TEST Node was reinstalled from the ManubisGuard fork, branch `feature/amnezia-wg`, not from upstream PasarGuard.
+- [x] Current TEST Node container is `mg-node-test` and its image label/source identifies `github.com/arsamnikzaad/ManubisGuard-Node`.
+- [x] Current TEST Node service/gRPC port is `62050` and the auxiliary HTTPS/API service port is `62051`.
+- [x] Current TEST Node API health check returned HTTP 200 with `{"status":"ok"}`.
+- [x] TEST Node uses API-key protection and a TLS certificate; real credentials/private keys must never be committed to TODO.md.
+- [ ] Panel -> TEST Node connection must still be verified after the fresh reinstall before using Node/Core state as evidence for the AWG handshake investigation.
+
+### Node installer / CLI compatibility findings
+- [x] The ManubisGuard Node installer was restored toward the upstream PasarGuard interactive workflow while redirecting the source/repository to the ManubisGuard fork.
+- [x] The installer asks separately for the Node service port and API/transport settings; this distinction must be preserved.
+- [x] A previous TEST compose mistake used mismatched SSL paths and omitted API_KEY from the container environment; this caused `invalid UUID length: 0` and missing certificate errors. That obsolete compose must not be reused.
+- [x] The current fork installer-generated environment successfully produced a valid UUID API key and the Node gRPC service started on `62050`.
+- [x] The Panel container CLI entrypoint is `/code/manubisguard-cli.py`.
+- [x] `generate-temp-key` exists in the current ManubisGuard CLI and was executed successfully in a prior TEST runtime without recording the generated secret.
+- [x] Compatibility rule: preserve PasarGuard CLI command structure/behavior where the project depends on it; only branding/required ManubisGuard additions should differ.
+- [ ] Audit any remaining CLI/installer drift before future deployment; do not redesign the upstream command workflow merely for branding.
+
+### Required diagnostic order — next session
+1. [ ] On TEST only, verify Panel -> TEST Node connection and record the exact Node/Core selected by the Panel.
+2. [ ] Create one fresh test user and one fresh AWG peer; record only public identifiers, never private key/API key/PSK in logs or TODO.
+3. [ ] Generate the actual Subscription/Native Config artifact used by the client.
+4. [ ] Verify artifact is explicitly AmneziaWG and contains `Jc/Jmin/Jmax/S1-S4/H1-H4` when the selected Core requires them.
+5. [ ] Derive the client public key from the generated private key and compare it with the exact Peer registered on `WG_51820`.
+6. [ ] Compare the Peer public key and PSK independently; do not treat a PSK match as proof of Peer identity.
+7. [ ] Compare endpoint hostname/IP and UDP port with the actual TEST Node listener.
+8. [ ] Compare AllowedIPs/routing and client address with the registered peer.
+9. [ ] Packet-capture UDP `51820` during Connect; determine whether packets reach TEST.
+10. [ ] Run `awg show WG_51820` before/after Connect and record handshake/transfer counters with all secrets redacted.
+11. [ ] If packets arrive but handshake stays absent, inspect exact Peer lookup, public key, PSK and AWG parameters on the Node.
+12. [ ] If handshake succeeds but RX/traffic remains wrong, continue with routing/NAT rather than changing Peer generation.
+13. [ ] Only after real TEST E2E succeeds should the fix be promoted to GitHub and eventually Main.
+14. [ ] Do not restart/rebuild Main as part of diagnosis. Main remains OFF until the TEST fix is proven.
+
+### Explicit acceptance criteria before Main deployment
+- [ ] Fresh subscription contains AWG parameters appropriate to `WG_51820`.
+- [ ] Client public key maps to the exact Peer registered for that client on the Node.
+- [ ] PSK matches independently.
+- [ ] Endpoint/UDP port reaches TEST Node.
+- [ ] Real `latest handshake` is observed on `WG_51820`.
+- [ ] RX/TX counters move during real traffic.
+- [ ] No regression in standard WireGuard configs.
+- [ ] Focused tests + full relevant test suite pass.
+- [ ] TODO and commit record updated with actual evidence.
+- [ ] Only then consider one controlled Main deployment/rebuild; no repeated Main restarts.
+
+## AI Handoff Checkpoint — 2026-09-26
+- **Project:** ManubisGuard Panel + ManubisGuard Node
+- **Panel branch:** `feature/amnezia-wg`
+- **Node branch:** `feature/amnezia-wg`
+- **Current investigation environment:** TEST only
+- **Main server:** OFFLINE / do not touch until TEST E2E is green
+- **Current blocker:** AWG client config does not establish handshake; client RX remains 0.
+- **Historical known regression:** Peer identity mismatch in generated subscription versus actual Node Peer was previously fixed and later regressed after subsequent Panel changes.
+- **Secondary known regression:** Subscription could render a plain WireGuard config when stale runtime/cache state reported the AWG Core as non-AmneziaWG; DB must remain authoritative.
+- **Do not mark this blocker fixed based on syntax, unit tests, or service health alone. Real client handshake is required.**
