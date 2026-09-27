@@ -1,0 +1,37 @@
+name: Bootstrap ManubisGuard v5.4.1 Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: ${{ !contains(github.event.head_commit.message, '[release-bootstrap-cleanup]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create v5.4.1 release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create v5.4.1 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "v5.4.1" \
+            --generate-notes \
+            --latest
+
+      - name: Remove bootstrap workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method DELETE \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "/repos/${GITHUB_REPOSITORY}/contents/.github/workflows/manubisguard-release-bootstrap.yml" \
+            -f message='chore: remove release bootstrap [release-bootstrap-cleanup]' \
+            -f sha="${{ github.sha }}"
