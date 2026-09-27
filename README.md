@@ -1,56 +1,162 @@
 # ManubisGuard Panel
 
-**ManubisGuard Panel** is a modern, AmneziaWG-enabled management panel for managing users, nodes, cores, hosts, groups, networking, domains, TLS certificates, backups, restores and operational settings from a unified web interface.
+<p align="center">
+  <strong>Open-source network infrastructure, under your control.</strong>
+</p>
 
-> Current development branch: `feature/amnezia-wg`
+<p align="center">
+  <a href="#english">🇬🇧 English</a> · <a href="#فارسی">🇮🇷 فارسی</a>
+</p>
 
-ManubisGuard is maintained as a PasarGuard-compatible fork. Existing upstream-compatible CLI arguments, installation flow and operational behavior are preserved where required, while ManubisGuard-specific features and branding are added on top.
+> **Fork / upstream:** ManubisGuard Panel is maintained as a feature-enhanced fork of [PasarGuard/panel](https://github.com/PasarGuard/panel), with ManubisGuard-specific architecture, UI, AmneziaWG support, migration/restore tooling, Domain & SSL management, and operational features built on top of the upstream-compatible foundation.
+
+> **Current development branch:** `feature/amnezia-wg`
 
 ---
 
-## ✨ Highlights
+<a id="english"></a>
 
-- Modern dark Command Center dashboard
-- AmneziaWG and WireGuard support
-- Multiple Core configurations per Node
-- Nodes, Cores, WireGuard and Logs in one navigation workspace
-- Hosts and Groups in one tabbed workspace
-- Users, Statistics, Templates, Bulk operations and API Keys
-- Reseller Admins and Admin Roles
-- Domains & SSL lifecycle management
-- Let's Encrypt and existing certificate workflows
-- Xray TLS/SNI and Reality SNI intelligence
-- Backup, scheduling, retention and restore workflows
-- Native Manubis CLI
+# 🇬🇧 English
+
+## What is ManubisGuard Panel?
+
+**ManubisGuard Panel** is an open-source, self-hosted control plane for modern network infrastructure. It provides a unified web interface for managing users, Nodes, Cores, Hosts, Groups, subscriptions, networking protocols, domains, TLS certificates, backups, restores, migrations, API access and operational settings.
+
+The project follows a **Panel + Node** architecture and is designed to manage infrastructure rather than only individual protocol configurations.
+
+ManubisGuard is based on the **PasarGuard Panel** codebase and preserves upstream-compatible operational concepts where required while extending the platform with ManubisGuard features and branding.
+
+### Upstream project
+
+- **Upstream Panel:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
+- **ManubisGuard Panel:** [ManubisGuard/ManubisGuard-Panel](https://github.com/ManubisGuard/ManubisGuard-Panel)
+- **Matching Node:** [ManubisGuard/ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
+
+---
+
+## ✨ Features
+
+### Core platform
+
+- Modern Command Center dashboard
+- Panel + Node architecture
+- Multi-Node management
+- Multi-Core Node architecture
+- Users and user management
+- Groups
+- Hosts
+- Templates
+- Bulk operations
+- Statistics and traffic monitoring
+- Subscription generation
+- API Keys
+- Reseller Admins
+- Admin Roles and RBAC
+- Docker / Docker Compose deployment
 - PostgreSQL / TimescaleDB runtime
+- Health checks and operational tooling
+
+### Networking
+
+- WireGuard
+- AmneziaWG
+- Xray
+- Multiple WireGuard/AmneziaWG Cores on one Node
+- Node/Core synchronization
+- Peer synchronization
+- Native WireGuard / AmneziaWG configuration generation
+- AWG-specific parameters: `Jc`, `Jmin`, `Jmax`, `S1-S4`, `H1-H4`
+- PersistentKeepalive preservation
+- Subscription-aware AWG rendering
+- Core metadata and runtime state management
+
+### Domains & SSL
+
+- Managed domains
+- Multiple domains per Node
+- Primary domain handling
+- Domain-to-Node association
+- Domain validation
+- Certificate metadata
+- Let's Encrypt workflow
+- Existing certificate installation
+- Certificate renewal lifecycle
+- Expiration tracking
+- Renewal attempts and next-renewal state
+- Certificate error state
+- Deployment status
+- Manual Deploy / Re-deploy
+- TLS serving controls
+- Xray TLS certificate materialization
+- Multi-domain TLS / SNI injection
+- Deployment failure recording
+- Runtime rollback after failed certificate application
+- Reality SNI discovery and validation
+- Auto Select Best SNI
+- Latency-based SNI candidate ranking
+- SNI override validation
+
+### Backup, Restore & Migration
+
+- Manual backup creation
+- Backup history
+- ZIP download/upload
+- Backup validation
+- Backup manifest handling
+- Backup scheduling
+- Daily / weekly / monthly schedules
+- Retention count
+- Opt-in scheduler
+- Restore validation
+- Isolated staging restore
+- Production restore safety flow
+- Explicit production restore confirmation
+- Production safety dumps
+- Rollback-oriented cutover
 - PasarGuard-family backup compatibility
-- MariaDB/MySQL to PostgreSQL restore bridge
-- Migration validation, staging restore and rollback safety
-- RBAC-aware frontend and backend APIs
-- Dark glass/cyber theme customization
-- Docker/Compose based deployment
-- Health checks and production-oriented validation
+- PostgreSQL backup handling
+- Legacy MariaDB/MySQL → PostgreSQL bridge
+- PostgreSQL major-version compatibility handling
+- TimescaleDB compatibility handling
+- Schema validation
+- Durable row-count validation
+- Hypertable / continuous aggregate validation
+- Migration state validation
+- Deployment identity protection
+
+### Security
+
+- Authentication and RBAC
+- Resource/action-based permissions
+- Permission-aware Node/Core actions
+- Protected Backup/Restore workflows
+- API access controls
+- Encrypted Telegram token storage
+- Sensitive-token redaction from API responses
+- No intentional secret/private-key logging
+- Non-destructive restore validation before production apply
+- Explicit confirmation for destructive production restore
 
 ---
 
-## 🖥️ Dashboard & UI
+## 🖥️ Command Center Dashboard
 
-The dashboard has been redesigned as a **Command Center** rather than a simple statistics page.
+The dashboard is designed as an operational **Command Center**, not only a statistics page.
 
-It provides:
+It provides visibility into:
 
-- Online and total user status
-- Network traffic visibility
-- CPU load and system resources
-- Memory and disk visibility
-- Platform health/status
-- User state overview
-- Quick actions for creating users and opening Nodes, Users and Groups
-- Dense operational cards designed for administration workflows
+- Online and total users
+- Network traffic
+- CPU usage
+- Memory usage
+- Disk usage
+- Platform health
+- User state
+- Quick administrative actions
+- Nodes, Users and Groups
+- Operational status cards
 
-### Navigation
-
-The current navigation is organized around operational workspaces:
+The navigation is organized around administration workflows:
 
 ```text
 Dashboard
@@ -81,18 +187,16 @@ Settings
 ├── Domains & SSL
 ├── Backup & Restore
 ├── Theme
-└── other Settings tabs
+└── other settings
 ```
-
-The redesign preserves existing routes, permission checks and backend endpoints.
 
 ---
 
-## 🎨 Smart Theme System
+## 🎨 Theme System
 
 ManubisGuard includes a configurable dark-native theme system.
 
-### Theme controls
+Available controls include:
 
 - Primary color
 - Secondary color
@@ -110,7 +214,7 @@ ManubisGuard includes a configurable dark-native theme system.
 - Animation intensity
 - UI density
 
-### Presets
+Presets include:
 
 - Cyber Pulse
 - Midnight Violet
@@ -119,70 +223,62 @@ ManubisGuard includes a configurable dark-native theme system.
 - Quantum
 - Obsidian
 
-The visual system uses glass surfaces, controlled gradients, depth, glow and cyber-style accents while keeping the interface suitable for dense administration work.
-
 Reduced-motion settings are available for users who prefer lower animation intensity.
 
 ---
 
-## 🌐 Nodes, Cores & Networking
+## 🌐 Nodes, Cores & Multi-Core
 
-The Node workspace supports:
+A Node can be assigned to multiple Core configurations.
 
-- Node management
-- Core configuration management
-- WireGuard management
-- Node logs
-- Node connection state
-- Permission-aware actions
-- Multiple Core assignments per Node
+### WireGuard / AmneziaWG
 
-A Node can retain the legacy single `core_config_id` representation for compatibility while also using `core_config_ids` for multi-Core assignments.
+Multiple WireGuard and AmneziaWG Core instances can run concurrently on the same Node and are tracked by interface.
 
-### Multi-Core
+The Node model retains the legacy single `core_config_id` representation for compatibility while supporting `core_config_ids` for multi-Core assignments.
 
-The Node runtime supports additive Core assignment.
+### Xray
 
-Multiple WireGuard/AmneziaWG Core instances can run concurrently on the same Node and are tracked by interface.
+Xray is intentionally limited to one Core configuration per Node because the Node runtime uses a single Xray process for Xray inbounds.
 
-Xray remains intentionally limited to one Core per Node because the Node runtime uses a single Xray process for Xray inbounds.
+### Synchronization
+
+Core synchronization is additive where possible, so adding a compatible Core does not unnecessarily stop already-running compatible Cores.
 
 ---
 
 ## 🛡️ AmneziaWG
 
-AmneziaWG is a first-class networking path in the current branch.
+AmneziaWG is a first-class networking path in the current development branch.
 
-The validated runtime includes:
+The implementation covers:
 
 - AmneziaWG Core metadata
-- Jc / Jmin / Jmax
-- S1-S4
-- H1-H4
+- `Jc`
+- `Jmin` / `Jmax`
+- `S1-S4`
+- `H1-H4`
 - Native AWG interface support
 - AWG-aware subscription generation
 - Node Peer synchronization
-- Host runtime installation requirements
+- Public-key / Peer mapping
+- Native WireGuard/AWG configuration rendering
+- Host-side AWG runtime preparation
 - AmneziaWG tools pinning
-- Kernel/DKMS runtime preparation
+- Kernel/DKMS preparation
+- Native interface smoke validation
 
-The TEST environment achieved a real external AmneziaWG handshake with:
+The development/test workflow has also been used to validate real external AWG connectivity, including correct peer mapping, endpoint delivery, UDP traffic, handshake state and non-zero RX/TX counters.
 
-- Correct generated AWG parameters
-- Correct client public-key to Node Peer mapping
-- Correct endpoint
-- Real UDP packets reaching the Node
-- Server replies
-- Recent WireGuard/AWG handshake
-- Non-zero RX/TX counters
+Production and TEST environments are treated separately; a TEST result is not presented as a production deployment result.
 
-Production/Main is kept separate from TEST validation and is not implicitly changed by a TEST PASS.
+> **Support note:** the current project work targets **AmneziaWG 2.x / the validated AWG runtime**. Do not assume AWG3 compatibility unless it is explicitly documented and tested in the project.
 
 ---
 
-## 👥 Users, Groups & Hosts
+## 👥 Users, Groups, Hosts & Templates
 
-The panel provides administrative workflows for:
+Administrative workflows include:
 
 - Users
 - User templates
@@ -193,17 +289,28 @@ The panel provides administrative workflows for:
 - Node/Core assignments
 - Subscription-related configuration
 
-Hosts and Groups are presented as a single tabbed workspace while keeping their existing routes and permission model.
+Hosts and Groups are presented as a unified workspace while retaining their respective routes and permission model.
 
 ---
 
-## 🔐 Reseller & Access Control
+## 🔑 API Keys & Automation
+
+The Panel provides API key management for administrative integrations and automation.
+
+API access is separated from browser UI state and follows the project's authentication and authorization model.
+
+Use API access for automation only after reviewing the current API contract and permissions exposed by the deployed version.
+
+---
+
+## 🔐 Reseller & RBAC
 
 ManubisGuard includes:
 
 - Admin management
+- Reseller Admins
 - Admin Roles
-- Resource/action based permissions
+- Resource/action-based permissions
 - Settings permission gating
 - Backup/restore authorization
 - Node/Core permission checks
@@ -213,40 +320,40 @@ Sensitive operations remain protected by authentication and RBAC.
 
 ---
 
-## 🔑 API Keys
-
-The panel includes API key management for administrative integrations and automation.
-
-API access is kept separate from browser UI state and follows the existing authentication and authorization model.
-
----
-
 ## 🌍 Domains & SSL
 
 The Domains & SSL workspace provides domain and certificate lifecycle management.
 
-Supported functionality includes:
+### Domain management
 
 - Managed domains
 - Multiple domains per Node
-- Primary domain handling
+- Primary-domain handling
 - Domain-to-Node association
 - Domain validation
-- Certificate metadata
-- Let's Encrypt certificate issuance
+
+### Certificates
+
+- Let's Encrypt issuance workflow
 - Existing certificate installation
-- Certificate renewal lifecycle
-- Expiration tracking
+- Certificate metadata
+- Expiration state
 - Renewal attempts
-- Next-renewal information
-- Certificate error state
-- Deployment status
+- Next renewal information
+- Failure/error state
 - Manual Deploy / Re-deploy
-- TLS serving controls
-- Xray TLS materialization
+- TLS serving control
+
+### Xray TLS
+
+Managed certificate material can be injected into the existing Xray runtime configuration through the verified Node start/configuration path.
+
+The implementation includes:
+
 - Multi-domain TLS/SNI injection
-- Deployment failure recording
-- Runtime rollback after failed certificate application
+- Deployment metadata
+- Failure recording
+- Previous-configuration rollback when runtime application fails
 
 Private-key material is not returned by the API and is cleared from the relevant frontend form state after successful submission.
 
@@ -261,13 +368,13 @@ Reality tooling includes:
 - SNI override validation
 - Persistence-safe selection behavior
 
-The Auto Select flow tests SNI candidates against the existing Reality target rather than replacing the target itself.
+Auto Select evaluates SNI candidates against the existing Reality target rather than silently replacing the target itself.
 
 ---
 
 ## 💾 Backup & Restore
 
-Backup and restore is implemented as a safety-first operational workflow.
+Backup and restore is designed as a safety-first operational workflow.
 
 ### Backup
 
@@ -281,44 +388,48 @@ Supported functionality includes:
 - Backup retention
 - Daily, weekly and monthly schedules
 - Configurable retention count
-- Opt-in scheduler
+- Opt-in scheduling
 - Telegram notification configuration
 - Encrypted Telegram token storage
-- Secret non-disclosure in API responses and logs
+- Secret non-disclosure in API responses/logs
 
-Telegram notification tests use mocks and do not require a real production token.
+### Staging restore
 
-### Restore
+The Panel provides an isolated staging restore flow for migration validation.
 
-The restore pipeline supports:
+The staging path can:
 
-- Native ManubisGuard backups
-- PasarGuard-family backups
-- PostgreSQL backups
-- Legacy MariaDB/MySQL backup conversion
-- Backup manifest detection
-- Safe extraction
-- Staging restore
-- Schema and row-count validation
-- TimescaleDB compatibility handling
-- Production safety dumps
+1. Validate the uploaded backup.
+2. Detect the source format.
+3. Create an isolated staging database.
+4. Run the migration / Timescale safety pipeline.
+5. Validate schema and data transformations.
+6. Report source format, counts and transformations.
+7. Drop the staging database after the operation.
+
+The production database is not used as the staging restore target.
+
+### Production restore
+
+Production restore is a separate operational action and requires explicit confirmation.
+
+The production restore flow is designed around:
+
+- Validated backups only
+- Safety dumps
+- Explicit confirmation
+- Migration engine execution
 - Previous database retention
-- Rollback-oriented cutover validation
-- Restore logs and operation status
+- Rollback-oriented cutover
+- Restore operation status/logging
 
-Production restore requires explicit confirmation and uses the validated migration engine rather than directly overwriting the live database.
+Do not treat a successful staging restore as an automatic authorization to overwrite a production database.
 
-### Migration safety
+### Deployment identity protection
 
-The migration architecture validates the backup before production cutover.
+Backup archives are not blindly treated as deployment packages. Runtime-specific deployment files such as `.env`, `docker-compose.yml`, repository/image configuration and host-specific secrets are not automatically imported as the new deployment identity.
 
-It preserves the installed deployment identity and does not blindly import backup deployment files such as:
-
-- `.env`
-- `docker-compose.yml`
-- Repository/image configuration
-
-The canonical runtime paths are:
+Canonical ManubisGuard runtime locations include:
 
 ```text
 /var/lib/manubisguard
@@ -326,15 +437,15 @@ The canonical runtime paths are:
 /var/lib/manubisguard/migration/
 ```
 
-Legacy PasarGuard runtime paths are not used as ManubisGuard runtime paths.
+Legacy PasarGuard paths are treated as migration/reference evidence, not as canonical ManubisGuard runtime paths.
 
 ---
 
 ## 🗄️ PostgreSQL & TimescaleDB
 
-The supported installation path uses PostgreSQL 16 with TimescaleDB.
+The supported runtime uses PostgreSQL with TimescaleDB.
 
-The migration system includes compatibility handling for:
+The migration architecture includes compatibility handling for:
 
 - PostgreSQL major-version transitions
 - TimescaleDB version transitions
@@ -345,13 +456,17 @@ The migration system includes compatibility handling for:
 - Identity metadata
 - Application migration state
 
-A disposable PostgreSQL 17 / TimescaleDB 2.30 to PostgreSQL 16 / TimescaleDB 2.29 portable bridge E2E was validated with matching durable row counts and continuous aggregate data.
+A disposable PostgreSQL 17 / TimescaleDB 2.30 → PostgreSQL 16 / TimescaleDB 2.29 portable bridge E2E has been validated with durable counts and continuous-aggregate data.
+
+The production database is not modified by disposable/local migration tests.
 
 ---
 
 ## 🧰 Native Manubis CLI
 
-After installation, the user-facing host command is:
+The Panel provides the `manubis` host CLI for lifecycle and restore operations.
+
+Common commands:
 
 ```bash
 sudo manubis status
@@ -376,15 +491,11 @@ sudo manubis restore-check /path/to/backup.zip
 /opt/manubisguard/backup/
 ```
 
-and presents them for selection.
-
 `restore-check` performs non-destructive validation.
-
-The internal migration commands required by the restore engine remain available through the canonical Panel CLI implementation.
 
 ### Temporary admin key
 
-The current Panel container CLI entrypoint is:
+The current Panel CLI entrypoint is:
 
 ```text
 /code/manubisguard-cli.py
@@ -403,134 +514,108 @@ Never commit or publish generated keys.
 
 ## 🚀 Installation
 
-### One-command installation
+### One-command installer
 
-The installer is included in the repository and supports PostgreSQL/TimescaleDB:
+The installer is included in the repository.
 
+A source-based installation can be started with:
 
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh)" @ install --database timescaledb
+```
 
-The installer:
+The installer prepares the runtime, persistent directories, secrets, database, migrations and health checks according to the selected installation options.
 
-1. Prepares Docker/Compose when required
-2. Fetches the selected ManubisGuard branch
-3. Creates persistent secrets
-4. Prepares the runtime directories
-5. Installs the restore/migration agent
-6. Starts PostgreSQL/TimescaleDB and the Panel
-7. Runs database migrations
-8. Verifies the health endpoint
+### SSL installation modes
 
-The Panel image is built from the selected branch source.
+The installer supports documented SSL modes including:
 
----
+- Let's Encrypt for a domain
+- Server-IP certificate with IP SAN
+- Custom certificate and private key
+- HTTP/no-SSL installation
 
-## 🔒 SSL / TLS Installer
+Examples:
 
-The interactive installer provides:
+```bash
+# Domain certificate
+--ssl-mode domain --ssl-domain panel.example.com
 
-1. Let's Encrypt certificate for a domain
-2. Server-IP certificate with IP SAN
-3. Custom certificate and private key
-4. HTTP installation without SSL
+# IP certificate
+--ssl-mode ip
 
-### Let's Encrypt
+# No SSL
+--ssl-mode none --yes
+```
 
-Use the installer with `--ssl-mode domain --ssl-domain panel.example.com`.
-
-
-
-### Server-IP certificate
-
-Use the installer with `--ssl-mode ip`.
-
-
-
-### No SSL
-
-Use the installer with `--ssl-mode none --yes`.
-
-
-
-The interactive SSL wizard is designed to work with the documented `curl | bash` installation flow by reading terminal input from `/dev/tty`.
+The interactive SSL wizard reads terminal input from `/dev/tty` so it can be used with the documented remote installation flow.
 
 ---
 
-## 🛰️ Node Installation
+## 🛰️ Matching ManubisGuard Node
 
-Install the matching AmneziaWG-enabled ManubisGuard Node:
+Install the matching Node from:
 
+[ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
 
+Example:
 
-The Node installer preserves the upstream-compatible interactive workflow for service port, API key, TLS/certificate mode and transport options while installing the ManubisGuard Node implementation.
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh)" @ install
+```
 
-The host runtime installer provisions the AmneziaWG prerequisites, including:
+The Node installer provides the interactive configuration for service port, API key, TLS/certificate mode and transport.
 
-- Kernel headers
-- DKMS/build prerequisites
-- AmneziaWG DKMS
-- AmneziaWG tools
-- Boot-time module loading
-- Native AWG interface smoke validation
-
-The validated Node userspace currently uses the AmneziaWG tools line `v3.1.20260812`.
+For AmneziaWG runtime preparation it can provision the required host-side components, including kernel headers, DKMS/build prerequisites, AmneziaWG tooling and native-interface validation.
 
 ---
 
-## 🔄 Node & Core Runtime Source of Truth
+## 🔄 Runtime Source of Truth
 
 Core and Host runtime state uses PostgreSQL as the primary source of truth.
 
 NATS/KV runtime state is retained as a fallback when database refresh fails.
 
-This prevents stale runtime snapshots from silently overriding current database Core type, AWG metadata or prepared subscription host state.
+This protects current database Core type, AWG metadata and prepared subscription/Host state from being silently replaced by stale runtime snapshots.
 
-The subscription/runtime path has regression coverage for stale Core state, database reloads, HostManager reloads and native AWG rendering.
+The subscription/runtime path has regression coverage around stale Core state, database reloads, HostManager reloads and native AWG rendering.
 
 ---
 
-## 🧪 Validation & Quality
+## 🧪 Testing & Validation
 
-The project uses layered validation instead of relying only on a successful container startup.
+ManubisGuard uses layered validation instead of treating container startup as the only quality signal.
 
-Validated gates include:
+Validation areas include:
 
 - Python regression tests
 - Migration tests
 - Backup/restore security tests
 - Domain/SSL tests
 - Node synchronization tests
-- Frontend TypeScript checks
+- Frontend TypeScript validation
 - Vite production builds
 - Docker image builds
 - Runtime health checks
-- `bash -n`
-- Ruff checks and formatting
+- Ruff checks/formatting
 - `git diff --check`
 - Disposable PostgreSQL/TimescaleDB migration E2E
-- Real TEST AmneziaWG external handshake validation
+- AmneziaWG external handshake validation in TEST
 
-The current branch has passed the documented migration, backup/restore, Domain/SSL and AmneziaWG TEST gates recorded in `TODO.md`.
+Detailed milestones and execution evidence are maintained in `TODO.md`.
 
 ---
 
 ## 🐳 Docker
 
-The production service is named:
-
-```text
-manubisguard
-```
-
-The database service uses PostgreSQL/TimescaleDB.
-
-A standard source-based deployment is:
+A source-based deployment can be built and started with:
 
 ```bash
 cd /path/to/ManubisGuard-Panel
-docker compose --env-file .env up -d --build manubisguard
+docker compose --env-file .env up -d --build
 ```
 
-After deployment, verify:
+Verify the runtime with:
 
 ```bash
 docker ps
@@ -543,22 +628,22 @@ Expected health response:
 {"status":"ok"}
 ```
 
+Use the deployment files in the selected branch as the source of truth for the exact service names and environment variables of that revision.
+
 ---
 
-## 🔐 Security Principles
+## 🔒 Security Principles
 
-ManubisGuard follows several operational safety rules:
-
-- Never commit real secrets, API keys, private keys or certificates
-- Telegram bot tokens are encrypted at rest
-- Sensitive tokens are excluded from API responses
-- Sensitive values are not intentionally written to logs
-- Restore validation happens before production cutover
-- Production restore requires explicit confirmation
-- Production safety dumps are retained for rollback
-- Backup deployment configuration is not blindly imported
-- RBAC is preserved across administrative workflows
-- Destructive operations are separated from non-destructive validation
+- Never commit real secrets, API keys, private keys or certificates.
+- Telegram bot tokens are encrypted at rest where configured.
+- Sensitive tokens are excluded from API responses.
+- Sensitive values are not intentionally written to logs.
+- Restore validation happens before production cutover.
+- Production restore requires explicit confirmation.
+- Safety dumps are retained for rollback-oriented recovery.
+- Backup deployment configuration is not blindly imported.
+- RBAC is preserved across administrative workflows.
+- Destructive operations are separated from non-destructive validation.
 
 ---
 
@@ -572,128 +657,225 @@ ManubisGuard follows several operational safety rules:
 /var/lib/manubisguard/certs/
 ```
 
-Legacy PasarGuard paths such as `/var/lib/pasarguard` are treated as migration/reference evidence and are not the canonical ManubisGuard runtime paths.
+Legacy paths such as `/var/lib/pasarguard` may appear in migration/reference material but are not the canonical ManubisGuard runtime paths.
 
 ---
 
-## 📌 Current Development Status
+## 📌 Development Status
 
-### Completed / validated
+The current development line includes completed implementation work across:
 
-- Command Center dashboard redesign
-- Smart dark theme system
-- Navigation/workspace redesign
+- Command Center dashboard
+- Theme system
 - Nodes & Cores workspace
+- Multi-Core WireGuard/AmneziaWG runtime
 - Hosts & Groups workspace
-- Backup & Restore UI and backend
+- Users, Templates and Bulk operations
+- Reseller Admins / Admin Roles / RBAC
+- API Keys
+- Backup and restore workflows
 - Backup scheduling and retention
-- Staging restore
+- Isolated staging restore
 - Production restore safety flow
-- PostgreSQL/TimescaleDB migration bridge
+- PostgreSQL / TimescaleDB migration bridge
 - Domain management foundation
 - Certificate lifecycle
 - Managed certificate deployment and rollback
 - Domains & SSL UI lifecycle
 - Reality SNI intelligence
 - Native `manubis` CLI
-- SSL installer wizard
+- SSL installer workflow
 - AmneziaWG runtime and subscription validation
-- Multi-Core Node architecture
 - PostgreSQL source-of-truth runtime hardening
 
-### Explicitly pending / intentionally deferred
+Some operational actions remain intentionally environment-dependent, such as real ACME issuance, real Cloudflare DNS mutations, destructive production restore/cutover and live multi-Node/multi-Core E2E validation.
 
-- Server Address semantics for `additional`, `alias` and `both` require an authoritative runtime/subscription contract before implementation.
-- Real ACME issuance and real Cloudflare DNS mutations remain operational actions and are not treated as completed by mock tests.
-- Full live Panel/Node multi-Core E2E remains a separate validation gate.
-- ManubisGuard logo binary replacement and final branding sweep remain pending where noted in `TODO.md`.
+See `TODO.md` for the authoritative development checkpoints and remaining gates.
 
 ---
 
-## 📚 Documentation & Source
+## 🤝 Contributing
 
-Panel repository:
+Contributions are welcome.
 
-https://github.com/ManubisGuard/ManubisGuard-Panel
+Useful contribution areas include:
 
-Node repository:
+- Bug reports
+- Reproduction cases
+- Tests
+- Documentation
+- UI improvements
+- Networking integrations
+- Migration compatibility
+- Backup/restore validation
+- API improvements
+- Developer tooling
 
-https://github.com/ManubisGuard/ManubisGuard-Node
-
-Current Panel branch:
-
-`feature/amnezia-wg`
-
-The detailed execution history, validation evidence and remaining gates are maintained in:
-
-`TODO.md`
+Before opening a PR, review the repository's current contribution guidance and `TODO.md`.
 
 ---
 
-# 🇮🇷 راهنمای فارسی
+## 📚 Project Links
+
+- Panel: https://github.com/ManubisGuard/ManubisGuard-Panel
+- Node: https://github.com/ManubisGuard/ManubisGuard-Node
+- Upstream Panel: https://github.com/PasarGuard/panel
+- Upstream Node: https://github.com/PasarGuard/node
+- Issues: https://github.com/ManubisGuard/ManubisGuard-Panel/issues
+- Discussions: https://github.com/ManubisGuard/ManubisGuard-Panel/discussions
+
+---
+
+<a id="فارسی"></a>
+
+# 🇮🇷 فارسی
 
 ## ManubisGuard Panel چیست؟
 
-**ManubisGuard Panel** یک پنل مدیریتی مدرن برای مدیریت کاربران، Nodeها، Coreها، WireGuard/AmneziaWG، Hostها، Groupها، دامنه‌ها، SSL/TLS، Backup/Restore و تنظیمات عملیاتی است.
+**ManubisGuard Panel** یک Control Plane متن‌باز و Self-hosted برای مدیریت زیرساخت‌های مدرن شبکه است.
 
-این پروژه بر پایه Fork سازگار با PasarGuard توسعه داده شده و در کنار قابلیت‌های جدید ManubisGuard، سازگاری رفتاری و ساختاری لازم با CLI و Installer قبلی حفظ شده است.
+این پنل مدیریت مواردی مانند کاربران، Nodeها، Coreها، Hostها، Groupها، Subscriptionها، پروتکل‌های شبکه، Domain، SSL/TLS، Backup، Restore، Migration، API و تنظیمات عملیاتی را در یک رابط یکپارچه فراهم می‌کند.
+
+معماری پروژه بر پایه **Panel + Node** است و هدف آن فقط ساخت کانفیگ یک پروتکل نیست؛ بلکه مدیریت کل زیرساخت شبکه است.
+
+### این پروژه Fork کدام پنل است؟
+
+ManubisGuard Panel بر پایه کدبیس **PasarGuard Panel** توسعه داده شده است.
+
+- **Upstream Panel:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
+- **ManubisGuard Panel:** [ManubisGuard/ManubisGuard-Panel](https://github.com/ManubisGuard/ManubisGuard-Panel)
+- **Matching Node:** [ManubisGuard/ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
+
+در کنار حفظ بخش‌های لازم از سازگاری Upstream، قابلیت‌ها و معماری‌های اختصاصی ManubisGuard روی این پایه توسعه داده شده‌اند.
 
 ---
 
 ## ✨ قابلیت‌های اصلی
 
-- داشبورد Command Center مدرن
-- پشتیبانی از WireGuard و AmneziaWG
-- پشتیبانی از چند Core روی یک Node
-- مدیریت Nodes، Cores، WireGuard و Logs در یک محیط
-- مدیریت Hosts و Groups در یک محیط تب‌دار
-- مدیریت Users
-- Statistics
+### پلتفرم
+
+- داشبورد Command Center
+- معماری Panel + Node
+- مدیریت چند Node
+- معماری Multi-Core
+- مدیریت کاربران
+- Groups
+- Hosts
 - Templates
 - Bulk Operations
+- Statistics و Traffic Monitoring
+- Subscription Generation
 - API Keys
-- Reseller Admins و Admin Roles
-- Domains & SSL
+- Reseller Admins
+- Admin Roles و RBAC
+- Docker / Docker Compose
+- PostgreSQL / TimescaleDB
+- Health Check و ابزارهای عملیاتی
+
+### شبکه و پروتکل‌ها
+
+- WireGuard
+- AmneziaWG
+- Xray
+- اجرای چند Core از نوع WireGuard/AmneziaWG روی یک Node
+- همگام‌سازی Node و Core
+- Peer Synchronization
+- تولید Native کانفیگ WireGuard / AmneziaWG
+- پارامترهای AWG شامل `Jc`، `Jmin`، `Jmax`، `S1-S4` و `H1-H4`
+- حفظ PersistentKeepalive
+- تولید Subscription سازگار با AWG
+- مدیریت Metadata و Runtime State مربوط به Core
+
+### Domain و SSL
+
+- Managed Domains
+- چند Domain روی یک Node
+- Primary Domain
+- اتصال Domain به Node
+- اعتبارسنجی Domain
+- Certificate Metadata
 - Let's Encrypt
 - نصب Certificate موجود
-- مدیریت چرخه عمر Certificate
-- Reality و هوشمندی SNI
-- Backup و Restore
-- زمان‌بندی و Retention
-- Restore مرحله‌ای و ایمن
-- Migration بین PostgreSQL/TimescaleDB
+- چرخه Renewal
+- Expiration Tracking
+- Renewal Attempts
+- Next Renewal
+- خطاهای Certificate
+- Deployment Status
+- Deploy / Re-deploy دستی
+- TLS Serving Control
+- Xray TLS Materialization
+- Multi-domain TLS/SNI
+- ثبت خطای Deployment
+- Rollback در صورت شکست اعمال Certificate
+- Reality SNI Discovery
+- اعتبارسنجی SNI
+- Auto Select Best SNI
+- رتبه‌بندی Candidateها بر اساس Latency
+- اعتبارسنجی SNI Override
+
+### Backup / Restore / Migration
+
+- ساخت Backup دستی
+- Backup History
+- Download / Upload به صورت ZIP
+- Backup Validation
+- Manifest Handling
+- Backup Scheduling
+- Daily / Weekly / Monthly
+- Retention Count
+- Scheduler اختیاری
+- Restore Validation
+- Staging Restore ایزوله
+- Production Restore با Safety Flow
+- تأیید صریح برای Restore تولیدی
+- Safety Dump
+- Rollback-oriented Cutover
 - سازگاری با Backupهای خانواده PasarGuard
-- Bridge از MariaDB/MySQL به PostgreSQL
-- CLI اختصاصی `manubis`
-- RBAC و Permissionهای موجود
-- Theme حرفه‌ای Dark/Glass/Cyber
-- Docker و Docker Compose
-- Health Check و Validation چندلایه
+- PostgreSQL Backup
+- تبدیل Legacy MariaDB/MySQL به PostgreSQL
+- مدیریت تفاوت Major Versionهای PostgreSQL
+- مدیریت تفاوت نسخه‌های TimescaleDB
+- Schema Validation
+- Row Count Validation
+- بررسی Hypertable و Continuous Aggregate
+- بررسی Migration State
+- محافظت از هویت Deployment
+
+### امنیت
+
+- Authentication و RBAC
+- Permission بر اساس Resource/Action
+- کنترل دسترسی Node/Core
+- محافظت از Backup/Restore
+- API Access Control
+- رمزنگاری Token تلگرام در محل ذخیره‌سازی
+- عدم بازگرداندن Secretهای حساس در API
+- عدم ثبت عمدی Secret/Private Key در Log
+- اعتبارسنجی Restore قبل از Cutover
+- تأیید صریح برای Restore مخرب روی Production
 
 ---
 
 ## 🖥️ داشبورد Command Center
 
-داشبورد جدید به جای یک صفحه ساده آماری، به عنوان مرکز کنترل عملیاتی طراحی شده است.
+Dashboard به جای یک صفحه ساده آمار، به شکل یک **Command Center عملیاتی** طراحی شده است.
 
-موارد اصلی:
+مواردی که در آن قابل مشاهده است:
 
-- کاربران آنلاین
-- تعداد کل کاربران
-- Network Traffic
-- CPU Load
-- CPU / Memory / Disk
-- وضعیت Platform
+- تعداد کاربران آنلاین و کل کاربران
+- Traffic شبکه
+- CPU
+- RAM
+- Disk
+- Health سیستم
 - وضعیت کاربران
-- Quick Action برای Create User، Nodes، Users و Groups
+- Quick Actions
+- Nodeها
+- Userها
+- Groupها
 
-هدف این طراحی این است که اطلاعات مهم عملیاتی بدون رفت‌وآمد بین چند صفحه در دسترس باشد.
-
----
-
-## 🧭 ساختار جدید پنل
-
-ساختار فعلی:
+ساختار اصلی Navigation:
 
 ```text
 Dashboard
@@ -724,36 +906,34 @@ Settings
 ├── Domains & SSL
 ├── Backup & Restore
 ├── Theme
-└── سایر بخش‌های Settings
+└── سایر تنظیمات
 ```
-
-ساختار جدید بدون حذف Endpointها، Permissionها یا قابلیت‌های قبلی پیاده‌سازی شده است.
 
 ---
 
-## 🎨 سیستم Theme هوشمند
+## 🎨 سیستم Theme
 
-سیستم Theme کاملاً قابل تنظیم است.
+ManubisGuard دارای Theme System قابل تنظیم و Dark-native است.
 
-امکانات:
+موارد قابل تنظیم:
 
-- Primary
-- Secondary
-- Accent
+- Primary Color
+- Secondary Color
+- Accent Color
 - Background
 - Surface
 - Border
-- Glow
-- Glass
+- Glow Intensity
+- Glass Intensity
 - Border Intensity
 - Shadow Intensity
 - Chart Glow
-- Grid
+- Background Grid
 - Ambient Effects
 - Animation Intensity
-- Density
+- UI Density
 
-Presetهای آماده:
+Presetها:
 
 - Cyber Pulse
 - Midnight Violet
@@ -762,188 +942,237 @@ Presetهای آماده:
 - Quantum
 - Obsidian
 
-Theme پیش‌فرض بر پایه Dark UI، Glass Surface، Glow کنترل‌شده، Gradientهای محیطی و Cyber Accent طراحی شده است.
+برای کاربرانی که حرکت کمتر را ترجیح می‌دهند، Reduced Motion نیز در نظر گرفته شده است.
 
 ---
 
-## 🌐 Nodes، Cores و Multi-Core
+## 🌐 Node، Core و Multi-Core
 
-در بخش Nodes & Cores:
+هر Node می‌تواند به چند Core Configuration متصل شود.
 
-- مدیریت Node
-- مدیریت Core
-- WireGuard
-- Logs
-- وضعیت اتصال
-- Permissionهای مربوط به Node/Core
-- تخصیص چند Core به یک Node
+### WireGuard / AmneziaWG
 
-مدل جدید از `core_config_ids` پشتیبانی می‌کند و برای سازگاری، `core_config_id` قدیمی نیز حفظ شده است.
+چند Core از نوع WireGuard و AmneziaWG می‌توانند به صورت همزمان روی یک Node اجرا شوند و بر اساس Interface مدیریت شوند.
 
-چند Core از نوع WireGuard/AmneziaWG می‌توانند به صورت همزمان روی یک Node اجرا شوند.
+برای سازگاری، مدل قدیمی `core_config_id` حفظ شده و در کنار آن `core_config_ids` برای Multi-Core استفاده می‌شود.
 
-برای Xray همچنان یک Core در هر Node انتخاب می‌شود، چون Runtime مربوط به Xray از یک فرآیند Xray برای Inboundها استفاده می‌کند.
+### Xray
+
+Xray به یک Core Configuration در هر Node محدود است، چون Runtime مربوط به Xray از یک Process برای Inboundهای Xray استفاده می‌کند.
+
+### Synchronization
+
+همگام‌سازی Core تا حد امکان به صورت Additive انجام می‌شود تا اضافه کردن یک Core سازگار باعث توقف غیرضروری Coreهای در حال اجرا نشود.
 
 ---
 
 ## 🛡️ AmneziaWG
 
-AmneziaWG یکی از مسیرهای اصلی Branch فعلی است.
+AmneziaWG یکی از مسیرهای اصلی Networking در Branch فعلی است.
 
-پشتیبانی شامل:
+موارد پشتیبانی‌شده شامل:
 
-- Jc
-- Jmin
-- Jmax
-- S1 تا S4
-- H1 تا H4
+- Metadata مربوط به AWG
+- `Jc`
+- `Jmin` / `Jmax`
+- `S1-S4`
+- `H1-H4`
 - Native AWG Interface
-- AWG Subscription
+- AWG-aware Subscription Generation
 - Peer Synchronization
-- Host Runtime
-- DKMS
-- AWG Tools
-- Kernel Module
+- Public Key / Peer Mapping
+- Native WireGuard/AWG Config Rendering
+- آماده‌سازی Runtime روی Host
+- AmneziaWG Tools
+- Kernel/DKMS Preparation
+- Native Interface Validation
 
-در محیط TEST یک اتصال واقعی خارجی AmneziaWG با Handshake موفق، Packet واقعی، Reply سرور و RX/TX غیرصفر اعتبارسنجی شده است.
+در محیط TEST، اتصال واقعی خارجی AmneziaWG نیز با بررسی Peer Mapping، Endpoint، UDP Traffic، Handshake و RX/TX validation شده است.
+
+محیط TEST و Production از یکدیگر جدا در نظر گرفته می‌شوند و PASS شدن TEST به معنی تغییر یا تأیید Production نیست.
+
+> **نکته:** تمرکز فعلی پروژه روی **AmneziaWG 2.x و Runtime تأییدشده پروژه** است. سازگاری با AWG3 نباید بدون تست و مستندات صریح فرض شود.
 
 ---
 
-## 👥 Users، Hosts و Groups
+## 👥 Users، Groups، Hosts و Templates
 
-پنل امکانات مدیریتی زیر را فراهم می‌کند:
+پنل برای مدیریت موارد زیر Workflow دارد:
 
 - Users
+- User Templates
 - Groups
 - Hosts
-- Templates
 - Bulk Operations
 - Statistics
-- Node/Core Assignment
-- Subscription configuration
-
-Hosts و Groups در یک Workspace با Tab داخلی قرار گرفته‌اند.
+- Node/Core Assignments
+- Subscription Configuration
 
 ---
 
-## 🔐 Reseller و Permission
+## 🔑 API Keys و Automation
 
-سیستم مدیریتی شامل:
+پنل دارای مدیریت API Key برای Integration و Automation است.
 
-- Admins
+API از State رابط گرافیکی جدا بوده و تحت مدل Authentication/Authorization پروژه کار می‌کند.
+
+برای Automation باید API Contract و Permissionهای نسخه Deploy شده بررسی شود.
+
+---
+
+## 🔐 Reseller و RBAC
+
+قابلیت‌های دسترسی شامل:
+
+- Admin Management
+- Reseller Admins
 - Admin Roles
-- Resource permissions
-- Action permissions
-- Settings RBAC
-- Backup/Restore authorization
-- Node/Core permissions
-- API authorization
-
-است.
+- Resource/Action Permissions
+- Settings Permission Gating
+- Backup/Restore Authorization
+- Node/Core Permission Checks
+- API Access Controls
 
 ---
 
-## 🌍 Domains & SSL
+## 🌍 Domain و SSL
 
-بخش Domains & SSL شامل:
+بخش Domains & SSL چرخه مدیریت Domain و Certificate را پوشش می‌دهد.
 
-- مدیریت Domain
-- چند Domain برای یک Node
+### Domain
+
+- Managed Domains
+- چند Domain روی یک Node
 - Primary Domain
-- Domain/Node Association
+- Domain-to-Node Association
+- Domain Validation
+
+### Certificate
+
 - Let's Encrypt
-- Existing Certificate
-- Certificate Renewal
-- Expiration Tracking
+- نصب Certificate موجود
+- Certificate Metadata
+- Expiration
 - Renewal Attempts
 - Next Renewal
 - Error State
-- Deployment Status
 - Deploy / Re-deploy
-- TLS Serving
-- Xray TLS
-- Multi-domain SNI
-- Deployment Rollback
+- TLS Serving Control
 
-است.
+### Xray TLS
 
-کلید خصوصی از API برگردانده نمی‌شود و پس از ارسال موفق نیز از State مربوط به فرم Frontend پاک می‌شود.
+Certificateهای Managed می‌توانند از مسیر Runtime معتبر Xray به Configuration مربوطه تزریق شوند.
+
+موارد پوشش داده‌شده:
+
+- Multi-domain TLS/SNI
+- Deployment Metadata
+- Error Recording
+- Rollback در صورت شکست اعمال Runtime
+
+Private Key از API برگردانده نمی‌شود و پس از Submission موفق از State فرم مربوطه پاک می‌شود.
 
 ### Reality SNI
 
-امکانات:
-
-- Discover SNI
-- بررسی Candidateها
+- SNI Discovery
+- SNI Validation
 - Auto Select Best SNI
-- رتبه‌بندی بر اساس Latency
-- اعتبارسنجی SNI
-- Persistence امن
+- Latency Ranking
+- SNI Override Validation
+- Persistence-safe Selection
+
+Auto Select، Candidateهای SNI را در برابر Target فعلی Reality بررسی می‌کند و Target را بدون منطق مشخص جایگزین نمی‌کند.
 
 ---
 
-## 💾 Backup & Restore
+## 💾 Backup، Restore و Migration
 
-سیستم Backup شامل:
+Backup و Restore با رویکرد Safety-first توسعه داده شده‌اند.
+
+### Backup
 
 - Manual Backup
-- Backup History
-- ZIP Download
-- Upload
+- History
+- ZIP Download/Upload
 - Validation
 - Retention
-- Daily / Weekly / Monthly Schedule
+- Daily/Weekly/Monthly Schedule
+- Retention Count
+- Opt-in Scheduler
 - Telegram Notification
-- Encryption برای Telegram Token
-- جلوگیری از افشای Secret در API و Log
+- Encrypted Telegram Token
+- عدم افشای Secret در API/Logs
 
-است.
+### Staging Restore
 
-### Restore
+Staging Restore برای بررسی Migration در یک Database ایزوله استفاده می‌شود:
 
-Restore از موارد زیر پشتیبانی می‌کند:
+1. Backup بررسی می‌شود.
+2. Source Format تشخیص داده می‌شود.
+3. Database موقت ساخته می‌شود.
+4. Migration/Timescale Pipeline اجرا می‌شود.
+5. Schema و Data Transformation بررسی می‌شوند.
+6. Counts و Result گزارش می‌شوند.
+7. Database موقت حذف می‌شود.
 
-- Backup native خود ManubisGuard
-- Backupهای PasarGuard-family
-- PostgreSQL
-- MariaDB/MySQL legacy
-- Manifest detection
-- Safe extraction
-- Staging Restore
-- Row-count validation
-- Schema validation
-- TimescaleDB compatibility
-- Safety dump
-- Previous database retention
-- Rollback validation
-- Restore Logs
+Production Database هدف Staging Restore نیست.
 
-Restore واقعی Production با تأیید صریح انجام می‌شود و از Migration Engine ایمن استفاده می‌کند.
+### Production Restore
+
+Production Restore یک عملیات جداگانه و عملیاتی است و به تأیید صریح نیاز دارد.
+
+این مسیر شامل:
+
+- Backup معتبر
+- Safety Dump
+- Explicit Confirmation
+- Migration Engine
+- نگهداری Database قبلی
+- Rollback-oriented Cutover
+- Operation Status/Logs
+
+Staging PASS به معنی مجوز خودکار برای Overwrite کردن Production نیست.
+
+### حفاظت از Deployment Identity
+
+فایل‌های Runtime مانند `.env`، `docker-compose.yml`، Repository/Image configuration و Secretهای Host به عنوان هویت جدید Deployment به صورت کورکورانه Import نمی‌شوند.
+
+مسیرهای اصلی ManubisGuard:
+
+```text
+/var/lib/manubisguard
+/opt/manubisguard/backup/
+/var/lib/manubisguard/migration/
+```
+
+مسیرهای Legacy مربوط به PasarGuard فقط در Migration/Reference استفاده می‌شوند و مسیر Canonical ManubisGuard نیستند.
 
 ---
 
 ## 🗄️ PostgreSQL و TimescaleDB
 
-Runtime اصلی بر پایه PostgreSQL 16 و TimescaleDB است.
+Runtime پشتیبانی‌شده بر پایه PostgreSQL و TimescaleDB است.
 
-Migration Layer برای موارد زیر تست شده است:
+Migration Layer برای موارد زیر منطق Compatibility دارد:
 
-- PostgreSQL major-version migration
-- TimescaleDB migration
+- PostgreSQL Major Versions
+- TimescaleDB Versions
 - Hypertables
 - Continuous Aggregates
 - Foreign Keys
 - Sequences
-- Identity metadata
-- Alembic state
+- Identity Metadata
+- Application Migration State
 
-یک E2E واقعی در محیط Disposable برای انتقال PostgreSQL 17/TimescaleDB 2.30 به PostgreSQL 16/TimescaleDB 2.29 با Portable Bridge با موفقیت انجام شده است.
+یک Portable Bridge تستی از PostgreSQL 17 / TimescaleDB 2.30 به PostgreSQL 16 / TimescaleDB 2.29 در محیط Disposable با بررسی Counts و Continuous Aggregate data اعتبارسنجی شده است.
+
+تست‌های Disposable/Local دیتابیس Production را تغییر نمی‌دهند.
 
 ---
 
-## 🧰 CLI
+## 🧰 Manubis CLI
 
-دستور اصلی روی Host:
+CLI میزبان با نام `manubis` برای مدیریت Lifecycle و Restore ارائه شده است.
 
 ```bash
 sudo manubis status
@@ -955,188 +1184,241 @@ sudo manubis update
 sudo manubis edit-env
 ```
 
-Restore:
+### Restore
 
 ```bash
 sudo manubis restore
 sudo manubis restore-check /path/to/backup.zip
 ```
 
-دستور `restore` فایل‌های موجود در:
+Archiveها از مسیر زیر قابل کشف هستند:
 
 ```text
 /opt/manubisguard/backup/
 ```
 
-را پیدا کرده و امکان انتخاب آن‌ها را می‌دهد.
+`restore-check` یک Validation غیرمخرب انجام می‌دهد.
 
 ### Temporary Admin Key
 
-Entry point فعلی:
+Entrypoint فعلی CLI پنل:
 
 ```text
 /code/manubisguard-cli.py
 ```
 
-دستور:
+ساخت Temporary Key:
 
 ```bash
 docker compose exec -T manubisguard \
   python /code/manubisguard-cli.py generate-temp-key
 ```
 
-کلید تولیدشده نباید در GitHub یا فایل‌های پروژه ذخیره شود.
+Keyهای تولیدشده را Commit یا منتشر نکنید.
 
 ---
 
-## 🚀 نصب پنل
+## 🚀 نصب
 
+### نصب یک‌دستوری
 
+Installer داخل Repository قرار دارد.
 
-Installer:
-
-1. Docker/Compose را آماده می‌کند
-2. Branch انتخاب‌شده را دریافت می‌کند
-3. Secretهای Persistent ایجاد می‌کند
-4. Runtime directoryها را آماده می‌کند
-5. Migration/Restore Agent را نصب می‌کند
-6. Panel و TimescaleDB را اجرا می‌کند
-7. Migrationها را اجرا می‌کند
-8. Health Endpoint را بررسی می‌کند
-
----
-
-## 🔒 نصب SSL
-
-Installer چهار حالت دارد:
-
-1. Let's Encrypt
-2. Server IP Certificate
-3. Custom Certificate
-4. بدون SSL
-
-مثال:
+نمونه نصب Source-based:
 
 ```bash
-# Let's Encrypt
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh)" @ install --database timescaledb
+```
+
+Installer بر اساس Optionهای انتخاب‌شده Runtime، Directoryهای دائمی، Secretها، Database، Migration و Health Check را آماده می‌کند.
+
+### حالت‌های SSL
+
+Installer حالت‌های زیر را پوشش می‌دهد:
+
+- Let's Encrypt برای Domain
+- Certificate بر اساس IP با IP SAN
+- Custom Certificate + Private Key
+- HTTP / بدون SSL
+
+نمونه:
+
+```bash
 --ssl-mode domain --ssl-domain panel.example.com
-
-# IP certificate
 --ssl-mode ip
-
-# بدون SSL
 --ssl-mode none --yes
 ```
 
-Wizard تعاملی SSL برای حالت `curl | bash` نیز اصلاح شده و ورودی را از `/dev/tty` دریافت می‌کند.
+Wizard تعاملی SSL از `/dev/tty` برای دریافت Input استفاده می‌کند تا با روش نصب Remote نیز قابل استفاده باشد.
 
 ---
 
-## 🛰️ نصب Node
+## 🛰️ ManubisGuard Node
 
+Node هماهنگ با Panel:
 
+[ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
 
-Node Installer سازگاری Workflow تعاملی upstream را حفظ می‌کند و تنظیمات Port، API Key، TLS/Certificate و Transport را دریافت می‌کند.
+نمونه نصب:
 
-برای AmneziaWG نیز Runtime لازم شامل DKMS، Kernel Headers، Tools و Module loading آماده می‌شود.
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh)" @ install
+```
+
+Node Installer تنظیماتی مانند Port، API Key، TLS/Certificate و Transport را دریافت می‌کند.
+
+برای Runtime مربوط به AmneziaWG نیز می‌تواند اجزای لازم Host از جمله Kernel Headers، DKMS/Build prerequisites، AWG tools و Native Interface validation را آماده کند.
 
 ---
 
-## 🔄 Source of Truth
+## 🔄 Source of Truth در Runtime
 
-PostgreSQL منبع اصلی وضعیت Core و Host Runtime است.
+PostgreSQL Source of Truth اصلی برای Core و Host Runtime State است.
 
-NATS/KV فقط زمانی به عنوان Fallback استفاده می‌شود که Refresh از DB با خطا مواجه شود.
+NATS/KV در صورت شکست Refresh از Database به عنوان Fallback نگه داشته می‌شود.
 
-این معماری جلوی برگشت State قدیمی WireGuard/AmneziaWG یا Host Subscription را می‌گیرد.
+این مدل از جایگزین شدن State فعلی Database با Snapshotهای قدیمی جلوگیری می‌کند و برای Core Type، AWG Metadata و Subscription/Host State اهمیت دارد.
 
 ---
 
 ## 🧪 تست و Validation
 
-پروژه با چند لایه Validation توسعه داده می‌شود:
+پروژه فقط به بالا آمدن Container اکتفا نمی‌کند.
 
-- Python Tests
+لایه‌های Validation شامل:
+
+- Python Regression Tests
 - Migration Tests
 - Backup/Restore Security Tests
 - Domain/SSL Tests
-- Node Sync Tests
-- TypeScript
+- Node Synchronization Tests
+- TypeScript Validation
 - Vite Production Build
-- Docker Build
-- Runtime Health
-- bash syntax
+- Docker Image Build
+- Runtime Health Checks
 - Ruff
-- git diff check
-- Disposable PostgreSQL/TimescaleDB E2E
-- Real TEST AmneziaWG Handshake
+- `git diff --check`
+- PostgreSQL/TimescaleDB Disposable E2E
+- AmneziaWG External Handshake Validation در TEST
 
-جزئیات کامل PASSها و Gateهای باقی‌مانده در `TODO.md` نگهداری می‌شود.
-
----
-
-## 🔐 اصول امنیتی
-
-- Secret واقعی در Git commit نمی‌شود
-- Telegram Token به صورت encrypted ذخیره می‌شود
-- Token حساس در API Response نمایش داده نمی‌شود
-- Restore قبل از Cutover اعتبارسنجی می‌شود
-- Production Restore نیازمند تأیید صریح است
-- Safety Dump قبل از عملیات حساس ایجاد می‌شود
-- Database قبلی برای Rollback حفظ می‌شود
-- فایل‌های deployment داخل Backup کورکورانه Import نمی‌شوند
-- RBAC در مسیرهای مدیریتی حفظ شده است
+جزئیات Checkpointها و شواهد تست در `TODO.md` نگهداری می‌شوند.
 
 ---
 
-## 📌 وضعیت فعلی
+## 🐳 Docker
 
-### تکمیل‌شده و اعتبارسنجی‌شده
+نمونه اجرای Source-based:
 
-- Command Center
-- Theme هوشمند
-- Navigation جدید
+```bash
+cd /path/to/ManubisGuard-Panel
+docker compose --env-file .env up -d --build
+```
+
+بررسی Runtime:
+
+```bash
+docker ps
+curl -k https://your-domain.example/health
+```
+
+پاسخ Health مورد انتظار:
+
+```json
+{"status":"ok"}
+```
+
+نام دقیق Serviceها و Environment Variableها را از فایل‌های همان Branch به عنوان Source of Truth بررسی کنید.
+
+---
+
+## 🔒 اصول امنیتی
+
+- Secret، API Key، Private Key و Certificate واقعی را Commit نکنید.
+- Telegram Token در صورت فعال بودن قابلیت مربوطه به صورت رمزنگاری‌شده نگهداری می‌شود.
+- Secretهای حساس در API Response بازگردانده نمی‌شوند.
+- مقدارهای حساس عمداً در Log ثبت نمی‌شوند.
+- Restore قبل از Production Cutover اعتبارسنجی می‌شود.
+- Production Restore نیازمند تأیید صریح است.
+- Safety Dump برای Recovery/rollback-oriented workflow نگهداری می‌شود.
+- فایل‌های Deployment داخل Backup کورکورانه Import نمی‌شوند.
+- RBAC در Workflowهای مدیریتی حفظ می‌شود.
+- Validation غیرمخرب از عملیات مخرب جدا شده است.
+
+---
+
+## 📁 مسیرهای اصلی
+
+```text
+/opt/manubisguard-panel
+/opt/manubisguard/backup/
+/var/lib/manubisguard/
+/var/lib/manubisguard/migration/
+/var/lib/manubisguard/certs/
+```
+
+مسیرهایی مانند `/var/lib/pasarguard` در Migration/Reference ممکن است دیده شوند، اما مسیر Canonical اجرای ManubisGuard نیستند.
+
+---
+
+## 📌 وضعیت توسعه
+
+در خط توسعه فعلی، کار روی بخش‌های زیر انجام شده است:
+
+- Command Center Dashboard
+- Theme System
 - Nodes & Cores
+- Multi-Core WireGuard/AmneziaWG
 - Hosts & Groups
-- Backup & Restore
-- Scheduling و Retention
-- Staging Restore
-- Production Restore Safety
-- PostgreSQL/TimescaleDB Migration
+- Users / Templates / Bulk
+- Reseller Admins / Admin Roles / RBAC
+- API Keys
+- Backup / Restore
+- Backup Scheduling / Retention
+- Isolated Staging Restore
+- Production Restore Safety Flow
+- PostgreSQL / TimescaleDB Migration Bridge
 - Domain Management
 - Certificate Lifecycle
-- Managed TLS Deployment
+- Managed Certificate Deployment / Rollback
 - Domains & SSL UI
 - Reality SNI Intelligence
-- `manubis` CLI
+- Native `manubis` CLI
 - SSL Installer
-- AmneziaWG Runtime و Subscription
-- Multi-Core Node Architecture
-- PostgreSQL Runtime Source of Truth
+- AmneziaWG Runtime / Subscription Validation
+- PostgreSQL Source-of-Truth Hardening
 
-### موارد باز / عمداً Deferred
+برخی عملیات همچنان به شرایط واقعی محیط وابسته هستند؛ از جمله ACME واقعی، تغییر واقعی Cloudflare DNS، Production Restore/Cutover مخرب و E2E زنده چند Node/Multi-Core.
 
-- semantics مربوط به Server Address برای `additional`، `alias` و `both` تا زمان وجود Contract معتبر Runtime/Subscription.
-- صدور واقعی ACME و تغییرات واقعی Cloudflare به عنوان عملیات عملیاتی جداگانه.
-- E2E زنده کامل برای Multi-Core بین Panel و Node.
-- جایگزینی نهایی Binaryهای Logo و Branding Sweep طبق TODO.
+مرجع اصلی Checkpointها و موارد باقی‌مانده `TODO.md` است.
 
 ---
 
-## 📚 منبع و مستندات
+## 🤝 مشارکت
 
-Panel:
+Contributionها استقبال می‌شوند.
 
-https://github.com/ManubisGuard/ManubisGuard-Panel
+زمینه‌های مفید:
 
-Node:
+- Bug Reports
+- Reproduction Cases
+- Tests
+- Documentation
+- UI Improvements
+- Networking Integrations
+- Migration Compatibility
+- Backup/Restore Validation
+- API Improvements
+- Developer Tooling
 
-https://github.com/ManubisGuard/ManubisGuard-Node
+قبل از PR، راهنمای Contribution و `TODO.md` را بررسی کنید.
 
-Branch فعلی:
+---
 
-`feature/amnezia-wg`
+## 📚 لینک‌های پروژه
 
-تاریخچه کامل تغییرات، تست‌ها، شواهد Validation و کارهای باقی‌مانده:
-
-`TODO.md`
+- Panel: https://github.com/ManubisGuard/ManubisGuard-Panel
+- Node: https://github.com/ManubisGuard/ManubisGuard-Node
+- Upstream Panel: https://github.com/PasarGuard/panel
+- Upstream Node: https://github.com/PasarGuard/node
+- Issues: https://github.com/ManubisGuard/ManubisGuard-Panel/issues
+- Discussions: https://github.com/ManubisGuard/ManubisGuard-Panel/discussions
