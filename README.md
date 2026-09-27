@@ -405,12 +405,9 @@ Never commit or publish generated keys.
 
 ### One-command installation
 
-Install ManubisGuard with PostgreSQL/TimescaleDB:
+The installer is included in the repository and supports PostgreSQL/TimescaleDB:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh | \
-  sudo bash -s -- install --database timescaledb
-```
+
 
 The installer:
 
@@ -438,25 +435,21 @@ The interactive installer provides:
 
 ### Let's Encrypt
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh | \
-  sudo bash -s -- install --database timescaledb \
-  --ssl-mode domain --ssl-domain panel.example.com
-```
+Use the installer with `--ssl-mode domain --ssl-domain panel.example.com`.
+
+
 
 ### Server-IP certificate
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh | \
-  sudo bash -s -- install --database timescaledb --ssl-mode ip
-```
+Use the installer with `--ssl-mode ip`.
+
+
 
 ### No SSL
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh | \
-  sudo bash -s -- install --database timescaledb --ssl-mode none --yes
-```
+Use the installer with `--ssl-mode none --yes`.
+
+
 
 The interactive SSL wizard is designed to work with the documented `curl | bash` installation flow by reading terminal input from `/dev/tty`.
 
@@ -466,9 +459,7 @@ The interactive SSL wizard is designed to work with the documented `curl | bash`
 
 Install the matching AmneziaWG-enabled ManubisGuard Node:
 
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh) install
-```
+
 
 The Node installer preserves the upstream-compatible interactive workflow for service port, API key, TLS/certificate mode and transport options while installing the ManubisGuard Node implementation.
 
@@ -1000,10 +991,7 @@ docker compose exec -T manubisguard \
 
 ## 🚀 نصب پنل
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh | \
-  sudo bash -s -- install --database timescaledb
-```
+
 
 Installer:
 
@@ -1046,9 +1034,7 @@ Wizard تعاملی SSL برای حالت `curl | bash` نیز اصلاح شده
 
 ## 🛰️ نصب Node
 
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh) install
-```
+
 
 Node Installer سازگاری Workflow تعاملی upstream را حفظ می‌کند و تنظیمات Port، API Key، TLS/Certificate و Transport را دریافت می‌کند.
 
