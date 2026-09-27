@@ -1,5 +1,5 @@
 [project]
-name = "PasarGuard"
+name = "ManubisGuard"
 version = "5.4.1"
 description = "Unified GUI Censorship Resistant Solution"
 readme = "README.md"
@@ -52,11 +52,9 @@ fix = true
 
 [tool.ruff.lint]
 fixable = ["ALL"]
-# Intentional resilience / no-op catch patterns across the codebase.
 ignore = ["BLE001", "S110"]
 
 [tool.ruff.lint.flake8-bugbear]
-# FastAPI dependency injection is the standard Depends()/factory pattern.
 extend-immutable-calls = [
     "fastapi.Depends",
     "fastapi.params.Depends",
@@ -82,6 +80,6 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-watch>=4.2.0",
     "ruff>=0.16.6",
-    "sqlalchemy-utils>=0.41.2",
+    "sqlalchemy-utils>=0.41.0",
     "watchfiles>=1.2.0",
 ]
