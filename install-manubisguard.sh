@@ -314,7 +314,14 @@ start_stack() {
   log "Building latest Panel source from $BRANCH..."
   docker build --pull -t "$PANEL_IMAGE" "$INSTALL_DIR"
   log "Starting ManubisGuard + TimescaleDB..."
-  docker compose -f docker-compose.yml up -d --remove-orphans --wait --wait-timeout 180
+  local expected_image_id actual_image_id
+  expected_image_id="$(docker image inspect -f '{{.Id}}' "$PANEL_IMAGE")"
+  docker compose -f docker-compose.yml up -d --pull never --remove-orphans --wait --wait-timeout 180
+  local panel_container
+  panel_container="$(docker compose -f docker-compose.yml ps -q manubisguard)"
+  [ -n "$panel_container" ] || die "ManubisGuard container was not created."
+  actual_image_id="$(docker inspect -f '{{.Image}}' "$panel_container")"
+  [ "$actual_image_id" = "$expected_image_id" ] || die "Panel container is using a different image than the freshly built image."
 }
 
 verify_stack() {
@@ -417,7 +424,12 @@ if [ -f "$INSTALLER" ]; then
     down|stop) cd "$PROJECT_DIR"; exec docker compose stop ;;
     restart) cd "$PROJECT_DIR"; exec docker compose restart ;;
     logs) cd "$PROJECT_DIR"; exec docker compose logs --tail="${MANUBISGUARD_LOG_TAIL:-100}" -f manubisguard ;;
-    update) exec "$INSTALLER" install --yes --override ;;
+    update)
+      tmp="$(mktemp)"
+      trap 'rm -f "$tmp"' EXIT
+      curl -fsSL "$BOOTSTRAP_URL" -o "$tmp"
+      exec bash "$tmp" install --yes --override
+      ;;
     restore) shift; [ $# -eq 0 ] || { echo "Usage: manubis restore" >&2; exit 2; }; restore_command ;;
     restore-check)
       shift
