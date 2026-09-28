@@ -8,10 +8,11 @@ from app.security.encryption import decrypt_secret, encrypt_secret
 from tests.api import TestSession, client
 
 
-def test_backup_telegram_encryption_round_trip(monkeypatch):
-    from cryptography.fernet import Fernet
+def test_backup_telegram_encryption_round_trip(monkeypatch, tmp_path):
+    from app.security import encryption
 
-    monkeypatch.setenv("BACKUP_TELEGRAM_KEY", Fernet.generate_key().decode())
+    monkeypatch.delenv("BACKUP_TELEGRAM_KEY", raising=False)
+    monkeypatch.setattr(encryption, "KEY_PATH", tmp_path / "backup-telegram.key")
     token = "test-bot-token-12345"
     encrypted = encrypt_secret(token)
     assert encrypted != token
@@ -19,10 +20,11 @@ def test_backup_telegram_encryption_round_trip(monkeypatch):
     assert token not in encrypted
 
 
-def test_configure_telegram_hides_token_and_stores_ciphertext(access_token, monkeypatch):
-    from cryptography.fernet import Fernet
+def test_configure_telegram_hides_token_and_stores_ciphertext(access_token, monkeypatch, tmp_path):
+    from app.security import encryption
 
-    monkeypatch.setenv("BACKUP_TELEGRAM_KEY", Fernet.generate_key().decode())
+    monkeypatch.delenv("BACKUP_TELEGRAM_KEY", raising=False)
+    monkeypatch.setattr(encryption, "KEY_PATH", tmp_path / "backup-telegram.key")
     token = "test-bot-token-12345"
     response = client.post(
         "/api/admin/backup/configure-telegram",
