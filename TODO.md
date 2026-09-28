@@ -777,3 +777,20 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] feature/amnezia-wg was pushed to origin with the UI redesign included.
 - [ ] Deploy the latest feature/amnezia-wg UI build from /tmp/ManubisGuard-Panel to the live Panel when deployment is explicitly approved; do not deploy from /opt/manubisguard-panel.
 - [ ] After deployment, verify /nodes, /nodes/cores, /nodes/wireguard, /nodes/logs, /hosts, /hosts/groups, Settings -> Domains & SSL and Add Core interaction in the live build.
+
+
+## Current Deployment / Auto SNI / Backup Milestone — 2026-09-28
+- [x] **GitHub source-of-truth verified:** all current CLI, installer, TUI compatibility, Backup/Telegram, Auto SNI, Reality scan model/API, dashboard and Docker fixes are present on `feature/amnezia-wg`.
+- [x] **Auto SNI fixed:** Reality Auto SNI now derives the SNI from the target scan result instead of relying on the general SNI pool or sending an obsolete request-level `sni` field.
+- [x] Removed obsolete Reality scan request `sni` field from backend/frontend API models.
+- [x] **Dashboard dependency lock fixed:** `dashboard/package.json` and `dashboard/bun.lock` are synchronized and verified with Bun 1.4.2; `bun install --frozen-lockfile` passes.
+- [x] Restored the required `zustand@5.0.15` dashboard dependency and lock entry.
+- [x] **Docker build fix:** renamed TUI wrapper is copied as `/usr/bin/manubis-tui` and the Dockerfile now chmods the same path.
+- [x] **Real production update completed:** server `CLY327268` updated from `feature/amnezia-wg` and now runs commit `0c9523c6704fd7fa4b79cb5100ca2f01c61013b5`.
+- [x] Production Panel image built successfully as `ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg`; image manifest `sha256:eaf25f2632c0f03d230257c2f5e23d316946b1d7ebfea21a9898cff1f8cae477`.
+- [x] Production container verified `running / healthy`; HTTP `/health` returned `{"status":"ok"}`; dashboard returned HTTP 200.
+- [x] **Build failure root causes documented/fixed:** stale Bun lockfile, undeclared `zustand`, and Dockerfile `pasarguard-tui` chmod typo.
+- [ ] Run the dedicated Auto SNI UI/E2E interaction test against a real Reality target and verify that target + SNI fields are populated and persisted after save.
+- [ ] Run the complete Backup/Telegram authenticated test matrix, including scheduled delivery to Telegram, retention, restore UI flow and security/log plaintext checks.
+- [ ] Re-run full project test/lint/format gates after the latest dashboard/Docker fixes and record real PASS results here.
+- [ ] Keep every subsequent production change synchronized to GitHub `feature/amnezia-wg` before or immediately after deployment; GitHub remains the source of truth.
