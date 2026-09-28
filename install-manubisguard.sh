@@ -26,42 +26,40 @@ die() { printf '[manubisguard-install] ERROR: %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-ManubisGuard installer
-
+==============================
+           Manubis Help
+==============================
 Usage:
-  install-manubisguard.sh install [--database sqlite|timescaledb] [--ssl-mode domain|ip|custom|none] [--ssl-domain DOMAIN] [--yes] [--override]
+  manubis [command]
 
-After installation:
-  manubis status
-  manubis start
-  manubis stop
-  manubis restart
-  manubis logs
-  manubis update
-  manubis restore
-  manubis restore-check /path/to/backup.zip
+Commands:
+  up              – Start services
+  down            – Stop services
+  restart         – Restart services
+  status          – Show status
+  logs            – Show logs
+  cli             – ManubisGuard CLI
+  tui             – ManubisGuard TUI
+  install         – Install ManubisGuard
+  update          – Update to latest version
+  uninstall       – Uninstall ManubisGuard
+  install-script  – Install/update manubis script
+  install-node    – Install ManubisGuard node
+  backup          – Manual backup launch
+  backup-service  – Configure automated database backups
+  restore         – Restore database from backup file
+  edit            – Edit docker-compose.yml
+  edit-env         – Edit environment file
+  version-script  – Show script version and commit
+  completion      – Install bash completion
+  help            – Show this help
 
-Defaults:
-  database: timescaledb
-  branch:   feature/amnezia-wg
-  install:  /opt/manubisguard-panel
-  data:     /var/lib/manubisguard
-
-Options:
-  --database sqlite|timescaledb
-  --ssl-mode domain|ip|custom|none
-  --ssl-domain DOMAIN
-  --ssl-cert FILE --ssl-key FILE
-  --yes|-y      non-interactive safe defaults
-  --override    replace the checked-out source with the selected branch;
-                persistent database credentials/data are preserved
-
-Restore:
-  restore       restore an available backup with production cutover (--apply)
-  restore-check validate a specified backup in staging only (no production changes)
+Directories:
+  App directory: /opt/manubisguard-panel
+  Data directory: /var/lib/manubisguard
+==============================
 EOF
 }
-
 parse_args() {
   [ "${1:-}" = "@" ] && shift || true
   local command="${1:-install}"
@@ -339,145 +337,9 @@ verify_stack() {
 }
 
 install_helper() {
-  install -m 0755 "$INSTALL_DIR/scripts/manubisguard-migrate.sh" /usr/local/bin/manubisguard-migrate
-  cat > /usr/local/bin/manubis <<'EOF'
-#!/usr/bin/env bash
-set -Eeuo pipefail
-
-INSTALLER="/opt/manubisguard-panel/install-manubisguard.sh"
-BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
-APP_DIR="/opt/manubisguard"
-BACKUP_DIR="$APP_DIR/backup"
-PROJECT_DIR="/opt/manubisguard-panel"
-
-show_help() {
-  cat <<'HELP'
-Manubis CLI
-
-Usage: manubis [command]
-
-Commands:
-  up              Start services
-  down            Stop services
-  restart         Restart services
-  status          Show status
-  logs            Show logs
-  cli             Open the panel CLI
-  tui             Open the terminal UI
-  install         Install ManubisGuard
-  update          Update ManubisGuard
-  uninstall       Uninstall ManubisGuard
-  install-script  Install the Manubis CLI script
-  install-node    Install a Manubis node
-  backup          Create a backup
-  backup-service  Configure automated backups
-  restore         Restore from an available backup
-  edit            Edit docker-compose.yml
-  edit-env        Edit environment file
-  version-script  Show script version
-  completion      Install shell completion
-  help            Show this help
-HELP
-}
-
-find_backups() {
-  local dir="$1"
-  [ -d "$dir" ] || return 0
-  find "$dir" -maxdepth 1 -type f \( \
-    -name '*backup*.gz' -o -name '*backup*.tar.gz' -o -name '*.tar.gz' \
-    -o -name '*backup*.zip' -o -name '*.zip' \
-  \) -print0 2>/dev/null | sort -z -V
-}
-
-restore_command() {
-  local dir="$BACKUP_DIR"
-  local -a backups=()
-  local item choice selected
-
-  while IFS= read -r -d '' item; do backups+=("$item"); done < <(find_backups "$dir")
-
-  if [ "${#backups[@]}" -eq 0 ]; then
-    echo "No backup files found in $dir" >&2
-    echo "Place the backup archive in $dir and run: manubis restore" >&2
-    exit 1
-  fi
-
-  echo "Available ManubisGuard backups:"
-  local i=1
-  for item in "${backups[@]}"; do
-    printf '  %d) %s (%s)\n' "$i" "$(basename "$item")" "$(du -h "$item" | cut -f1)"
-    i=$((i + 1))
-  done
-  printf 'Select backup [1-%d]: ' "${#backups[@]}"
-  read -r choice
-  [[ "$choice" =~ ^[0-9]+$ ]] || { echo "Invalid backup selection." >&2; exit 2; }
-  (( choice >= 1 && choice <= ${#backups[@]} )) || { echo "Invalid backup selection." >&2; exit 2; }
-  selected="${backups[$((choice - 1))]}"
-
-  exec /usr/local/bin/manubisguard-migrate "$selected" --apply
-}
-
-if [ -f "$INSTALLER" ]; then
-  case "${1:-}" in
-    status) cd "$PROJECT_DIR"; exec docker compose ps ;;
-    up|start) cd "$PROJECT_DIR"; exec docker compose up -d ;;
-    down|stop) cd "$PROJECT_DIR"; exec docker compose stop ;;
-    restart) cd "$PROJECT_DIR"; exec docker compose restart ;;
-    logs) cd "$PROJECT_DIR"; exec docker compose logs --tail="${MANUBISGUARD_LOG_TAIL:-100}" -f manubisguard ;;
-    update)
-      tmp="$(mktemp)"
-      trap 'rm -f "$tmp"' EXIT
-      curl -fsSL "$BOOTSTRAP_URL" -o "$tmp"
-      exec bash "$tmp" install --yes --override
-      ;;
-    restore) shift; [ $# -eq 0 ] || { echo "Usage: manubis restore" >&2; exit 2; }; restore_command ;;
-    restore-check)
-      shift
-      [ $# -eq 1 ] || { echo "Usage: manubis restore-check /path/to/backup.zip" >&2; exit 2; }
-      exec /usr/local/bin/manubisguard-migrate --check "$1"
-      ;;
-    install|""|-h|--help) exec "$INSTALLER" "${@:-install}" ;;
-    install-script) exec "$INSTALLER" install --yes ;;
-    install-node) exec "$INSTALLER" install-node ;;
-    edit)
-      shift
-      cd "$PROJECT_DIR"
-      editor="${EDITOR:-nano}"
-      command -v "$editor" >/dev/null 2>&1 || { echo "Editor not found: $editor" >&2; exit 1; }
-      [ -f "$PROJECT_DIR/docker-compose.yml" ] || { echo "Compose file not found: $PROJECT_DIR/docker-compose.yml" >&2; exit 1; }
-      exec "$editor" "$PROJECT_DIR/docker-compose.yml"
-      ;;
-    edit-env)
-      shift
-      editor="${EDITOR:-nano}"
-      command -v "$editor" >/dev/null 2>&1 || { echo "Editor not found: $editor" >&2; exit 1; }
-      [ -f "$PROJECT_DIR/.env" ] || { echo "Environment file not found: $PROJECT_DIR/.env" >&2; exit 1; }
-      exec "$editor" "$PROJECT_DIR/.env"
-      ;;
-    backup|backup-service|cli|tui|version-script|completion)
-      echo "Command '$1' is reserved for the upstream Manubis CLI workflow and is not yet wired in this installer build." >&2
-      exit 2
-      ;;
-    uninstall) exec "$INSTALLER" uninstall ;;
-    help) show_help ;;
-    *) echo "Unknown command: $1" >&2; show_help >&2; exit 2 ;;
-  esac
-else
-  command="${1:-install}"
-  case "$command" in
-    install|--help|-h)
-      tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
-      curl -fsSL "$BOOTSTRAP_URL" -o "$tmp"
-      exec bash "$tmp" "${@:-install}"
-      ;;
-    *) echo "ManubisGuard is not installed. Run: manubis install" >&2; exit 1 ;;
-  esac
-fi
-EOF
-  chmod 0755 /usr/local/bin/manubis
+  install -m 0755 "$INSTALL_DIR/manubis" /usr/local/bin/manubis
   rm -f /usr/local/bin/manubisguard
 }
-
 show_result() {
   cd "$INSTALL_DIR"
   local admin_password
@@ -493,7 +355,7 @@ show_result() {
   if [ "$SSL_MODE" = "none" ]; then echo "Panel:       http://SERVER-IP:8000"; elif [ "$SSL_MODE" = "domain" ]; then echo "Panel:       https://${SSL_DOMAIN}:8000"; else echo "Panel:       https://${SERVER_IP:-SERVER-IP}:8000"; fi
   echo "Username:    admin"
   echo "Password:    $admin_password"
-  echo "CLI:         manubis {status|start|stop|restart|logs|update|restore|restore-check}"
+  echo "CLI:         manubis {up|down|restart|status|logs|cli|tui|install|update|uninstall|install-script|install-node|backup|backup-service|restore|edit|edit-env|version-script|completion|help}"
   docker compose -f docker-compose.yml ps
   echo "=============================================="
 }
