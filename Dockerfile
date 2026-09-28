@@ -54,7 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY cli_wrapper.sh /usr/bin/manubisguard-cli
 RUN chmod +x /usr/bin/manubisguard-cli
 
-COPY tui_wrapper.sh /usr/bin/pasarguard-tui
+COPY tui_wrapper.sh /usr/bin/manubis-tui
 RUN chmod +x /usr/bin/pasarguard-tui
 
 COPY healthcheck.sh /code/healthcheck.sh
