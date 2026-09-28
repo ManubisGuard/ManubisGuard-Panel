@@ -22,7 +22,20 @@ export default function BackupSettings() {
   const { data: schedule, refetch: refetchSchedule } = useQuery({ queryKey: ['backup-schedule'], queryFn: () => $fetch<any>('/api/admin/backup/schedule') })
   const [showRestoreLogs, setShowRestoreLogs] = useState(false); const [scheduleEnabled, setScheduleEnabled] = useState(false); const [frequency, setFrequency] = useState('daily'); const [hour, setHour] = useState(2); const [minute, setMinute] = useState(0); const [weekday, setWeekday] = useState(1); const [dayOfMonth, setDayOfMonth] = useState(1); const [retention, setRetention] = useState(7); const [restoringId, setRestoringId] = useState<number | null>(null); const [productionRestoreId, setProductionRestoreId] = useState<number | null>(null); const [restoreResult, setRestoreResult] = useState<any>(null)
   useEffect(() => { if (schedule) { setScheduleEnabled(schedule.enabled); setFrequency(schedule.frequency); setHour(schedule.hour); setMinute(schedule.minute); setWeekday(schedule.weekday ?? 1); setDayOfMonth(schedule.day_of_month ?? 1); setRetention(schedule.retention_count) } }, [schedule])
-  const run = async (action: () => Promise<unknown>, success: string) => { setBusy(true); try { await action(); toast.success(success); await queryClient.invalidateQueries({ queryKey: ['admin-backups'] }) } catch (error: any) { toast.error(error?.data?.detail || error?.message || 'Backup operation failed') } finally { setBusy(false) } }
+  const run = async (action: () => Promise<unknown>, success: string) => {
+    setBusy(true)
+    try {
+      await action()
+      toast.success(success)
+      await queryClient.invalidateQueries({ queryKey: ['admin-backups'] })
+      return true
+    } catch (error: any) {
+      toast.error(error?.data?.detail || error?.message || 'Backup operation failed')
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
   const saveSchedule = () => run(async () => { const payload = { enabled: scheduleEnabled, frequency, hour, minute, weekday: frequency === 'weekly' ? weekday : null, day_of_month: frequency === 'monthly' ? dayOfMonth : null, retention_count: retention }; await $fetch('/api/admin/backup/schedule', { method: 'PUT', body: payload }); await refetchSchedule() }, 'Backup schedule saved')
   const createBackup = () => run(() => $fetch('/api/admin/backup/create', { method: 'POST', body: { note: note || null } }), 'Backup created successfully')
   const uploadBackup = async (file: File) => { setBusy(true); try { const form = new FormData(); form.append('file', file); const uploaded = await $fetch<BackupItem>('/api/admin/backup/upload', { method: 'POST', body: form }); setUploadedRestoreId(uploaded.id); setRestoreResult(null); toast.success('Backup uploaded — ready to restore'); await queryClient.invalidateQueries({ queryKey: ['admin-backups'] }) } catch (error: any) { toast.error(error?.data?.detail || error?.message || 'Upload failed') } finally { setBusy(false); if (uploadRef.current) uploadRef.current.value = '' } }
@@ -33,7 +46,20 @@ export default function BackupSettings() {
   const restoreToProduction = async (id: number, filename: string) => { const confirmation = window.prompt(`This will STOP the panel, restore this backup into the live database, then restart the current ManubisGuard container. Type RESTORE_PRODUCTION to continue for ${filename}.`) ; if (confirmation !== 'RESTORE_PRODUCTION') return; setProductionRestoreId(id); setRestoreResult(null); setShowRestoreLogs(true); try { const result = await $fetch<any>(`/api/admin/backup/restore/production/${id}`, { method: 'POST', body: { confirmation: 'RESTORE_PRODUCTION' } }); result.ok ? toast.success('Production restore completed and panel health passed') : toast.error('Production restore failed; inspect the migration result') ; setRestoreResult(result); await queryClient.invalidateQueries({ queryKey: ['admin-backups'] }) } catch (error: any) { const detail = error?.data?.detail || error?.message || 'Production restore failed'; setRestoreResult({ ok: false, output: String(detail), errors: [String(detail)] }); toast.error(detail) } finally { setProductionRestoreId(null) } }
   const downloadBackup = async (id: number, filename: string) => { try { const token = getAuthToken(); const response = await window.fetch(`/api/admin/backup/download/${id}`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined }); if (!response.ok) { const detail = await response.json().catch(() => null); throw new Error(detail?.detail || `Download failed (${response.status})`) } const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url) } catch (error: any) { toast.error(error?.message || 'Download failed') } }
   const deleteBackup = (id: number) => run(() => $fetch(`/api/admin/backup/${id}`, { method: 'DELETE' }), 'Backup deleted')
-  const configureTelegram = () => { if (!token.trim() || !chatId.trim()) return void toast.error('Bot token and Chat ID are required'); run(() => $fetch('/api/admin/backup/configure-telegram', { method: 'POST', body: { telegram_bot_token: token, telegram_chat_id: chatId } }), 'Telegram backup notifications configured').then(() => setToken('')) }
+  const configureTelegram = async () => {
+    if (!token.trim() || !chatId.trim()) return void toast.error('Bot token and Chat ID are required')
+    const saved = await run(
+      () => $fetch('/api/admin/backup/configure-telegram', {
+        method: 'POST',
+        body: { telegram_bot_token: token.trim(), telegram_chat_id: chatId.trim() },
+      }),
+      'Telegram backup notifications configured',
+    )
+    if (saved) {
+      setToken('')
+      setChatId('')
+    }
+  }
   const items = data?.items ?? []
 
   return <div className="space-y-6">
@@ -44,7 +70,25 @@ export default function BackupSettings() {
       <Card><CardHeader><CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5" /> Restore Preparation</CardTitle><CardDescription>Upload a ZIP, validate it, then Restore to the live ManubisGuard database.</CardDescription></CardHeader><CardContent className="space-y-3"><input ref={uploadRef} type="file" accept=".zip,application/zip" className="hidden" onChange={e => e.target.files?.[0] && uploadBackup(e.target.files[0])} /><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => uploadRef.current?.click()} disabled={busy}><Upload className="mr-2 h-4 w-4" />Upload ZIP</Button><Button onClick={restoreUploadedBackup} disabled={busy || uploadedRestoreId === null || checkingId === uploadedRestoreId || productionRestoreId === uploadedRestoreId}>{checkingId === uploadedRestoreId || productionRestoreId === uploadedRestoreId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}Restore</Button><Button variant="outline" onClick={() => setShowRestoreLogs(v => !v)}><FileText className="mr-2 h-4 w-4" />{showRestoreLogs ? 'Hide Restore Logs' : 'Restore Logs'}</Button></div><p className="text-sm text-muted-foreground">Select a ZIP, press Restore, confirm RESTORE_PRODUCTION, and the backup will be validated then applied to the live database. The current docker-compose.yml, image and repository settings are preserved.</p></CardContent></Card>
       {showRestoreLogs && restoreResult && <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Restore Logs</CardTitle><CardDescription>آخرین خروجی Restore در همین نشست. خطاها بدون مخفی‌سازی در همین بخش نمایش داده می‌شوند.</CardDescription></CardHeader><CardContent className="space-y-3">{restoreResult.ok === false && <Alert variant="destructive"><AlertDescription>{restoreResult.errors?.join('; ') || 'Restore failed'}</AlertDescription></Alert>}<pre className="max-h-[32rem] overflow-auto rounded bg-muted p-4 text-xs whitespace-pre-wrap">{restoreResult.output || 'No restore log is available yet.'}</pre></CardContent></Card>}
       <Card><CardHeader><CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" /> Telegram</CardTitle><CardDescription>Bot credentials are encrypted before database storage and are never returned by the API.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="space-y-2"><Label htmlFor="telegram-token">Bot Token</Label><Input id="telegram-token" type="password" autoComplete="new-password" value={token} onChange={e => setToken(e.target.value)} placeholder="••••••••" /></div><div className="space-y-2"><Label htmlFor="telegram-chat">Chat ID</Label><Input id="telegram-chat" value={chatId} onChange={e => setChatId(e.target.value)} placeholder="123456789" /></div><Button onClick={configureTelegram} disabled={busy}><LockKeyhole className="mr-2 h-4 w-4" />Save Encrypted Configuration</Button></CardContent></Card>
-      <Card><CardHeader><CardTitle>Automatic Backup</CardTitle><CardDescription>Daily, weekly, monthly scheduling and retention controls.</CardDescription></CardHeader><CardContent><Alert><AlertDescription>Scheduler API and retention controls are not yet exposed by the backend. This UI intentionally does not fake those operations.</AlertDescription></Alert></CardContent></Card>
+      <Card>
+        <CardHeader><CardTitle>Automatic Backup</CardTitle><CardDescription>Schedule automatic backups and send each completed archive to Telegram.</CardDescription></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div><Label htmlFor="backup-schedule-enabled">Automatic backups</Label><p className="text-xs text-muted-foreground">The background scheduler handles the saved schedule.</p></div>
+            <input id="backup-schedule-enabled" type="checkbox" checked={scheduleEnabled} onChange={e => setScheduleEnabled(e.target.checked)} className="h-4 w-4" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-2"><Label htmlFor="backup-frequency">Frequency</Label><select id="backup-frequency" value={frequency} onChange={e => setFrequency(e.target.value)} className="bg-background w-full rounded-md border px-3 py-2 text-sm"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>
+            <div className="space-y-2"><Label htmlFor="backup-hour">Hour</Label><Input id="backup-hour" type="number" min={0} max={23} value={hour} onChange={e => setHour(Number(e.target.value))} /></div>
+            <div className="space-y-2"><Label htmlFor="backup-minute">Minute</Label><Input id="backup-minute" type="number" min={0} max={59} value={minute} onChange={e => setMinute(Number(e.target.value))} /></div>
+          </div>
+          {frequency === 'weekly' && <div className="space-y-2"><Label htmlFor="backup-weekday">Weekday</Label><select id="backup-weekday" value={weekday} onChange={e => setWeekday(Number(e.target.value))} className="bg-background w-full rounded-md border px-3 py-2 text-sm"><option value={0}>Monday</option><option value={1}>Tuesday</option><option value={2}>Wednesday</option><option value={3}>Thursday</option><option value={4}>Friday</option><option value={5}>Saturday</option><option value={6}>Sunday</option></select></div>}
+          {frequency === 'monthly' && <div className="space-y-2"><Label htmlFor="backup-day">Day of month</Label><Input id="backup-day" type="number" min={1} max={31} value={dayOfMonth} onChange={e => setDayOfMonth(Number(e.target.value))} /></div>}
+          <div className="space-y-2"><Label htmlFor="backup-retention">Keep backups</Label><Input id="backup-retention" type="number" min={1} max={1000} value={retention} onChange={e => setRetention(Number(e.target.value))} /></div>
+          <Button onClick={saveSchedule} disabled={busy}>Save Backup Schedule</Button>
+          <p className="text-xs text-muted-foreground">Telegram credentials are encrypted. Each scheduled backup is uploaded to the configured Telegram chat.</p>
+        </CardContent>
+      </Card>
     </div>
     <Card><CardHeader className="flex-row items-center justify-between space-y-0"><div><CardTitle>Backup History</CardTitle><CardDescription>{data?.total ?? 0} records</CardDescription></div><Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isLoading}><RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /></Button></CardHeader><CardContent>
       {isError && <Alert variant="destructive"><AlertDescription>Unable to load backup history.</AlertDescription></Alert>}
