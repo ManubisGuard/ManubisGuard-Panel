@@ -2502,11 +2502,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   const autoSelectRealitySni = async () => {
     if (isRealitySniDiscoveryRunning || isRealityAutoSelecting) return
-    const pool = (generalSettings?.reality_sni_pool ?? []).map(value => String(value).trim()).filter(Boolean)
-    if (pool.length === 0) {
-      toast.error('Reality SNI Pool is empty. Add candidates in Admin Settings → General.')
-      return
-    }
 
     const rawTarget = form.getValues(securityFieldName('target'))
     const target = typeof rawTarget === 'string' ? rawTarget.trim() : ''
@@ -2517,42 +2512,33 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
     setIsRealityAutoSelecting(true)
     try {
-      const results = await Promise.all(
-        pool.slice(0, 25).map(async candidateSni => {
-          try {
-            const response = await scanRealityTarget({ target, sni: candidateSni, timeout: 10 })
-            return response.status === 200 ? response.data : null
-          } catch {
-            return null
-          }
-        }),
-      )
+      const response = await scanRealityTarget({ target, timeout: 10 })
+      if (response.status !== 200) {
+        throw new Error('Reality scan request was not successful.')
+      }
 
-      const healthy = results
-        .filter((result): result is RealityScanResult => Boolean(result?.feasible))
-        .sort((a, b) => (a.latency_ms ?? Number.POSITIVE_INFINITY) - (b.latency_ms ?? Number.POSITIVE_INFINITY))
-
-      const best = healthy[0]
-      if (!best) {
-        toast.error('No healthy Reality SNI candidate was found in the configured pool.')
+      const result = response.data
+      if (!result.feasible) {
+        toast.error('Reality target is not suitable for automatic SNI selection.')
         return
       }
 
       const selectedSni =
-        typeof best.sni === 'string' && best.sni.trim()
-          ? best.sni.trim()
-          : Array.isArray(best.server_names) && typeof best.server_names[0] === 'string'
-            ? best.server_names[0].trim()
+        typeof result.sni === 'string' && result.sni.trim()
+          ? result.sni.trim()
+          : Array.isArray(result.server_names) && typeof result.server_names[0] === 'string'
+            ? result.server_names[0].trim()
             : ''
+
       if (!selectedSni) {
-        toast.error('The selected Reality SNI candidate did not return a usable SNI.')
+        toast.error('No usable SNI was discovered from the Reality target certificate.')
         return
       }
 
-      // Apply the chosen value to both RHF and the latest inbound draft. Using the
-      // explicit serverNames array here avoids depending on the textarea parser and
-      // makes the persisted Xray Reality config deterministic.
-      applyRealityScanResult(best, 'Auto Select · ' + (best.latency_ms ?? '—') + ' ms', [selectedSni])
+      applyRealityScanResult(result, 'Auto SNI', [selectedSni])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to discover an SNI from the Reality target.'
+      toast.error('Auto SNI failed', { description: message })
     } finally {
       setIsRealityAutoSelecting(false)
     }
@@ -4643,7 +4629,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                     loadingText="Selecting best SNI..."
                                     disabled={isRealitySniDiscoveryRunning}
                                   >
-                                    <span className="flex items-center gap-2 truncate">Auto Select Best SNI</span>
+                                    <span className="flex items-center gap-2 truncate">Auto SNI</span>
                                   </LoaderButton>
                                 </div>
                               )}
