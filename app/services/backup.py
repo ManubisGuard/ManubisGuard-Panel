@@ -5,6 +5,8 @@ import os
 import subprocess
 import tempfile
 import zipfile
+
+import aiohttp
 from datetime import UTC, datetime as dt
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -151,8 +153,8 @@ async def check_backup(db: AsyncSession, backup: Backup) -> BackupCheckResponse:
 
 
 async def list_backups(db: AsyncSession) -> tuple[list[Backup], int]:
-    total = int((await db.execute(select(func.count(Backup.id)))).scalar_one())
-    items = list((await db.execute(select(Backup).order_by(Backup.created_at.desc()))).scalars())
+    total = int((await db.execute(select(func.count(Backup.id)).where(Backup.status != "telegram_configured"))).scalar_one())
+    items = list((await db.execute(select(Backup).where(Backup.status != "telegram_configured").order_by(Backup.created_at.desc()))).scalars())
     return items, total
 
 
@@ -168,20 +170,64 @@ async def configure_telegram(db: AsyncSession, *, created_by: int, token: str, c
     from app.security.encryption import encrypt_secret
 
     encrypted = encrypt_secret(token)
-    backup = Backup(
-        filename="telegram-config",
-        size=0,
-        status="telegram_configured",
-        backup_path="",
-        metadata_json={"telegram_enabled": True},
-        created_by=created_by,
-        telegram_bot_token=encrypted,
-        telegram_chat_id=chat_id,
+    result = await db.execute(
+        select(Backup).where(Backup.status == "telegram_configured").order_by(Backup.id.desc())
     )
-    db.add(backup)
+    backup = result.scalars().first()
+    if backup is None:
+        backup = Backup(
+            filename="telegram-config",
+            size=0,
+            status="telegram_configured",
+            backup_path="",
+            metadata_json={"telegram_enabled": True},
+            created_by=created_by,
+        )
+        db.add(backup)
+
+    backup.telegram_bot_token = encrypted
+    backup.telegram_chat_id = chat_id
+    backup.metadata_json = {"telegram_enabled": True}
+    backup.created_by = created_by
     await db.commit()
     await db.refresh(backup)
     return backup
+
+
+async def get_telegram_config(db: AsyncSession) -> tuple[str, str] | None:
+    result = await db.execute(
+        select(Backup).where(Backup.status == "telegram_configured").order_by(Backup.id.desc())
+    )
+    backup = result.scalars().first()
+    if backup is None or not backup.telegram_bot_token or not backup.telegram_chat_id:
+        return None
+    token = decrypt_telegram_token(backup)
+    if not token:
+        return None
+    return token, backup.telegram_chat_id
+
+
+async def send_backup_to_telegram(db: AsyncSession, backup: Backup) -> None:
+    config = await get_telegram_config(db)
+    if config is None:
+        return
+
+    token, chat_id = config
+    path = Path(backup.backup_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Backup file not found: {path}")
+
+    url = f"https://api.telegram.org/bot{token}/sendDocument"
+    timeout = aiohttp.ClientTimeout(total=120)
+    form = aiohttp.FormData()
+    form.add_field("chat_id", chat_id)
+    with path.open("rb") as handle:
+        form.add_field("document", handle, filename=path.name, content_type="application/zip")
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(url, data=form) as response:
+                payload = await response.text()
+                if response.status >= 400:
+                    raise RuntimeError(f"Telegram send failed ({response.status}): {payload[-1000:]}")
 
 
 def decrypt_telegram_token(backup: Backup) -> str | None:
@@ -217,7 +263,7 @@ async def configure_backup_schedule(db: AsyncSession, **values):
 async def apply_backup_retention(db: AsyncSession, retention_count: int) -> int:
     if retention_count < 1:
         return 0
-    backups = list((await db.execute(select(Backup).order_by(Backup.created_at.desc()))).scalars())
+    backups = list((await db.execute(select(Backup).where(Backup.status != "telegram_configured").order_by(Backup.created_at.desc()))).scalars())
     deleted = 0
     for backup in backups[retention_count:]:
         if backup.status == "telegram_configured":
