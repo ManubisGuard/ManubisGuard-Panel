@@ -3,7 +3,7 @@ from datetime import UTC, datetime as dt
 from app import scheduler
 from app.db import GetDB
 from app.db.models import BackupSchedule
-from app.services.backup import apply_backup_retention, create_backup, get_backup_schedule
+from app.services.backup import apply_backup_retention, create_backup, get_backup_schedule, send_backup_to_telegram
 from app.utils.logger import get_logger
 from config import runtime_settings
 
@@ -40,6 +40,19 @@ async def scheduled_backup() -> None:
             return
         try:
             backup = await create_backup(db, created_by=None, note=f"scheduled:{schedule.frequency}")
+            try:
+                await send_backup_to_telegram(db, backup)
+                backup.metadata_json = {**(backup.metadata_json or {}), "telegram_delivery": "sent"}
+                await db.commit()
+                logger.info("Scheduled backup sent to Telegram: %s", backup.filename)
+            except Exception as telegram_exc:
+                backup.metadata_json = {
+                    **(backup.metadata_json or {}),
+                    "telegram_delivery": "failed",
+                    "telegram_error": str(telegram_exc)[:1000],
+                }
+                await db.commit()
+                logger.exception("Scheduled backup Telegram delivery failed: %s", backup.filename)
             schedule.last_run_at = now
             await db.commit()
             deleted = await apply_backup_retention(db, schedule.retention_count)
