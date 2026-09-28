@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+INSTALLER="/opt/manubisguard-panel/install-manubisguard.sh"
+PROJECT_DIR="/opt/manubisguard-panel"
+BACKUP_DIR="/var/lib/manubisguard/backups"
+BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
+CLI_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/manubis"
+
+show_help() {
+  cat <<'HELP'
+==============================
+           Manubis Help
+==============================
+Usage:
+  manubis [command]
+
+Commands:
+  up              – Start services
+  down            – Stop services
+  restart         – Restart services
+  status          – Show status
+  logs            – Show logs
+  cli             – ManubisGuard CLI
+  tui             – ManubisGuard TUI
+  install         – Install ManubisGuard
+  update          – Update to latest version
+  uninstall       – Uninstall ManubisGuard
+  install-script  – Install/update manubis script
+  install-node    – Install ManubisGuard node
+  backup          – Manual backup launch
+  backup-service  – Configure automated database backups
+  restore         – Restore database from backup file
+  edit            – Edit docker-compose.yml
+  edit-env        – Edit environment file
+  version-script  – Show script version and commit
+  completion      – Install bash completion
+  help            – Show this help
+
+Directories:
+  App directory: /opt/manubisguard-panel
+  Data directory: /var/lib/manubisguard
+==============================
+HELP
+}
+
+need_project() {
+  [ -d "$PROJECT_DIR" ] || { echo "ManubisGuard is not installed. Run: manubis install" >&2; exit 1; }
+}
+
+install_from_installer() {
+  local tmp
+  tmp="$(mktemp)"
+  curl -fsSL "$BOOTSTRAP_URL" -o "$tmp"
+  exec bash "$tmp" "$@"
+}
+
+restore_command() {
+  need_project
+  local -a backups=()
+  local item choice selected
+  mkdir -p "$BACKUP_DIR"
+  while IFS= read -r -d '' item; do backups+=("$item"); done < <(
+    find "$BACKUP_DIR" -maxdepth 1 -type f \( -name '*.dump' -o -name '*.dump.gz' -o -name '*.zip' -o -name '*.tar.gz' \) -print0 2>/dev/null | sort -z -V
+  )
+  if [ "${#backups[@]}" -eq 0 ]; then
+    echo "No backup files found in $BACKUP_DIR" >&2
+    exit 1
+  fi
+  echo "Available ManubisGuard backups:"
+  local i=1
+  for item in "${backups[@]}"; do
+    printf '  %d) %s (%s)\n' "$i" "$(basename "$item")" "$(du -h "$item" | cut -f1)"
+    i=$((i + 1))
+  done
+  printf 'Select backup [1-%d]: ' "${#backups[@]}"
+  read -r choice
+  [[ "$choice" =~ ^[0-9]+$ ]] || { echo "Invalid backup selection." >&2; exit 2; }
+  (( choice >= 1 && choice <= ${#backups[@]} )) || { echo "Invalid backup selection." >&2; exit 2; }
+  selected="${backups[$((choice - 1))]}"
+  exec /usr/local/bin/manubisguard-migrate "$selected" --apply
+}
+
+case "${1:-help}" in
+  up|start)
+    need_project; cd "$PROJECT_DIR"; exec docker compose up -d
+    ;;
+  down|stop)
+    need_project; cd "$PROJECT_DIR"; exec docker compose stop
+    ;;
+  restart)
+    need_project; cd "$PROJECT_DIR"; exec docker compose restart
+    ;;
+  status)
+    need_project; cd "$PROJECT_DIR"; exec docker compose ps
+    ;;
+  logs)
+    need_project; cd "$PROJECT_DIR"; shift
+    exec docker compose logs --tail="${MANUBISGUARD_LOG_TAIL:-100}" -f manubisguard "$@"
+    ;;
+  cli)
+    need_project; shift
+    exec docker compose exec -it manubisguard /usr/bin/manubisguard-cli "$@"
+    ;;
+  tui)
+    need_project; shift
+    exec docker compose exec -it manubisguard /usr/bin/manubis-tui "$@"
+    ;;
+  install)
+    shift
+    install_from_installer install "$@"
+    ;;
+  update)
+    install_from_installer install --yes --override
+    ;;
+  uninstall)
+    need_project
+    if [ "${MANUBISGUARD_YES:-false}" != true ]; then
+      printf 'This removes the ManubisGuard application but preserves /var/lib/manubisguard. Continue? [y/N] '
+      read -r answer
+      case "$answer" in y|Y|yes|YES) ;; *) echo "Cancelled."; exit 0 ;; esac
+    fi
+    cd "$PROJECT_DIR"
+    docker compose down --remove-orphans || true
+    systemctl disable --now manubisguard-restore-agent.service 2>/dev/null || true
+    rm -f /etc/systemd/system/manubisguard-restore-agent.service /usr/local/bin/manubisguard-restore-agent
+    systemctl daemon-reload
+    rm -rf "$PROJECT_DIR"
+    rm -f /usr/local/bin/manubis
+    echo "ManubisGuard application removed. Data preserved in /var/lib/manubisguard."
+    ;;
+  install-script)
+    tmp="$(mktemp)"
+    curl -fsSL "$CLI_URL" -o "$tmp"
+    install -m 0755 "$tmp" /usr/local/bin/manubis
+    rm -f "$tmp"
+    echo "manubis script installed."
+    ;;
+  install-node)
+    need_project; shift
+    exec bash "$PROJECT_DIR/install-node.sh" "$@"
+    ;;
+  backup)
+    need_project; cd "$PROJECT_DIR"
+    exec bash scripts/backup-db.sh "${1:-$BACKUP_DIR}"
+    ;;
+  backup-service)
+    need_project
+    schedule="${MANUBISGUARD_BACKUP_SCHEDULE:-30 3 * * *}"
+    mkdir -p "$BACKUP_DIR"
+    cron_line="$schedule cd $PROJECT_DIR && /usr/bin/env bash $PROJECT_DIR/scripts/backup-db.sh $BACKUP_DIR >> /var/log/manubisguard-backup.log 2>&1"
+    tmp="$(mktemp)"
+    crontab -l 2>/dev/null | grep -v 'manubisguard-backup' > "$tmp" || true
+    printf '%s # manubisguard-backup\n' "$cron_line" >> "$tmp"
+    crontab "$tmp"
+    rm -f "$tmp"
+    echo "Backup service configured."
+    echo "Schedule: $schedule"
+    echo "Directory: $BACKUP_DIR"
+    ;;
+  restore)
+    shift
+    if [ "$#" -eq 1 ]; then
+      need_project
+      exec /usr/local/bin/manubisguard-migrate "$1" --apply
+    fi
+    [ "$#" -eq 0 ] || { echo "Usage: manubis restore [/path/to/backup]" >&2; exit 2; }
+    restore_command
+    ;;
+  edit)
+    need_project
+    editor="${EDITOR:-nano}"
+    command -v "$editor" >/dev/null 2>&1 || { echo "Editor not found: $editor" >&2; exit 1; }
+    exec "$editor" "$PROJECT_DIR/docker-compose.yml"
+    ;;
+  edit-env)
+    need_project
+    editor="${EDITOR:-nano}"
+    command -v "$editor" >/dev/null 2>&1 || { echo "Editor not found: $editor" >&2; exit 1; }
+    exec "$editor" "$PROJECT_DIR/.env"
+    ;;
+  version-script)
+    echo "Manubis CLI"
+    if [ -f "$PROJECT_DIR/install-manubisguard.sh" ]; then
+      sha="$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || true)"
+      branch="$(git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || true)"
+      echo "Branch: ${branch:-unknown}"
+      echo "Commit: ${sha:-unknown}"
+    fi
+    echo "Script: /usr/local/bin/manubis"
+    ;;
+  completion)
+    install -d /etc/bash_completion.d
+    cat > /etc/bash_completion.d/manubis <<'COMP'
+_manubis_completion() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local commands="up down restart status logs cli tui install update uninstall install-script install-node backup backup-service restore edit edit-env version-script completion help"
+  COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
+}
+complete -F _manubis_completion manubis
+COMP
+    echo "Bash completion installed. Start a new shell or run: source /etc/bash_completion.d/manubis"
+    ;;
+  help|-h|--help)
+    show_help
+    ;;
+  *)
+    echo "Unknown command: $1" >&2
+    show_help >&2
+    exit 2
+    ;;
+esac
