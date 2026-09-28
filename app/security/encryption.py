@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
