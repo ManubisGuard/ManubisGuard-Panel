@@ -55,7 +55,7 @@ COPY cli_wrapper.sh /usr/bin/manubisguard-cli
 RUN chmod +x /usr/bin/manubisguard-cli
 
 COPY tui_wrapper.sh /usr/bin/manubis-tui
-RUN chmod +x /usr/bin/pasarguard-tui
+RUN chmod +x /usr/bin/manubis-tui
 
 COPY healthcheck.sh /code/healthcheck.sh
 RUN chmod +x /code/healthcheck.sh
