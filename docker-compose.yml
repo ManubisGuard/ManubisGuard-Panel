@@ -17,8 +17,7 @@ services:
       retries: 30
 
   manubisguard:
-    image: ghcr.io/manubisguard/manubisguard-panel:latest
-    pull_policy: always
+    image: ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg
     restart: always
     env_file: .env
     network_mode: host
