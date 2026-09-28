@@ -18,8 +18,8 @@ interface UseVersionCheckOptions {
   enabled?: boolean
 }
 
-const GITHUB_API_URL = 'https://api.github.com/repos/ManubisGuard/ManubisGuard-Panel/releases/latest'
-const CACHE_KEY = 'manubisguard_release_v1'
+const GITHUB_API_URL = 'https://api.github.com/repos/PasarGuard/panel/releases/latest'
+const CACHE_KEY = 'pasarguard_upstream_release_v2'
 const CACHE_DURATION = 10 * 60 * 1000
 
 function compareVersions(current: string, latest: string): number {
