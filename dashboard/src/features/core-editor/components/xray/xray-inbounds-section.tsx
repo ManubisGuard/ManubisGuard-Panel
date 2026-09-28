@@ -54,7 +54,7 @@ import {
   type VlessBuilderOptions,
 } from '@/lib/xray-generation'
 import { mldsa65PairMatches, validateMldsa65Seed, validateMldsa65Verify } from '@/utils/mldsa65'
-import { scanRealityTarget, useGetGeneralSettings, type RealityScanResult } from '@/service/api'
+import { scanRealityTarget, type RealityScanResult } from '@/service/api'
 import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { arrayMove } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -988,7 +988,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [realityScanTarget, setRealityScanTarget] = useState('')
   const [isRealitySniDiscoveryRunning, setIsRealitySniDiscoveryRunning] = useState(false)
   const [isRealityAutoSelecting, setIsRealityAutoSelecting] = useState(false)
-  const { data: generalSettings } = useGetGeneralSettings()
   const [echUsageOption, setEchUsageOption] = useState<'default' | 'required' | 'preferred'>('default')
   const [draftInbound, setDraftInbound] = useState<Inbound | null>(null)
   const [editOriginalInbound, setEditOriginalInbound] = useState<Inbound | null>(null)
