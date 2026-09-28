@@ -794,3 +794,11 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] Run the complete Backup/Telegram authenticated test matrix, including scheduled delivery to Telegram, retention, restore UI flow and security/log plaintext checks.
 - [ ] Re-run full project test/lint/format gates after the latest dashboard/Docker fixes and record real PASS results here.
 - [ ] Keep every subsequent production change synchronized to GitHub `feature/amnezia-wg` before or immediately after deployment; GitHub remains the source of truth.
+
+
+## Completed: legacy Telegram bot admin/reseller compatibility
+
+- [x] Fixed Admin creation compatibility for external Telegram bots still sending legacy/custom `role_id` values after RBAC migration.
+- [x] Valid current RBAC roles remain unchanged; unknown role IDs fall back to the least-privileged built-in operator role (`role_id=3`).
+- [x] Deployed to production and verified panel health/dashboard HTTP 200.
+- [ ] Re-test Admin and reseller creation from the Telegram bot and inspect the compatibility warning log if needed.
