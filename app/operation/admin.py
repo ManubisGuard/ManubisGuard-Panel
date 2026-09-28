@@ -19,6 +19,7 @@ from app.db.crud.admin import (
     reset_admin_usage,
     update_admin,
 )
+from app.db.crud.admin_role import get_role
 from app.db.crud.bulk import activate_all_disabled_users, disable_all_active_users
 from app.db.crud.user import get_users, remove_users
 from app.db.models import Admin, AdminStatus
@@ -68,6 +69,19 @@ class AdminOperation(BaseOperation):
             existing_admins = await find_admins_by_telegram_id(db, new_admin.telegram_id, limit=1)
             if existing_admins:
                 await self.raise_error(message="Telegram ID is already assigned to another admin.", code=409, db=db)
+
+        # Keep the admin API compatible with older external bot clients that may
+        # still send a legacy/custom role id from a pre-RBAC installation.
+        # Valid current roles, including custom roles, are left untouched.
+        requested_role_id = new_admin.role_id
+        requested_role = await get_role(db, requested_role_id)
+        if requested_role is None:
+            logger.warning(
+                "Unknown admin role_id %s requested by %s; falling back to operator role_id=3",
+                requested_role_id,
+                admin.username,
+            )
+            new_admin = new_admin.model_copy(update={"role_id": 3})
 
         try:
             db_admin = await create_admin(db, new_admin)
