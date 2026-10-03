@@ -3,7 +3,13 @@ from datetime import UTC, datetime as dt
 from app import scheduler
 from app.db import GetDB
 from app.db.models import BackupSchedule
-from app.services.backup import apply_backup_retention, create_backup, get_backup_schedule, send_backup_to_telegram
+from app.services.backup import (
+    apply_backup_retention,
+    create_backup,
+    get_backup_schedule,
+    get_pending_telegram_backup,
+    send_backup_to_telegram,
+)
 from app.utils.logger import get_logger
 from config import runtime_settings
 
@@ -45,15 +51,45 @@ async def scheduled_backup() -> None:
     async with GetDB() as db:
         schedule = await get_backup_schedule(db)
         now = dt.now(UTC)
+
+        # Retry the last failed Telegram delivery before creating another archive.
+        pending = await get_pending_telegram_backup(db)
+        if pending is not None:
+            try:
+                delivered = await send_backup_to_telegram(db, pending)
+                pending.metadata_json = {
+                    **(pending.metadata_json or {}),
+                    "telegram_delivery": "sent" if delivered else "disabled",
+                    "telegram_retry_at": now.isoformat(),
+                }
+                await db.commit()
+                logger.info("Retried scheduled backup Telegram delivery: %s", pending.filename)
+            except Exception as telegram_exc:
+                pending.metadata_json = {
+                    **(pending.metadata_json or {}),
+                    "telegram_delivery": "failed",
+                    "telegram_error": str(telegram_exc)[:1000],
+                    "telegram_retry_at": now.isoformat(),
+                }
+                await db.commit()
+                logger.exception("Scheduled backup Telegram retry failed: %s", pending.filename)
+            return
+
         if not _is_due(now, schedule):
             return
         try:
             backup = await create_backup(db, created_by=None, note=f"scheduled:{schedule.frequency}")
             try:
-                await send_backup_to_telegram(db, backup)
-                backup.metadata_json = {**(backup.metadata_json or {}), "telegram_delivery": "sent"}
+                delivered = await send_backup_to_telegram(db, backup)
+                backup.metadata_json = {
+                    **(backup.metadata_json or {}),
+                    "telegram_delivery": "sent" if delivered else "disabled",
+                }
                 await db.commit()
-                logger.info("Scheduled backup sent to Telegram: %s", backup.filename)
+                if delivered:
+                    logger.info("Scheduled backup sent to Telegram: %s", backup.filename)
+                else:
+                    logger.info("Scheduled backup created without Telegram delivery: %s", backup.filename)
             except Exception as telegram_exc:
                 backup.metadata_json = {
                     **(backup.metadata_json or {}),

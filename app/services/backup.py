@@ -11,10 +11,11 @@ from datetime import UTC, datetime as dt
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Backup
+from app.migration.timescale import filter_postgresql_compatibility_line
 from app.migration.runner import analyze_backup
 from app.models.backup import BackupCheckResponse
 from config import database_settings
@@ -41,9 +42,16 @@ def _source_metadata() -> dict[str, str | int]:
     }
 
 
-def _pg_dump() -> bytes:
+def _pg_dump(*, target_pg_major: int | None) -> bytes:
     result = subprocess.run(
-        ["pg_dump", "--format=plain", "--no-owner", "--no-privileges", _pg_dump_url()],
+        [
+            "pg_dump",
+            "--format=plain",
+            "--no-owner",
+            "--no-privileges",
+            "--quote-all-identifiers",
+            _pg_dump_url(),
+        ],
         capture_output=True,
         timeout=900,
         check=False,
@@ -53,7 +61,19 @@ def _pg_dump() -> bytes:
         raise RuntimeError(f"pg_dump failed: {detail}")
     if not result.stdout:
         raise RuntimeError("pg_dump returned an empty backup")
-    return result.stdout
+
+    # The runtime image currently carries a newer pg_dump than the PG16 server.
+    # Keep the compatibility filter deliberately narrow: only statements known
+    # to be unsupported by the detected destination major are removed.
+    filtered = bytearray()
+    for raw_line in result.stdout.splitlines(keepends=True):
+        line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+        if filter_postgresql_compatibility_line(line, target_pg_major=target_pg_major):
+            continue
+        filtered.extend(raw_line)
+    if not filtered:
+        raise RuntimeError("pg_dump produced an empty compatible backup")
+    return bytes(filtered)
 
 
 def _write_archive(payload: bytes, filename: str) -> tuple[Path, int]:
@@ -92,7 +112,10 @@ async def create_backup(db: AsyncSession, *, created_by: int | None, note: str |
     db.add(backup)
     await db.flush()
     try:
-        payload = _pg_dump()
+        result = await db.execute(text("SHOW server_version_num"))
+        server_version_num = int(result.scalar_one())
+        target_pg_major = server_version_num // 10000
+        payload = _pg_dump(target_pg_major=target_pg_major)
         _path, size = _write_archive(payload, filename)
         backup.size = size
         backup.status = "created"
@@ -207,10 +230,10 @@ async def get_telegram_config(db: AsyncSession) -> tuple[str, str] | None:
     return token, backup.telegram_chat_id
 
 
-async def send_backup_to_telegram(db: AsyncSession, backup: Backup) -> None:
+async def send_backup_to_telegram(db: AsyncSession, backup: Backup) -> bool:
     config = await get_telegram_config(db)
     if config is None:
-        return
+        return False
 
     token, chat_id = config
     path = Path(backup.backup_path)
@@ -228,6 +251,7 @@ async def send_backup_to_telegram(db: AsyncSession, backup: Backup) -> None:
                 payload = await response.text()
                 if response.status >= 400:
                     raise RuntimeError(f"Telegram send failed ({response.status}): {payload[-1000:]}")
+    return True
 
 
 def decrypt_telegram_token(backup: Backup) -> str | None:
@@ -236,6 +260,23 @@ def decrypt_telegram_token(backup: Backup) -> str | None:
     from app.security.encryption import decrypt_secret
 
     return decrypt_secret(backup.telegram_bot_token)
+
+
+async def get_pending_telegram_backup(db: AsyncSession) -> Backup | None:
+    backups = list(
+        (
+            await db.execute(
+                select(Backup)
+                .where(Backup.status == "created")
+                .order_by(Backup.created_at.desc())
+                .limit(20)
+            )
+        ).scalars()
+    )
+    for backup in backups:
+        if (backup.metadata_json or {}).get("telegram_delivery") == "failed":
+            return backup
+    return None
 
 
 async def get_backup_schedule(db: AsyncSession):
