@@ -15,6 +15,7 @@ export default function NodesLayout() {
   const canReadCores = canReadResourcePage(admin, 'cores')
   const canReadNodeLogs = hasPermission(admin, 'nodes', 'logs')
   const canReadWireGuard = canReadCores
+  const canCreateNodes = hasPermission(admin, 'nodes', 'create')
   const canCreateCores = hasPermission(admin, 'cores', 'create')
 
   const tabs = [
@@ -26,15 +27,20 @@ export default function NodesLayout() {
 
   const activeTab = tabs.find(tab => location.pathname === tab.url || (tab.id === 'cores' && location.pathname.startsWith('/nodes/cores/')))?.id || 'nodes'
   const activeLabel = tabs.find(tab => tab.id === activeTab)?.label || t('nodes.title')
+  const canCreateActiveResource = activeTab === 'nodes' ? canCreateNodes : activeTab === 'cores' ? canCreateCores : false
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-0">
       <PageHeader
         title={activeLabel}
         description="manageNodes"
-        buttonIcon={activeTab === 'cores' && canCreateCores ? Cpu : undefined}
-        buttonText={activeTab === 'cores' && canCreateCores ? 'navigation.addCore' : undefined}
-        onButtonClick={activeTab === 'cores' && canCreateCores ? () => window.dispatchEvent(new Event('openCoreDialog')) : undefined}
+        buttonIcon={activeTab === 'nodes' && canCreateNodes ? Share2Icon : activeTab === 'cores' && canCreateCores ? Cpu : undefined}
+        buttonText={activeTab === 'nodes' && canCreateNodes ? 'nodes.addNode' : activeTab === 'cores' && canCreateCores ? 'navigation.addCore' : undefined}
+        onButtonClick={
+          canCreateActiveResource
+            ? () => window.dispatchEvent(new Event(activeTab === 'nodes' ? 'openNodeDialog' : 'openCoreDialog'))
+            : undefined
+        }
       />
       <div className="scrollbar-hide flex w-full overflow-x-auto border-b px-4 lg:flex-wrap">
         {tabs.map(tab => {
