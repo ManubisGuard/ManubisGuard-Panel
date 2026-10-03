@@ -19,7 +19,16 @@ def _period_key(now: dt, schedule: BackupSchedule) -> str:
 
 
 def _is_due(now: dt, schedule: BackupSchedule) -> bool:
-    if not schedule.enabled or now.hour != schedule.hour or now.minute != schedule.minute:
+    if not schedule.enabled:
+        return False
+    if schedule.frequency == "interval":
+        if not schedule.interval_minutes:
+            return False
+        if schedule.last_run_at is None:
+            return True
+        elapsed = (now - schedule.last_run_at.astimezone(UTC)).total_seconds()
+        return elapsed >= schedule.interval_minutes * 60
+    if now.hour != schedule.hour or now.minute != schedule.minute:
         return False
     if schedule.frequency == "weekly" and now.weekday() != schedule.weekday:
         return False
