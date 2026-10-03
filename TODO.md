@@ -816,3 +816,11 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] Real Telegram message delivery and scheduled real backup execution remain Phase 2 gates; no real Telegram secret was used in this phase.
 - [ ] Manual backup archive integrity/restore gate remains verified separately and must not regress.
 - [ ] No production DB migration was executed and no production BackupSchedule was changed during this phase.
+
+- [x] Runtime image smoke initially exposed that `scripts/` is intentionally excluded by `.dockerignore`; the CLI helper was moved into `app/backup_cli.py` and the CLI now invokes the packaged module. No database schema change was introduced.
+- [x] Clean production image rebuilt from `feature/amnezia-wg`; only the Panel container was recreated. TimescaleDB was not recreated.
+- [x] Production runtime health after deployment: Panel healthy, TimescaleDB healthy, HTTPS `/health` HTTP 200 with `{"status":"ok"}`.
+- [x] Runtime CLI helper smoke passed using the image's real `/code/.venv/bin/python` against disposable SQLite: configuration persisted as interval=30 minutes, enabled=true and retention=7.
+- [x] No production BackupSchedule was modified by the smoke test; no production database migration was executed.
+- [x] Temporary 2 GiB swap used only for the Docker build was removed after deployment.
+- [x] Phase 1 final gate PASS. Phase 2 remains: real scheduled backup execution, Telegram delivery/mock+real-test gate, retry/failure handling and retention verification.
