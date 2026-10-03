@@ -252,8 +252,11 @@ async def get_backup_schedule(db: AsyncSession):
 
 async def configure_backup_schedule(db: AsyncSession, **values):
     schedule = await get_backup_schedule(db)
+    interval_minutes = values.pop("interval_minutes", None)
     for key, value in values.items():
         setattr(schedule, key, value)
+    if schedule.frequency == "interval":
+        schedule.interval_minutes = interval_minutes
     schedule.updated_at = dt.now(UTC)
     await db.commit()
     await db.refresh(schedule)
