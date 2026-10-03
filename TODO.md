@@ -844,3 +844,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Temporary 2 GiB build swap was removed. Final disk state: ~66% used, ~6.2 GB free, no swap.
 - [ ] Real Telegram delivery remains the only external gate because this server currently has no Telegram configuration. No real Telegram token was created, printed, or used in Phase 2.
 - [ ] Retention deletion threshold has not yet been exercised destructively against production data; current real schedule retention remains 7.
+
+
+## Phase 2 Debug Follow-up — 2026-10-03
+
+- [x] Found backup Telegram delivery did not honor the existing Telegram proxy setting; fixed it to reuse the existing DB-backed Telegram.proxy_url without adding a new DB column or migration.
+- [x] Found retention could delete a backup whose Telegram delivery had failed while it was waiting for retry; fixed retention to preserve telegram_delivery=failed archives.
+- [x] Runtime proxy forwarding test passed with a synthetic proxy and no Telegram network call: socks5://127.0.0.1:9999 reached the outbound sendDocument request.
+- [x] Runtime retention test passed: with retention=2, the failed-delivery backup was preserved while the older normal backup was deleted.
+- [x] Production Panel rebuilt from GitHub commit 571a38478011dc3fa2b35989f6d5cb599432cac7; only Panel was recreated; TimescaleDB was not recreated/restarted.
+- [x] Production health after deployment: Panel healthy and /health HTTP 200 {"status":"ok"}.
+- [ ] Real Telegram delivery is still not verified because the current production installation has no backup Telegram credentials configured. No credential was created, exposed, or used during this debug.
