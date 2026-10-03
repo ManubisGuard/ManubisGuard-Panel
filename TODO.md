@@ -802,3 +802,17 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Valid current RBAC roles remain unchanged; unknown role IDs fall back to the least-privileged built-in operator role (`role_id=3`).
 - [x] Deployed to production and verified panel health/dashboard HTTP 200.
 - [ ] Re-test Admin and reseller creation from the Telegram bot and inspect the compatibility warning log if needed.
+
+
+## Phase 1 — Backup CLI / Interval Scheduling — 2026-10-03
+- [x] Created a full source snapshot before changes from HEAD `30d5296db99849f59b7d3d281189d47ae189f090`; archive stored under `/root/بکاپ منویز/` with SHA256 recorded.
+- [x] Scope locked to Backup CLI/scheduler/API/model compatibility only; AWG/security/core files were not modified.
+- [x] Root cause confirmed: `manubis backup-service` previously wrote a host cron for `scripts/backup-db.sh` and did not configure the persisted BackupSchedule/Telegram backend.
+- [x] Restored interactive backup-service configuration for interval, Telegram credentials and retention; Telegram secret is passed to the application backend rather than written to shell history or logs.
+- [x] Added interval scheduling support without a new database migration: interval duration is represented through the existing BackupSchedule hour/minute fields only when frequency=`interval`; existing daily/weekly/monthly storage remains unchanged.
+- [x] Scheduler due-rule regression verified on server for first-run, before-interval, exact-interval and overdue cases.
+- [x] CLI configuration helper executed against a disposable SQLite database; persisted `enabled=true`, `frequency=interval`, `interval_minutes=30`, retention=7 verified.
+- [x] Host syntax, Python compilation and `git diff --check` passed for the changed scope.
+- [ ] Real Telegram message delivery and scheduled real backup execution remain Phase 2 gates; no real Telegram secret was used in this phase.
+- [ ] Manual backup archive integrity/restore gate remains verified separately and must not regress.
+- [ ] No production DB migration was executed and no production BackupSchedule was changed during this phase.
