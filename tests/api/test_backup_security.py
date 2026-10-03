@@ -117,3 +117,14 @@ def test_backup_schedule_due_rules(frequency, weekday, day_of_month, expected):
         last_run_at=None,
     )
     assert _is_due(now, schedule) is expected
+
+
+@pytest.mark.parametrize(("last_run_minutes", "interval_minutes", "expected"), [(None, 30, True), (10, 30, False), (30, 30, True), (45, 30, True)])
+def test_backup_interval_due_rules(last_run_minutes, interval_minutes, expected):
+    from datetime import UTC, datetime as dt, timedelta
+    from types import SimpleNamespace
+    from app.jobs.backup_scheduler import _is_due
+    now = dt(2026, 10, 3, 12, 0, tzinfo=UTC)
+    last_run_at = None if last_run_minutes is None else now - timedelta(minutes=last_run_minutes)
+    schedule = SimpleNamespace(enabled=True, frequency="interval", interval_minutes=interval_minutes, hour=2, minute=0, weekday=None, day_of_month=None, last_run_at=last_run_at)
+    assert _is_due(now, schedule) is expected
