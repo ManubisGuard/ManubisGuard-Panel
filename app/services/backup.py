@@ -241,13 +241,15 @@ async def send_backup_to_telegram(db: AsyncSession, backup: Backup) -> bool:
         raise FileNotFoundError(f"Backup file not found: {path}")
 
     url = f"https://api.telegram.org/bot{token}/sendDocument"
+    from app.settings import telegram_settings
+    telegram = await telegram_settings()
     timeout = aiohttp.ClientTimeout(total=120)
     form = aiohttp.FormData()
     form.add_field("chat_id", chat_id)
     with path.open("rb") as handle:
         form.add_field("document", handle, filename=path.name, content_type="application/zip")
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(url, data=form) as response:
+            async with session.post(url, data=form, proxy=telegram.proxy_url) as response:
                 payload = await response.text()
                 if response.status >= 400:
                     raise RuntimeError(f"Telegram send failed ({response.status}): {payload[-1000:]}")
@@ -311,6 +313,8 @@ async def apply_backup_retention(db: AsyncSession, retention_count: int) -> int:
     deleted = 0
     for backup in backups[retention_count:]:
         if backup.status == "telegram_configured":
+            continue
+        if (backup.metadata_json or {}).get("telegram_delivery") == "failed":
             continue
         await delete_backup(db, backup)
         deleted += 1
