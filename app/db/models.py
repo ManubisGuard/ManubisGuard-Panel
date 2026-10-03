@@ -1042,6 +1042,7 @@ class BackupSchedule(Base, CreatedAtUTCMixin):
 
     enabled: Mapped[bool] = mapped_column(default=False, server_default="0")
     frequency: Mapped[str] = mapped_column(String(16), nullable=False, default="daily", server_default="daily")
+    interval_minutes: Mapped[int | None] = mapped_column(default=None)
     hour: Mapped[int] = mapped_column(default=2, server_default="2")
     minute: Mapped[int] = mapped_column(default=0, server_default="0")
     weekday: Mapped[int | None] = mapped_column(default=None)
