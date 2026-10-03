@@ -504,8 +504,7 @@ The current Panel CLI entrypoint is:
 Generate a temporary admin key with:
 
 ```bash
-docker compose exec -T manubisguard \
-  python /code/manubisguard-cli.py generate-temp-key
+docker exec manubisguard-panel-manubisguard-1 python /code/manubisguard-cli.py generate-temp-key
 ```
 
 Never commit or publish generated keys.
@@ -1210,8 +1209,7 @@ Entrypoint فعلی CLI پنل:
 ساخت Temporary Key:
 
 ```bash
-docker compose exec -T manubisguard \
-  python /code/manubisguard-cli.py generate-temp-key
+docker exec manubisguard-panel-manubisguard-1 python /code/manubisguard-cli.py generate-temp-key
 ```
 
 Keyهای تولیدشده را Commit یا منتشر نکنید.
