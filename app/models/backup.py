@@ -64,7 +64,8 @@ class BackupScheduleConfigure(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
-    frequency: Literal["daily", "weekly", "monthly"] = "daily"
+    frequency: Literal["interval", "daily", "weekly", "monthly"] = "daily"
+    interval_minutes: int | None = Field(default=None, ge=5, le=1440)
     hour: int = Field(default=2, ge=0, le=23)
     minute: int = Field(default=0, ge=0, le=59)
     weekday: int | None = Field(default=None, ge=0, le=6)
@@ -82,6 +83,7 @@ class BackupScheduleResponse(BaseModel):
     minute: int
     weekday: int | None
     day_of_month: int | None
+    interval_minutes: int | None
     retention_count: int
     last_run_at: datetime | None
     created_at: datetime
