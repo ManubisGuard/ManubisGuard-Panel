@@ -1047,6 +1047,27 @@ class BackupSchedule(Base, CreatedAtUTCMixin):
     weekday: Mapped[int | None] = mapped_column(default=None)
     day_of_month: Mapped[int | None] = mapped_column(default=None)
     retention_count: Mapped[int] = mapped_column(default=7, server_default="7")
+    @property
+    def interval_minutes(self) -> int | None:
+        if self.frequency != "interval":
+            return None
+        if self.hour == 0 and self.minute == 0:
+            return 1440
+        return self.hour * 60 + self.minute
+
+    @interval_minutes.setter
+    def interval_minutes(self, value: int | None) -> None:
+        if value is None:
+            self.hour = 0
+            self.minute = 0
+            return
+        if not 5 <= value <= 1440:
+            raise ValueError("interval_minutes must be between 5 and 1440")
+        if value == 1440:
+            self.hour = 0
+            self.minute = 0
+            return
+        self.hour, self.minute = divmod(value, 60)
     last_run_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     updated_at: Mapped[dt] = mapped_column(
         DateTime(timezone=True), default_factory=lambda: dt.now(UTC), onupdate=lambda: dt.now(UTC)
