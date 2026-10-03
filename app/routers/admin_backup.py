@@ -82,9 +82,12 @@ async def update_schedule(
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(require_permission("settings", "update")),
 ):
-    if payload.frequency == "weekly" and payload.weekday is None:
+    if payload.frequency == "interval":
+        if payload.interval_minutes is None:
+            raise HTTPException(status_code=422, detail="interval_minutes is required for interval schedules")
+    elif payload.frequency == "weekly" and payload.weekday is None:
         raise HTTPException(status_code=422, detail="weekday is required for weekly schedules")
-    if payload.frequency == "monthly" and payload.day_of_month is None:
+    elif payload.frequency == "monthly" and payload.day_of_month is None:
         raise HTTPException(status_code=422, detail="day_of_month is required for monthly schedules")
     return await configure_backup_schedule(db, **payload.model_dump())
 
