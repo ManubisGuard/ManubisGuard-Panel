@@ -166,7 +166,7 @@ async def delete_backup(db: AsyncSession, backup: Backup) -> None:
     await db.commit()
 
 
-async def configure_telegram(db: AsyncSession, *, created_by: int, token: str, chat_id: str) -> Backup:
+async def configure_telegram(db: AsyncSession, *, created_by: int | None, token: str, chat_id: str) -> Backup:
     from app.security.encryption import encrypt_secret
 
     encrypted = encrypt_secret(token)
@@ -252,8 +252,11 @@ async def get_backup_schedule(db: AsyncSession):
 
 async def configure_backup_schedule(db: AsyncSession, **values):
     schedule = await get_backup_schedule(db)
+    interval_minutes = values.pop("interval_minutes", None)
     for key, value in values.items():
         setattr(schedule, key, value)
+    if schedule.frequency == "interval":
+        schedule.interval_minutes = interval_minutes
     schedule.updated_at = dt.now(UTC)
     await db.commit()
     await db.refresh(schedule)
