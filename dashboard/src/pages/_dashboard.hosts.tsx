@@ -1,6 +1,6 @@
 import MainSection from '@/features/hosts/components/hosts-list'
-import { Group, Server } from 'lucide-react'
-import { Outlet, useLocation, useNavigate } from 'react-router'
+import { Group, Plus, Server } from 'lucide-react'
+import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { cn } from '@/lib/utils'
 import { type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
@@ -8,7 +8,7 @@ import { BaseHost, createHost, CreateHost, getHosts, modifyHost, MultiplexProtoc
 import { useAdmin } from '@/hooks/use-admin'
 import { canReadResourcePage, hasPermission } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useCommandCreate } from '@/hooks/use-command-create'
@@ -19,12 +19,20 @@ export function HostsPage() {
   const canUpdateHosts = hasPermission(admin, 'hosts', 'update')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<BaseHost | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data, refetch, isFetching } = useQuery({
     queryKey: ['getGetHostsQueryKey'],
     queryFn: () => getHosts(),
   })
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return
+    setEditingHost(null)
+    setIsDialogOpen(true)
+    setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const handleDialogOpen = (open: boolean) => {
     setIsDialogOpen(open)
@@ -289,6 +297,7 @@ export default function HostsLayout() {
   const canReadHosts = canReadResourcePage(admin, 'hosts')
   const canReadGroups = canReadResourcePage(admin, 'groups')
 
+  const canCreateHosts = hasPermission(admin, 'hosts', 'create')
   const tabs = [
     ...(canReadHosts ? [{ id: 'hosts', label: t('hosts'), icon: Server, url: '/hosts' }] : []),
     ...(canReadGroups ? [{ id: 'groups', label: t('groups'), icon: Group, url: '/hosts/groups' }] : []),
@@ -299,7 +308,13 @@ export default function HostsLayout() {
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-0">
-      <PageHeader title={activeLabel} description="manageHosts" />
+      <PageHeader
+        title={activeLabel}
+        description="manageHosts"
+        buttonIcon={activeTab === 'hosts' && canCreateHosts ? Plus : undefined}
+        buttonText={activeTab === 'hosts' && canCreateHosts ? 'createHost' : undefined}
+        onButtonClick={activeTab === 'hosts' && canCreateHosts ? () => navigate('/hosts?create=1') : undefined}
+      />
       <div className="scrollbar-hide flex w-full overflow-x-auto border-b px-4 lg:flex-wrap">
         {tabs.map(tab => {
           const isActive = activeTab === tab.id
