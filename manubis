@@ -169,7 +169,7 @@ interval=int(sys.argv[1]); retention=int(sys.argv[2]); token=sys.argv[3]; chat=s
 print(json.dumps({"frequency":"interval","interval_minutes":interval,"retention_count":retention,"telegram_bot_token":token,"telegram_chat_id":chat}))
 PY
 )
-    printf '%s\n' "$payload" | docker compose -f "$PROJECT_DIR/docker-compose.yml" exec -T manubisguard python /code/scripts/configure-backup-service.py
+    printf '%s\n' "$payload" | docker compose -f "$PROJECT_DIR/docker-compose.yml" exec -T manubisguard python -m app.backup_cli
     echo "Schedule: every ${interval} minute(s)"
     echo "Retention: ${retention}"
     echo "Telegram: $([ -n "$telegram_token" ] && echo enabled || echo disabled)"
