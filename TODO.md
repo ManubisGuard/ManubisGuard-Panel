@@ -824,3 +824,23 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] No production BackupSchedule was modified by the smoke test; no production database migration was executed.
 - [x] Temporary 2 GiB swap used only for the Docker build was removed after deployment.
 - [x] Phase 1 final gate PASS. Phase 2 remains: real scheduled backup execution, Telegram delivery/mock+real-test gate, retry/failure handling and retention verification.
+
+
+## Phase 2 — Backup Runtime / Portable Restore — 2026-10-03
+
+- [x] Production root cause confirmed: the Panel image carries PostgreSQL client/pg_dump 17.11 while production TimescaleDB is PostgreSQL 16. A freshly generated plain dump failed to restore into PG16 on `SET transaction_timeout = 0`.
+- [x] PostgreSQL compatibility was verified against official PostgreSQL documentation: cross-major pg_dump output is not guaranteed to load into an older PostgreSQL major and may require narrow manual compatibility editing.
+- [x] Fixed scheduled/manual backup generation to detect the live PostgreSQL major and remove only the known PG17 `transaction_timeout` statement for targets below PG17; `--quote-all-identifiers` is now used for the logical dump.
+- [x] Added persisted Telegram delivery state without a DB schema migration: no-config is recorded as `disabled`; delivery failures remain `failed` and the same archive is retried before a new scheduled archive is created.
+- [x] GitHub source-of-truth commit: `beb07cb81e023ef8ee1400fcd0d44f572d1f5b13` on `feature/amnezia-wg`; server working tree is clean and exactly matches origin.
+- [x] Production Panel rebuilt from `feature/amnezia-wg` and recreated alone; TimescaleDB was not recreated/restarted.
+- [x] Production Panel health after deployment: container healthy and HTTPS `/health` returned HTTP 200 with `{"status":"ok"}`.
+- [x] Real production backup created by the new runtime: `manubisguard-20261003T144749Z.zip`, 14,201 bytes; `validate_backup=True`; ZIP `testzip=None`; archive contains `manifest.json` + `db.sql`; PG17 `transaction_timeout` is absent.
+- [x] Full disposable PostgreSQL 16 restore of that runtime-generated backup completed with return code 0; 33 public tables and one Alembic version row were present; disposable DB was dropped afterward.
+- [x] Real Scheduler tick gate passed on production: temporary interval=5 minutes created backup `manubisguard-20261003T144900Z.zip`, 14,272 bytes, and persisted `last_run_at=2026-10-03 14:49:00+00`. With Telegram unconfigured, delivery state was correctly `disabled`.
+- [x] Scheduler failure/retry path tested with a local synthetic send failure (no Telegram credential/network call): backup count remained unchanged, the same archive remained pending, delivery state remained `failed`, and an error was recorded.
+- [x] Temporary production schedule was restored to the previous disabled/default state: enabled=false, daily 02:00, retention=7, last_run_at=NULL.
+- [x] Installed `/usr/local/bin/manubis` was found stale (host-cron implementation) and synchronized to the GitHub-controlled CLI; the temporary stale cron entry was removed.
+- [x] Temporary 2 GiB build swap was removed. Final disk state: ~66% used, ~6.2 GB free, no swap.
+- [ ] Real Telegram delivery remains the only external gate because this server currently has no Telegram configuration. No real Telegram token was created, printed, or used in Phase 2.
+- [ ] Retention deletion threshold has not yet been exercised destructively against production data; current real schedule retention remains 7.
