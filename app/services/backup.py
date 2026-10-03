@@ -166,7 +166,7 @@ async def delete_backup(db: AsyncSession, backup: Backup) -> None:
     await db.commit()
 
 
-async def configure_telegram(db: AsyncSession, *, created_by: int, token: str, chat_id: str) -> Backup:
+async def configure_telegram(db: AsyncSession, *, created_by: int | None, token: str, chat_id: str) -> Backup:
     from app.security.encryption import encrypt_secret
 
     encrypted = encrypt_secret(token)
