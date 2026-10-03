@@ -146,17 +146,33 @@ case "${1:-help}" in
     ;;
   backup-service)
     need_project
-    schedule="${MANUBISGUARD_BACKUP_SCHEDULE:-30 3 * * *}"
-    mkdir -p "$BACKUP_DIR"
-    cron_line="$schedule cd $PROJECT_DIR && /usr/bin/env bash $PROJECT_DIR/scripts/backup-db.sh $BACKUP_DIR >> /var/log/manubisguard-backup.log 2>&1"
-    tmp="$(mktemp)"
-    crontab -l 2>/dev/null | grep -v 'manubisguard-backup' > "$tmp" || true
-    printf '%s # manubisguard-backup\n' "$cron_line" >> "$tmp"
-    crontab "$tmp"
-    rm -f "$tmp"
-    echo "Backup service configured."
-    echo "Schedule: $schedule"
-    echo "Directory: $BACKUP_DIR"
+    printf 'Backup interval (minutes: 5/15/30/60/120/1440) [30]: '
+    read -r interval
+    interval="${interval:-30}"
+    case "$interval" in 5|15|30|60|120|1440) ;; *) echo "Unsupported interval. Use 5, 15, 30, 60, 120 or 1440." >&2; exit 2 ;; esac
+    printf 'Telegram Bot Token (leave empty to disable Telegram): '
+    read -r -s telegram_token
+    printf '\n'
+    telegram_chat_id=""
+    if [ -n "$telegram_token" ]; then
+      printf 'Telegram Chat ID: '
+      read -r telegram_chat_id
+      [ -n "$telegram_chat_id" ] || { echo "Telegram Chat ID is required when Telegram is enabled." >&2; exit 2; }
+    fi
+    printf 'Retention count [7]: '
+    read -r retention
+    retention="${retention:-7}"
+    [[ "$retention" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid retention count." >&2; exit 2; }
+    payload=$(python3 - "$interval" "$retention" "$telegram_token" "$telegram_chat_id" <<'PY'
+import json, sys
+interval=int(sys.argv[1]); retention=int(sys.argv[2]); token=sys.argv[3]; chat=sys.argv[4]
+print(json.dumps({"frequency":"interval","interval_minutes":interval,"retention_count":retention,"telegram_bot_token":token,"telegram_chat_id":chat}))
+PY
+)
+    printf '%s\n' "$payload" | docker compose -f "$PROJECT_DIR/docker-compose.yml" exec -T manubisguard python /code/scripts/configure-backup-service.py
+    echo "Schedule: every ${interval} minute(s)"
+    echo "Retention: ${retention}"
+    echo "Telegram: $([ -n "$telegram_token" ] && echo enabled || echo disabled)"
     ;;
   restore)
     shift
