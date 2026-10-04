@@ -855,3 +855,13 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Production Panel rebuilt from GitHub commit 571a38478011dc3fa2b35989f6d5cb599432cac7; only Panel was recreated; TimescaleDB was not recreated/restarted.
 - [x] Production health after deployment: Panel healthy and /health HTTP 200 {"status":"ok"}.
 - [ ] Real Telegram delivery is still not verified because the current production installation has no backup Telegram credentials configured. No credential was created, exposed, or used during this debug.
+
+## UI Fix — Nodes & Cores / Add Node — 2026-10-04
+
+- [x] Root cause identified in `dashboard/src/pages/_dashboard.nodes.tsx`: the Nodes & Cores page retained the create permission and existing Node modal, but the PageHeader no longer exposed the Add Node action.
+- [x] Confirmed `canCreateNodes = hasPermission(admin, 'nodes', 'create')` is already present; no RBAC/backend/DB change was required.
+- [x] Confirmed the existing Node creation flow remains available in `node-modal.tsx` via `useCreateNode()`; only the missing header action needed restoration.
+- [x] Restored the Add Node header action on the Nodes tab, wired to the existing `openNodeDialog` event; Add Core remains wired through the same header mechanism on the Cores tab.
+- [x] Source change committed on `feature/amnezia-wg`: `1188085384b992e28dc6a16905bb2f0e0d810f00`.
+- [ ] Production deployment/health verification for this exact UI commit remains open until the rebuilt Panel container is conclusively verified healthy and serving the new dashboard bundle.
+- [x] AWG/security/core runtime was not intentionally modified by this UI fix.
