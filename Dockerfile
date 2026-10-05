@@ -47,6 +47,7 @@ ENV PATH="/code/.venv/bin:/usr/local/bin:$PATH"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    tini \
     postgresql-client \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -62,4 +63,4 @@ RUN chmod +x /code/healthcheck.sh
 
 RUN chmod +x /code/start.sh
 
-ENTRYPOINT ["/code/start.sh"]
+ENTRYPOINT ["tini", "--", "/code/start.sh"]
