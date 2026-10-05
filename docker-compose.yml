@@ -19,6 +19,7 @@ services:
   manubisguard:
     image: ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg
     restart: always
+    init: true
     env_file: .env
     network_mode: host
     volumes:
