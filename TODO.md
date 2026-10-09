@@ -873,6 +873,6 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Post-deploy smoke: Node is running, AWG interface `WG_51820` remains present, and Node logs show successful `GetStats` responses with no recurrence of the previous invalid-AWG-public-key error in the immediate post-restart log window.
 - [x] Fixed source hygiene in `ManubisGuard/ManubisGuard-Node/backend/wireguard/user_sync_test.go`: removed stray terminal-output artifacts that had made the GitHub test file invalid Go source. Fixes were committed to `feature/amnezia-wg` as `74244ec42277965ee1e9fc895efb48c70a5ac5df` and `85e7f5dedbef4d43a45bcfe3b5066e591fc3f29b`.
 - [x] Production runtime image build from the AWG fix source completed successfully.
-- [ ] Run focused AWG stats/parser/peer regression tests again against the cleaned GitHub test file and record the actual result.
+- [x] Focused AWG stats/parser/peer regression tests passed against the cleaned source: `go test ./backend/wireguard -run "AWG|Stats|Peer" -count=1` returned `ok`.
 - [ ] Confirm per-peer RX/TX counters continue to move under real client traffic and verify Panel user usage increments; do not mark end-to-end accounting fully PASS based on Node health or successful polling alone.
 
