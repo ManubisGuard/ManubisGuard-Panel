@@ -865,3 +865,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Source change committed on `feature/amnezia-wg`: `1188085384b992e28dc6a16905bb2f0e0d810f00`.
 - [ ] Production deployment/health verification for this exact UI commit remains open until the rebuilt Panel container is conclusively verified healthy and serving the new dashboard bundle.
 - [x] AWG/security/core runtime was not intentionally modified by this UI fix.
+
+## AWG Traffic Accounting Regression — 2026-10-09
+- [x] Investigated Turkey server `CLY914129`: the running Node image was pinned by image revision `5c5ef285179adbe37c72c672a175b6330aece840`, while the GitHub `feature/amnezia-wg` source already contained the AWG-specific `readAWGDevice()` path and configured-peer traffic sampling fix.
+- [x] Runtime failure confirmed in Node logs: AWG stats polling was skipped with `invalid AWG public key` while parsing the AWG dump; ordinary `GetStats` requests were still reaching the Node.
+- [x] Built the Node image locally from the GitHub `feature/amnezia-wg` source and deployed it on `CLY914129`; the Node container was recreated without changing Panel/DB configuration.
+- [x] Post-deploy smoke: Node is running, AWG interface `WG_51820` remains present, and Node logs show successful `GetStats` responses with no recurrence of the previous invalid-AWG-public-key error in the immediate post-restart log window.
+- [x] Fixed source hygiene in `ManubisGuard/ManubisGuard-Node/backend/wireguard/user_sync_test.go`: removed stray terminal-output artifacts that had made the GitHub test file invalid Go source. Fixes were committed to `feature/amnezia-wg` as `74244ec42277965ee1e9fc895efb48c70a5ac5df` and `85e7f5dedbef4d43a45bcfe3b5066e591fc3f29b`.
+- [x] Production runtime image build from the AWG fix source completed successfully.
+- [ ] Run focused AWG stats/parser/peer regression tests again against the cleaned GitHub test file and record the actual result.
+- [ ] Confirm per-peer RX/TX counters continue to move under real client traffic and verify Panel user usage increments; do not mark end-to-end accounting fully PASS based on Node health or successful polling alone.
+
