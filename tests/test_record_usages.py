@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -597,3 +598,23 @@ async def test_usage_coefficient_is_cached_across_collects(monkeypatch: pytest.M
 
     assert extra_calls["n"] == 1
     assert first[1] == second[1] == 2.0
+
+@pytest.mark.asyncio
+async def test_awg_node_user_counters_reach_panel_usage_parser():
+    class AWGNode:
+        node_id = 42
+
+        async def get_stats(self, *, stat_type, reset, timeout):
+            assert stat_type == record_usages.StatType.UsersStat
+            assert reset is True
+            assert timeout == 30
+            return SimpleNamespace(
+                stats=[
+                    SimpleNamespace(name="1869", type="downlink", value=436_580),
+                    SimpleNamespace(name="1869", type="uplink", value=975_012),
+                ]
+            )
+
+    usage = await record_usages.get_users_stats(AWGNode(), node_id=42)
+
+    assert usage == [{"uid": 1869, "value": 1_411_592}]
