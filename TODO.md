@@ -885,3 +885,6 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] The same live check found 40 configured AWG peers but **zero peer endpoints, zero latest handshakes, zero per-peer RX/TX counters, and zero interface RX/TX packets**. Therefore this snapshot does not demonstrate a remaining accounting-parser failure; there was no live peer traffic on this interface to account for at audit time.
 - [ ] End-to-end production acceptance remains open: while a real AWG client is connected and transferring data through this specific node, verify kernel per-peer RX/TX rises, Node stats tracker reflects the same deltas, and Panel usage increments. Do not call the incident fully closed until this is observed.
 - [ ] Verify the rebuilt Node image is published to GHCR and consumed by new installations; a local image build/deployment does not by itself prove the registry tag has been updated.
+
+- [x] Attempted to publish the locally built Node image to GHCR from `CLY914129`; the registry rejected the existing Docker credential as unauthenticated, so no image push succeeded.
+- [x] Re-checked the public `latest` manifest after the source test commit; its manifest digest remained unchanged during this audit window. GHCR publication is therefore **not verified** and must remain open until a successful Actions run or authenticated push is confirmed.
