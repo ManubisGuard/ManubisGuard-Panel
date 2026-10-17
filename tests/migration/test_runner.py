@@ -129,6 +129,7 @@ def test_runner_reads_timescaledb_version_from_manubisguard_manifest(tmp_path: P
     result = analyze_backup(backup)
 
     assert result.preflight.ok
+    assert result.detection.is_manubisguard
     assert result.uses_timescaledb
     assert result.timescale.source_version == "2.30.2"
     assert result.timescale.versions[0] == "2.30.2"
