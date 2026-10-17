@@ -100,3 +100,35 @@ def test_migration_allows_older_source_timescale_bridge(monkeypatch):
         analysis,
         live_version="2.29.0",
     ) == "2.28.2"
+
+
+
+def test_runner_reads_timescaledb_version_from_manubisguard_manifest(tmp_path: Path):
+    import json
+
+    backup = tmp_path / "manubisguard.zip"
+    sql = (
+        "-- PostgreSQL database dump\n"
+        "CREATE EXTENSION IF NOT EXISTS timescaledb;\n"
+        "CREATE TABLE alembic_version (version_num varchar(32));\n"
+        "CREATE TABLE nodes (id bigint);\n"
+        "CREATE TABLE core_configs (id bigint);\n"
+        "CREATE TABLE users (id bigint);\n"
+        "-- PostgreSQL database dump complete\n"
+    )
+    manifest = {
+        "product": "manubisguard",
+        "dump": "db.sql",
+        "postgresql": "17.10",
+        "timescaledb": "2.30.2",
+    }
+    with zipfile.ZipFile(backup, "w") as archive:
+        archive.writestr("manifest.json", json.dumps(manifest))
+        archive.writestr("db.sql", sql)
+
+    result = analyze_backup(backup)
+
+    assert result.preflight.ok
+    assert result.uses_timescaledb
+    assert result.timescale.source_version == "2.30.2"
+    assert result.timescale.versions[0] == "2.30.2"
