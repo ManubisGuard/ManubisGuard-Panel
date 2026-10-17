@@ -901,3 +901,19 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Regression assertion now checks both exact TimescaleDB version recovery and preservation of `source_product=manubisguard`.
 - [ ] Run Ruff, migration test suite, backup service tests, clean image build, and real staging restore using a freshly generated native backup before marking the end-to-end restore gate green.
 - [ ] Do not run production `--apply` until staging restore, row-count/schema validation, and rollback gates are green.
+
+
+## 2026-10-17 ManubisGuard production restore and Nginx migration
+
+- [x] Committed TimescaleDB bootstrap readiness fix to `feature/amnezia-wg`: `501a976a2a9fb9abada74869c0eb0e942d4e7aec`. The isolated runtime must pass three consecutive SQL readiness checks before staging DDL.
+- [x] Deployed the updated restore code to the target panel container. Runtime image ID: `sha256:00808969ef71ed6c1eb88a06a7237957b69c4d1a7dcb2c1363594f5583262b08` (built locally from the branch code; app source revision label `822b7cb25354b5dd21d9cbf81b0cda6f84e9633a`). Only the Panel container was recreated; the TimescaleDB container/volume was preserved.
+- [x] Preserved the original backup ZIP unchanged at `/var/lib/manubisguard/backups/manubisguard-20261017T161050Z.zip`; used the separate metadata-repaired copy at `/var/lib/manubisguard/backups/manubisguard-20261017T161050Z-metadata-repaired.zip` with PostgreSQL 16.15 and TimescaleDB 2.30.2 metadata.
+- [x] Staging restore PASS: source detected as native ManubisGuard, PostgreSQL 16, TimescaleDB 2.30.2; validation `valid=true`, no blocking errors or warnings, no transformations, and no durable row-count loss. Pre/post counts matched: admins 5, users 217, nodes 2, hosts 9, inbounds 8, groups 5, core_configs 4, user_templates 5.
+- [x] Production `--apply` PASS. The cutover database was validated before rename; the script created and verified the production safety dump, then switched databases. Previous production DB preserved as `manubisguard_pre_migration_0f578a2dc278`; safety dump: `/var/lib/manubisguard/migration/0f578a2dc278/production-safety.dump`.
+- [x] Pre-update safety dump preserved outside Git: `/var/lib/manubisguard/deploy-backups/pre-update-20261017T172532Z.dump`.
+- [x] Post-restore verification: Panel container healthy, TimescaleDB healthy (PostgreSQL 16 / TimescaleDB 2.30.2), `/health` returned `{"status":"ok"}`, and production counts are users 217, nodes 2, hosts 9, admins 5, inbounds 8. Alembic version currently reports `c1a2b3c4d5e6`.
+- [x] Installed Nginx on the target server `185.226.93.37`, restored active `nginx.conf`, `qoqnus.conf`, `radiogame.conf`, the referenced TLS certificate files, and the six APK files referenced by Nginx. Removed the package-default port-80 site to match the source configuration. Config test passed; Nginx is active and listening on 443. Direct target-IP HTTPS `/health` returned HTTP 200, and `/downloads/ManubisGuard-test.apk` returned HTTP 200. Target's original Nginx package config backup is under `/var/backups/manubisguard-nginx-pre-restore-20261017T1746...` (timestamped directory; exact path on host).
+- [x] Removed the temporary SSH transfer key from target `authorized_keys` and deleted the temporary transfer archive/key files from both servers.
+- [ ] DNS cutover remains pending: `all.qoqnusradio.top` still resolves to old server `204.10.192.134`; target is `185.226.93.37`. No DNS change was made during restore.
+- [ ] Nginx config was restored exactly, but its other upstreams still need their services on the target before those routes work: store API port 8091 and Game proxy port 2096 were not listening on the target at verification time.
+- [ ] Follow up on node startup warnings after restore: Xray node id 5 returned connection refused; AWG node id 3 reported it is controlled by another client. Panel itself is healthy; these node-specific warnings are not yet resolved.
