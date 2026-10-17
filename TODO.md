@@ -919,3 +919,15 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [ ] DNS cutover remains pending: `all.qoqnusradio.top` still resolves to old server `204.10.192.134`; target is `185.226.93.37`. No DNS change was made during restore.
 - [ ] Nginx config was restored exactly, but its other upstreams still need their services on the target before those routes work: store API port 8091 and Game proxy port 2096 were not listening on the target at verification time.
 - [ ] Follow up on node startup warnings after restore: Xray node id 5 returned connection refused; AWG node id 3 reported it is controlled by another client. Panel itself is healthy; these node-specific warnings are not yet resolved.
+
+
+## 2026-10-17 Target server network tuning and DNS latency
+
+- [x] Backed up existing network configuration to `/var/backups/manubisguard-network-20261017T183523Z`.
+- [x] Persisted conservative TCP/socket tuning in `/etc/sysctl.d/99-manubisguard-network.conf`: BBR congestion control for TCP, `fq` pacing qdisc, socket max buffers 16 MiB, TCP auto-tuning ceilings 16 MiB, receive backlog 16384, connection backlog 4096, SYN backlog 8192, and TCP MTU probing enabled. This is not a claim that BBR accelerates AWG/WireGuard UDP directly.
+- [x] Applied live `fq` qdisc to `ens160`; verified `net.ipv4.tcp_congestion_control=bbr`, `net.core.default_qdisc=fq`, and the configured socket buffer values.
+- [x] Tested DNS resolver latency directly from target. Cloudflare 1.1.1.1: 2–3 ms DNS query time (ICMP avg ~2.11 ms); Cloudflare 1.0.0.1: 3–4 ms (ICMP avg ~2.23 ms); Google 8.8.8.8: first query 191 ms then 27–29 ms; Quad9 9.9.9.9: 11–13 ms. Configured Cloudflare as primary/secondary and Quad9 as fallback.
+- [x] Persisted DNS in Netplan and systemd-resolved; removed inherited Google DNS from the effective global resolver configuration. Updated the current Panel and TimescaleDB container resolver files to Cloudflare DNS; container recreation will inherit Cloudflare from the host resolver file.
+- [x] Netplan generation passed (legacy `gateway4` deprecation warning remains from the pre-existing config); changed netplan file permissions to root-only.
+- [x] Post-change smoke checks passed: Panel and TimescaleDB containers remain healthy, panel HTTP health returns `{"status":"ok"}`, Nginx config test succeeds and service is active, local HTTPS health returns `{"status":"ok"}`, and public DNS resolution for `github.com` works.
+- [ ] Measure throughput, loaded latency, and packet-drop deltas over a sustained traffic window before claiming a measured throughput improvement. Historical NIC counters showed 520 RX drops at baseline; no before/after counter interval has yet been collected.
