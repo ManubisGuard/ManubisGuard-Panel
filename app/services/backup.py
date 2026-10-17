@@ -33,12 +33,19 @@ def _pg_dump_url() -> str:
     return urlunsplit(("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
 
 
-def _source_metadata() -> dict[str, str | int]:
+def _source_metadata(
+    *,
+    postgresql_version: str | None = None,
+    timescaledb_version: str | None = None,
+) -> dict[str, str | int]:
     return {
         "product": "manubisguard",
         "database": _database_name(),
         "created_at": dt.now(UTC).isoformat(),
-        "postgresql": os.getenv("POSTGRES_VERSION", "unknown"),
+        "postgresql": postgresql_version or os.getenv("POSTGRES_VERSION", "unknown"),
+        # This must be read from pg_extension, not inferred from the Docker tag.
+        # A backup restore needs the exact extension catalog version.
+        "timescaledb": timescaledb_version or "unknown",
     }
 
 
@@ -76,10 +83,15 @@ def _pg_dump(*, target_pg_major: int | None) -> bytes:
     return bytes(filtered)
 
 
-def _write_archive(payload: bytes, filename: str) -> tuple[Path, int]:
+def _write_archive(
+    payload: bytes,
+    filename: str,
+    *,
+    source_metadata: dict[str, str | int] | None = None,
+) -> tuple[Path, int]:
     BACKUP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     archive_path = BACKUP_DIR / filename
-    manifest = _source_metadata()
+    manifest = dict(source_metadata or _source_metadata())
     manifest.update({"format": "zip", "database_size": len(payload), "dump": "db.sql"})
     with tempfile.NamedTemporaryFile(dir=BACKUP_DIR, prefix=".backup-", suffix=".tmp", delete=False) as tmp:
         tmp_path = Path(tmp.name)
@@ -115,11 +127,25 @@ async def create_backup(db: AsyncSession, *, created_by: int | None, note: str |
         result = await db.execute(text("SHOW server_version_num"))
         server_version_num = int(result.scalar_one())
         target_pg_major = server_version_num // 10000
+        version_result = await db.execute(text("SHOW server_version"))
+        postgresql_version = str(version_result.scalar_one())
+        extension_result = await db.execute(
+            text("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'")
+        )
+        extension_version = extension_result.scalar_one_or_none()
+        source_metadata = _source_metadata(
+            postgresql_version=postgresql_version,
+            timescaledb_version=str(extension_version) if extension_version else None,
+        )
         payload = _pg_dump(target_pg_major=target_pg_major)
-        _path, size = _write_archive(payload, filename)
+        _path, size = _write_archive(payload, filename, source_metadata=source_metadata)
         backup.size = size
         backup.status = "created"
-        backup.metadata_json = {**(backup.metadata_json or {}), **_source_metadata(), "database_size": len(payload)}
+        backup.metadata_json = {
+            **(backup.metadata_json or {}),
+            **source_metadata,
+            "database_size": len(payload),
+        }
         await db.commit()
         await db.refresh(backup)
         return backup
