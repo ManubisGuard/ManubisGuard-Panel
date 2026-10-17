@@ -568,19 +568,32 @@ start_temp_timescale() {
   TEMP_PORT="$(docker port "$TEMP_CONTAINER" 5432/tcp | sed -nE 's/.*:([0-9]+)$/\1/p' | head -n1)"
   [[ "$TEMP_PORT" =~ ^[0-9]+$ ]] || die "Could not determine temporary TimescaleDB port."
 
-  local i
+  local i stable_ready=0
+  # TimescaleDB's Docker entrypoint starts a temporary bootstrap server and then
+  # shuts it down before launching the final server. A single successful
+  # pg_isready/SELECT can therefore be a false positive. Require several
+  # consecutive successful SQL checks before allowing staging DDL/restore.
   for i in $(seq 1 90); do
-    if docker exec "$TEMP_CONTAINER" pg_isready -q -U "$DB_USER" -d postgres >/dev/null 2>&1 &&        docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER"        psql -X -U "$DB_USER" -d postgres -Atc 'SELECT 1;' >/dev/null 2>&1; then
-      sleep 2
-      break
+    if docker exec "$TEMP_CONTAINER" pg_isready -q -U "$DB_USER" -d postgres >/dev/null 2>&1 && \
+       docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER" \
+       psql -X -U "$DB_USER" -d postgres -Atc 'SELECT 1;' 2>/dev/null | grep -qx '1'; then
+      stable_ready=$((stable_ready + 1))
+      if [ "$stable_ready" -ge 3 ]; then
+        break
+      fi
+    else
+      stable_ready=0
     fi
     if [ "$(docker inspect -f '{{.State.Status}}' "$TEMP_CONTAINER" 2>/dev/null || true)" = "exited" ]; then
       docker logs "$TEMP_CONTAINER" >"$WORKDIR/timescale-container.log" 2>&1 || true
       die "Temporary TimescaleDB exited. See $WORKDIR/timescale-container.log"
     fi
     sleep 2
-    [ "$i" -eq 90 ] && die "Temporary TimescaleDB did not become ready."
   done
+  [ "$stable_ready" -ge 3 ] || {
+    docker logs "$TEMP_CONTAINER" >"$WORKDIR/timescale-container.log" 2>&1 || true
+    die "Temporary TimescaleDB did not remain ready for three consecutive SQL checks. See $WORKDIR/timescale-container.log"
+  }
 
   local live
   live="$(docker exec -e PGPASSWORD="$DB_PASS" "$TEMP_CONTAINER"     psql -X -U "$DB_USER" -d postgres -Atc     "SELECT COALESCE((SELECT default_version FROM pg_available_extensions WHERE name='timescaledb'), '');"     2>/dev/null || true)"
