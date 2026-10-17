@@ -897,5 +897,7 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Fixed backup generation to capture `SHOW server_version` and `pg_extension.extversion` from the live database and persist them into both the ZIP manifest and Backup metadata.
 - [x] Fixed migration analysis to read a validated exact `timescaledb` / `timescaledb_version` value from a native ManubisGuard manifest; unknown or unsafe values are not guessed.
 - [x] Added regression coverage for a native ManubisGuard ZIP with an exact TimescaleDB version in `manifest.json`.
+- [x] Follow-up audit found the ZIP extractor returned the nested SQL's raw detection result, which could classify a native ManubisGuard dump as legacy PasarGuard when SQL comments/data contain old product strings. The extractor now preserves the validated native manifest identity so the PasarGuard-only adapter is not applied to native backups.
+- [x] Regression assertion now checks both exact TimescaleDB version recovery and preservation of `source_product=manubisguard`.
 - [ ] Run Ruff, migration test suite, backup service tests, clean image build, and real staging restore using a freshly generated native backup before marking the end-to-end restore gate green.
 - [ ] Do not run production `--apply` until staging restore, row-count/schema validation, and rollback gates are green.
