@@ -156,6 +156,7 @@ def _source_timescale_metadata(
     for pattern in (
         "db_backup.timescaledb-version",
         "manifest.tsv",
+        "manifest.json",
     ):
         try:
             files.extend(sorted(root.rglob(pattern)))
@@ -172,6 +173,26 @@ def _source_timescale_metadata(
             continue
 
         name = path.name.lower()
+
+        if name == "manifest.json":
+            try:
+                manifest = json.loads(text)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            # Native ManubisGuard backups record the exact live extension
+            # version in manifest.json. Never infer it from a Compose image tag.
+            if str(manifest.get("product", "")).strip().lower() == "manubisguard":
+                value = manifest.get("timescaledb") or manifest.get("timescaledb_version")
+                if isinstance(value, str):
+                    value = value.strip()
+                    if value and value.lower() != "unknown":
+                        if _SOURCE_VERSION_RE.fullmatch(value):
+                            versions.append(value)
+                        else:
+                            warnings.append(
+                                f"Unsafe TimescaleDB manifest version ignored: {value!r}"
+                            )
+            continue
 
         if name == "manifest.tsv":
             for line in text.splitlines():
