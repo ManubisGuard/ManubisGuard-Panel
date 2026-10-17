@@ -257,6 +257,20 @@ def _prepare_source(
         root = Path(tmp.name)
         _safe_extract_zip(path, root)
         source, nested = _find_candidate(root)
+        if detection.is_manubisguard:
+            # The archive manifest is authoritative for native ManubisGuard
+            # backups. The nested SQL may contain legacy PasarGuard strings in
+            # comments/data; those markers must not trigger the legacy adapter.
+            nested = BackupDetection(
+                path=str(source),
+                format=nested.format,
+                source_product="manubisguard",
+                confidence="high",
+                evidence=tuple(dict.fromkeys((*detection.evidence, *nested.evidence))),
+                schema_revision=nested.schema_revision,
+                source_postgres_major=nested.source_postgres_major,
+                warnings=tuple(dict.fromkeys((*detection.warnings, *nested.warnings))),
+            )
         return source, nested, tmp
     if path.name.lower().endswith((".tar", ".tgz", ".tar.gz")):
         tmp = tempfile.TemporaryDirectory(prefix="manubisguard-migration-")
