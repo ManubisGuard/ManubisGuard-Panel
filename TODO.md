@@ -888,3 +888,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 
 - [x] Attempted to publish the locally built Node image to GHCR from `CLY914129`; the registry rejected the existing Docker credential as unauthenticated, so no image push succeeded.
 - [x] Re-checked the public `latest` manifest after the source test commit; its manifest digest remained unchanged during this audit window. GHCR publication is therefore **not verified** and must remain open until a successful Actions run or authenticated push is confirmed.
+
+
+## Backup/Restore Regression Follow-up — 2026-10-17
+- [x] Re-audited the earlier Restore/Migration gates and confirmed the previous successful E2E covered older backup artifacts with a TimescaleDB version sidecar / PasarGuard `manifest.tsv`; it did not cover the native ManubisGuard `manifest.json` version contract.
+- [x] Root cause in native backup generation: `app/services/backup.py` wrote `postgresql` from the optional `POSTGRES_VERSION` environment variable (often `unknown`) and omitted the exact TimescaleDB extension version entirely.
+- [x] Root cause in restore analysis: `app/migration/runner.py::_source_timescale_metadata` read TimescaleDB versions from sidecars and `manifest.tsv`, but ignored native `manifest.json`.
+- [x] Fixed backup generation to capture `SHOW server_version` and `pg_extension.extversion` from the live database and persist them into both the ZIP manifest and Backup metadata.
+- [x] Fixed migration analysis to read a validated exact `timescaledb` / `timescaledb_version` value from a native ManubisGuard manifest; unknown or unsafe values are not guessed.
+- [x] Added regression coverage for a native ManubisGuard ZIP with an exact TimescaleDB version in `manifest.json`.
+- [ ] Run Ruff, migration test suite, backup service tests, clean image build, and real staging restore using a freshly generated native backup before marking the end-to-end restore gate green.
+- [ ] Do not run production `--apply` until staging restore, row-count/schema validation, and rollback gates are green.
