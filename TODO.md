@@ -931,3 +931,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Netplan generation passed (legacy `gateway4` deprecation warning remains from the pre-existing config); changed netplan file permissions to root-only.
 - [x] Post-change smoke checks passed: Panel and TimescaleDB containers remain healthy, panel HTTP health returns `{"status":"ok"}`, Nginx config test succeeds and service is active, local HTTPS health returns `{"status":"ok"}`, and public DNS resolution for `github.com` works.
 - [ ] Measure throughput, loaded latency, and packet-drop deltas over a sustained traffic window before claiming a measured throughput improvement. Historical NIC counters showed 520 RX drops at baseline; no before/after counter interval has yet been collected.
+
+
+## 2026-10-18 - Permanent restore-install fix
+
+- [x] Root cause confirmed on a fresh restore attempt: `manubis` called `/usr/local/bin/manubisguard-migrate`, but the installer had never installed that executable. Restore also requires the host-side `unzip` utility.
+- [x] Updated `install-manubisguard.sh` on `feature/amnezia-wg` to install `python3` and `unzip` in the base dependency bootstrap.
+- [x] Updated `install_helper()` to validate the CLI and migration source script exist, install both CLI and migration helper with root ownership and mode 0755, and fail clearly if prerequisites are missing. This ensures new installs and subsequent installer-driven updates provision the restore helper instead of leaving a broken `manubis restore` command.
+- [x] GitHub commit: `c388e86f4ff08c2ec88269747e1c79bd2a3409c8` (`fix(installer): install restore migration helper and dependencies`).
+- [x] Production restore on server `8017638839-819f55` completed successfully using backup `manubisguard-20261018T103649Z.zip`; staging validation and production safety dump passed before cutover. Database counts after restore: users=219, nodes=2, hosts=9, backups=13. Prior production DB retained as `manubisguard_pre_migration_728c9fdcd05a`; safety dump retained at `/var/lib/manubisguard/migration/728c9fdcd05a/production-safety.dump`.
+- [ ] Still to verify: clean-host end-to-end installation and `manubis restore` smoke test on a disposable environment. Existing production restore was successful, but this exact clean-install regression test has not yet been run.
+- [ ] Separate follow-up: investigate AWG node ID 3 timeouts observed in logs after the restore; unrelated to the missing migration helper.
