@@ -104,6 +104,8 @@ ensure_base_tools() {
   command -v git >/dev/null 2>&1 || missing+=(git)
   command -v curl >/dev/null 2>&1 || missing+=(curl)
   command -v openssl >/dev/null 2>&1 || missing+=(openssl)
+  command -v python3 >/dev/null 2>&1 || missing+=(python3)
+  command -v unzip >/dev/null 2>&1 || missing+=(unzip)
 
   if [ "${#missing[@]}" -gt 0 ]; then
     export DEBIAN_FRONTEND=noninteractive
@@ -337,7 +339,11 @@ verify_stack() {
 }
 
 install_helper() {
-  install -m 0755 "$INSTALL_DIR/manubis" /usr/local/bin/manubis
+  [ -x "$INSTALL_DIR/manubis" ] || die "ManubisGuard CLI is missing from $INSTALL_DIR/manubis"
+  [ -f "$INSTALL_DIR/scripts/manubisguard-migrate.sh" ] || die "Restore/migration helper is missing from $INSTALL_DIR/scripts/manubisguard-migrate.sh"
+  install -o root -g root -m 0755 "$INSTALL_DIR/manubis" /usr/local/bin/manubis
+  install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-migrate.sh" /usr/local/bin/manubisguard-migrate
+  command -v unzip >/dev/null 2>&1 || die "unzip is required for backup restore operations."
   rm -f /usr/local/bin/manubisguard
 }
 show_result() {
