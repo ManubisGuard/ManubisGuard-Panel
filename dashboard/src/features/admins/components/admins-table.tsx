@@ -245,8 +245,9 @@ export default function AdminsTable({ onEdit, onDelete, onToggleStatus, onResetU
     refetch,
   } = useGetAdmins(filters, {
     query: {
-      staleTime: 0,
-      gcTime: 0,
+      // Avoid refetching the same admin list immediately after navigating back.
+      staleTime: 10_000,
+      gcTime: 5 * 60_000,
       retry: 1,
     },
   })

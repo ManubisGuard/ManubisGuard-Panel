@@ -117,9 +117,10 @@ export default function NodesList() {
     refetch,
   } = useGetNodes(filters, {
     query: {
+      // Node status still refreshes every 10 seconds; retain cached data between visits.
       refetchInterval: 10000,
-      staleTime: 0,
-      gcTime: 0,
+      staleTime: 5_000,
+      gcTime: 2 * 60_000,
       retry: 1,
       refetchOnMount: true,
       refetchOnWindowFocus: true,

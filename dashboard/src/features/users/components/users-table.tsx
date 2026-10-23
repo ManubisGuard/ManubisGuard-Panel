@@ -106,7 +106,9 @@ const parseURLParams = (searchParams: URLSearchParams, defaultItemsPerPage: numb
   const pageParam = searchParams.get('page')
   // URL stores page as 1-indexed (what user sees), convert to 0-indexed for internal use
   const page = pageParam ? Math.max(0, parseInt(pageParam, 10) - 1) : 0
-  const limit = parseInt(searchParams.get('limit') || defaultItemsPerPage.toString(), 10)
+  const requestedLimit = parseInt(searchParams.get('limit') || defaultItemsPerPage.toString(), 10)
+  // URLs can outlive older UI versions; reject unsupported page sizes (e.g. limit=500).
+  const limit = [10, 20, 30, 40, 50].includes(requestedLimit) ? requestedLimit : defaultItemsPerPage
   const sort = searchParams.get('sort') || '-created_at'
   const search = searchParams.get('search') || undefined
   const isId = searchParams.get('is_id') === 'true'
@@ -493,8 +495,10 @@ const UsersTable = memo(() => {
     isFetching,
   } = useGetUsers(filters, {
     query: {
-      staleTime: 0,
-      gcTime: 0,
+      // Keep the current page warm between navigation and filter UI mounts.
+      // The table's explicit refresh action and 15s auto-refresh still fetch fresh data.
+      staleTime: 10_000,
+      gcTime: 5 * 60_000,
       retry: 1,
       placeholderData: previousData => previousData,
     },

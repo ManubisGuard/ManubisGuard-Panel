@@ -41,8 +41,10 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
   const { data: nodeStats, isLoading: isLoadingNodeStats } = useRealtimeNodeStats(selectedNodeId || 0, {
     query: {
       enabled: shouldFetchNodeRealtime,
-      refetchInterval: 1500, // Update every 1.5 seconds for faster realtime updates
-      staleTime: 1000, // Consider data stale after 1 second
+      // 10s is responsive enough for operational charts without polling the API
+      // roughly 40 times per 10 minutes per open statistics view.
+      refetchInterval: 10_000,
+      staleTime: 5_000,
     },
   })
 

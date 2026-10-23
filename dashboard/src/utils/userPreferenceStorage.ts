@@ -31,8 +31,10 @@ const DEFAULT_CHART_VIEW_TYPE: ChartViewType = 'bar'
 // Generic function for any table type
 export const getItemsPerPageLimitSize = (tableType: 'users' | 'admins' = 'users') => {
   const storageKey = tableType === 'users' ? NUM_USERS_PER_PAGE_LOCAL_STORAGE_KEY : NUM_ADMINS_PER_PAGE_LOCAL_STORAGE_KEY
-  const numItemsPerPage = (typeof localStorage !== 'undefined' && localStorage.getItem(storageKey)) || NUM_ITEMS_PER_PAGE_DEFAULT.toString() // this catches `null` values
-  return parseInt(numItemsPerPage) || NUM_ITEMS_PER_PAGE_DEFAULT // this catches NaN values
+  const storedValue = (typeof localStorage !== 'undefined' && localStorage.getItem(storageKey)) || NUM_ITEMS_PER_PAGE_DEFAULT.toString() // this catches `null` values
+  const parsedValue = parseInt(storedValue, 10)
+  // Keep persisted values aligned with the pagination choices actually offered by the UI.
+  return [10, 20, 30, 40, 50].includes(parsedValue) ? parsedValue : NUM_ITEMS_PER_PAGE_DEFAULT
 }
 
 export const setItemsPerPageLimitSize = (value: string, tableType: 'users' | 'admins' = 'users') => {

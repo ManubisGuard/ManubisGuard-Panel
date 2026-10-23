@@ -942,3 +942,14 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Production restore on server `8017638839-819f55` completed successfully using backup `manubisguard-20261018T103649Z.zip`; staging validation and production safety dump passed before cutover. Database counts after restore: users=219, nodes=2, hosts=9, backups=13. Prior production DB retained as `manubisguard_pre_migration_728c9fdcd05a`; safety dump retained at `/var/lib/manubisguard/migration/728c9fdcd05a/production-safety.dump`.
 - [ ] Still to verify: clean-host end-to-end installation and `manubis restore` smoke test on a disposable environment. Existing production restore was successful, but this exact clean-install regression test has not yet been run.
 - [ ] Separate follow-up: investigate AWG node ID 3 timeouts observed in logs after the restore; unrelated to the missing migration helper.
+
+
+## 2026-10-23 Dashboard performance pass (no service restart)
+
+- [x] User-tested dashboard performance improvements reported as better; query cache and polling intervals reduced in the frontend.
+- [x] Pagination guard accepts only UI-supported page sizes 10/20/30/40/50 from URL parameters and persisted preferences; unsupported values fall back to 10.
+- [x] Production frontend rebuilt and deployed by atomically replacing index.html after copying hashed assets; previous hashed assets preserved for existing tabs. Production build and TypeScript checks passed.
+- [x] Nginx gzip configuration tuned in the server vhost; measured transfer reductions: JS 118,730 to 34,015 bytes (71.4%), CSS 219,610 to 32,443 bytes (85.2%). Nginx config test passed and graceful reload completed.
+- [x] 4 GiB swap persisted in /swapfile and vm.swappiness=10 persisted. Production Panel health remained HTTP 200.
+- [ ] Intermittent /api/users latency remains unrooted; investigate database vs serialization/response time before making further changes. Do not add indexes or change DB logging blindly.
+- [ ] Publish these source changes on GitHub before treating the work as complete; this commit records the source changes for future installs.
