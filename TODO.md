@@ -953,3 +953,10 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] 4 GiB swap persisted in /swapfile and vm.swappiness=10 persisted. Production Panel health remained HTTP 200.
 - [ ] Intermittent /api/users latency remains unrooted; investigate database vs serialization/response time before making further changes. Do not add indexes or change DB logging blindly.
 - [x] Source changes published to `feature/amnezia-wg` in commit `a7e6563b0975cac6bebe2cd4cba43c2639e109f4` so future installs from this branch include the dashboard cache/polling and pagination fixes.
+
+
+## 2026-10-23 Connection handling diagnostic
+
+- [x] Read-only socket diagnostics on the production host: 1 CLOSE-WAIT socket and 12 SYN-SENT sockets were observed at one sample; the outbound SYN-SENT sockets belong to Xray and require destination/node-level diagnosis rather than blind global TCP tuning.
+- [x] Corrected the panel Nginx vhost so `Connection: upgrade` is sent only when a client requests an upgrade. Added an Nginx `map` and changed the panel vhost header. Config test passed, graceful reload succeeded, and `/health` returned HTTP 200; dashboard returned HTTP 200. Backup: `/etc/nginx/sites-available/vip.qoqnusradio.top.pre-connection-header-20261023T095630Z`.
+- [ ] Continue tracing the Xray SYN-SENT sockets and the Finland node (ID 153) health-check timeouts. Node logs show repeated RPC `DeadlineExceeded` errors while retrieving Xray system stats and panel logs show repeated timeouts for Finland. Do not restart or modify the node until its network path and API reachability are identified.
