@@ -952,4 +952,4 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Nginx gzip configuration tuned in the server vhost; measured transfer reductions: JS 118,730 to 34,015 bytes (71.4%), CSS 219,610 to 32,443 bytes (85.2%). Nginx config test passed and graceful reload completed.
 - [x] 4 GiB swap persisted in /swapfile and vm.swappiness=10 persisted. Production Panel health remained HTTP 200.
 - [ ] Intermittent /api/users latency remains unrooted; investigate database vs serialization/response time before making further changes. Do not add indexes or change DB logging blindly.
-- [ ] Publish these source changes on GitHub before treating the work as complete; this commit records the source changes for future installs.
+- [x] Source changes published to `feature/amnezia-wg` in commit `a7e6563b0975cac6bebe2cd4cba43c2639e109f4` so future installs from this branch include the dashboard cache/polling and pagination fixes.
