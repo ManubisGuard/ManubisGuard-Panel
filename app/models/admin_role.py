@@ -61,6 +61,9 @@ class UsersPermissions(CRUDPermissions):
 
 class AdminsPermissions(CRUDPermissions):
     reset_usage: RoleActionValue | None = None
+    # Legacy PasarGuard roles may include this permission even if this branch
+    # does not expose passkey-management routes.
+    passkeys: RoleActionValue | None = None
 
 
 class NodesPermissions(CRUDPermissions):

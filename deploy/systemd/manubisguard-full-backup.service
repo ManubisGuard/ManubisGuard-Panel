@@ -1,0 +1,12 @@
+[Unit]
+Description=ManubisGuard full panel and local node backup
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/manubisguard-full-backup-deliver.py
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=30min

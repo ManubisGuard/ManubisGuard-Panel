@@ -1,0 +1,11 @@
+[Unit]
+Description=Run ManubisGuard full backup every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+RandomizedDelaySec=90s
+Persistent=true
+Unit=manubisguard-full-backup.service
+
+[Install]
+WantedBy=timers.target

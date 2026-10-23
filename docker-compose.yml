@@ -25,6 +25,9 @@ services:
     volumes:
       - /var/lib/manubisguard:/var/lib/manubisguard
       - /etc/manubisguard/restore-agent.key:/run/secrets/manubisguard_restore_agent_key:ro
+      - ./app/db/migrations/versions:/code/app/db/migrations/versions:ro
+      - ./app/db/compiles_types.py:/code/app/db/compiles_types.py:ro
+      - ./app/models/admin_role.py:/code/app/models/admin_role.py:ro
     depends_on:
       timescaledb:
         condition: service_healthy

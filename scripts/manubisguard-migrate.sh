@@ -955,6 +955,18 @@ for raw in sys.stdin:
         continue
     sys.stdout.write(line + "\n")
 ' | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$ADMIN_USER" -d "$CUTOVER_DB" || rc=$?
+    elif [ "$PG_MAJOR" -lt 17 ]; then
+      # pg_dump from PostgreSQL 17 emits SET transaction_timeout, which PostgreSQL 16 rejects.
+      # Apply the narrow compatibility filter even when Timescale's portable bridge is not needed.
+      cat "$PANEL_DUMP" | docker exec -i "$PANEL_CONTAINER" python -c '
+import sys
+from app.migration.timescale import filter_postgresql_compatibility_line
+for raw in sys.stdin:
+    line = raw.rstrip("\r\n")
+    if filter_postgresql_compatibility_line(line, target_pg_major=int("'$PG_MAJOR'")):
+        continue
+    sys.stdout.write(line + "\n")
+' | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$ADMIN_USER" -d "$CUTOVER_DB" || rc=$?
     else
       cat "$PANEL_DUMP" | docker exec -i -e PGPASSWORD="$ADMIN_PASS" "$DB_CONTAINER" psql -X -v ON_ERROR_STOP=1 -U "$ADMIN_USER" -d "$CUTOVER_DB" || rc=$?
     fi
@@ -1200,7 +1212,8 @@ main() {
       create_staging_database
     else
       stage_version="$(json_get "$(cat "$WORKDIR/analysis.json")" ".staging_timescale_version")"
-      stage_version="${stage_version:-$PROD_TS_VERSION}"
+      # Restore with the source extension version first; upgrade only after restore finalization.
+      stage_version="${stage_version:-${SOURCE_TS_VERSION:-$PROD_TS_VERSION}}"
       [ -n "$stage_version" ] || die "No compatible TimescaleDB staging version was selected."
       start_temp_timescale "$stage_version"
       create_staging_database

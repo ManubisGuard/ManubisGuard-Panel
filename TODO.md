@@ -946,17 +946,37 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 
 ## 2026-10-23 Dashboard performance pass (no service restart)
 
-- [x] User-tested dashboard performance improvements reported as better; query cache and polling intervals reduced in the frontend.
-- [x] Pagination guard accepts only UI-supported page sizes 10/20/30/40/50 from URL parameters and persisted preferences; unsupported values fall back to 10.
-- [x] Production frontend rebuilt and deployed by atomically replacing index.html after copying hashed assets; previous hashed assets preserved for existing tabs. Production build and TypeScript checks passed.
-- [x] Nginx gzip configuration tuned in the server vhost; measured transfer reductions: JS 118,730 to 34,015 bytes (71.4%), CSS 219,610 to 32,443 bytes (85.2%). Nginx config test passed and graceful reload completed.
-- [x] 4 GiB swap persisted in /swapfile and vm.swappiness=10 persisted. Production Panel health remained HTTP 200.
-- [ ] Intermittent /api/users latency remains unrooted; investigate database vs serialization/response time before making further changes. Do not add indexes or change DB logging blindly.
-- [x] Source changes published to `feature/amnezia-wg` in commit `a7e6563b0975cac6bebe2cd4cba43c2639e109f4` so future installs from this branch include the dashboard cache/polling and pagination fixes.
+- [x] Read-only baseline on `nex8017638839-6210933`: Panel and TimescaleDB healthy; local `/health` ~35 ms; dashboard HTML ~2.3 KB; users API occasionally reached ~1.25 s for `limit=500`; users page query had `staleTime: 0` and `gcTime: 0`; nodes/admin lists also discarded cache; statistics node realtime polling was every 1.5 s and dashboard summary polling every 5 s.
+- [x] Frontend changes: users/admin query cache retained for 5 minutes with 10 s stale time; node list cache retained for 2 minutes with 5 s stale time while preserving its 10 s refresh; connected-node statistics polling reduced from 1.5 s to 10 s; dashboard resource/user summary polling reduced from 5 s to 15 s.
+- [x] Production dashboard rebuilt and switched by copying new hashed assets first and atomically replacing `index.html` last. Previous hashed assets were preserved so already-open browser tabs can continue loading old lazy chunks. Backup: `/var/lib/manubisguard/backups/dashboard-build-preopt-20261023T093503Z.tar.gz`.
+- [x] No Panel, TimescaleDB, Node, or Nginx restart/recreation was performed. Post-deploy `/health` returned `{"status":"ok"}`; dashboard HTML, new entry bundle, users/admins/nodes/statistics chunks, CSS, service worker and dashboard manifest returned HTTP 200.
+- [x] Production build passed (`vite build`, 5,588 modules transformed); `tsc --noEmit` passed; `git diff --check` passed for changed frontend files.
+- [!] ESLint is not clean: it reports 26 errors and 2 warnings in the checked files at unrelated existing lines (unused `error`, explicit `any`, etc.). The changed query-option lines did not produce lint errors. Follow-up lint cleanup is separate from this performance change.
+- [x] Created persistent 4 GiB swap at `/swapfile`, added `/swapfile none swap sw 0 0` to `/etc/fstab`, and set persistent `vm.swappiness=10` in `/etc/sysctl.d/99-manubisguard-memory.conf`. Verified 4 GiB active swap and Panel health after the change.
+- [ ] Browser-side visual/interaction acceptance for every page still needs a real authenticated browser session. The root `/` splash template is a separate generated inline Canvas animation with a perpetual animation frame; source component was not found in the checked source tree, so it was not edited blindly.
+- [x] Follow-up fix: normalized persisted user/admin page-size preferences and rejected unsupported user-table URL limits. Only UI-supported values 10/20/30/40/50 are accepted; stale `limit=500` URLs or localStorage values fall back to the default of 10.
+- [x] Rebuilt and deployed the pagination guard without restarting services. TypeScript check and production build passed; new entry/user/preferences chunks, CSS, service worker and manifest returned HTTP 200. Live dashboard health remained HTTP 200. Pre-deploy build backup: `/var/lib/manubisguard/backups/dashboard-build-prelimit-20261023T094637Z.tar.gz`.
+- [ ] Follow-up: attribute intermittent `/api/users` latency (samples range from ~53 ms to ~16.15 s, with additional ~3-4.5 s samples in the latest log window) to database execution vs Python response/serialization. Root cause is not proven; `pg_stat_statements` is not enabled and no database configuration was changed. Existing browser tabs may still be running a cached old bundle, so verify `limit=10` or a supported size after a full dashboard reload.
 
+## 2026-10-23 Nginx gzip hardening and API latency follow-up
+
+- [x] Backed up `/etc/nginx/sites-available/vip.qoqnusradio.top` to `/etc/nginx/sites-available/vip.qoqnusradio.top.pre-gzip-20261023T094236Z` before editing.
+- [x] Made the panel vhost's gzip behavior explicit: HTTP/1.1 minimum, level 5, 1 KiB threshold, 16 x 8 KiB buffers, `gzip_vary`, proxy compression and legacy IE exclusion; added JSON-LD, web manifest and WebAssembly MIME types; removed already-compressed webfont formats from the gzip list.
+- [x] `nginx -t` passed, then graceful `nginx -s reload` completed. Live HTTPS tests confirmed HTTP/2 200 + `Content-Encoding: gzip` for dashboard HTML, hashed JavaScript and CSS. HTML remains `no-store`; hashed assets remain `max-age=31536000, immutable`. No app/database restart was performed.
+- [x] Confirmed DB contains 445 users and relevant indexes exist. `pg_stat_statements` is not installed/enabled; `log_min_duration_statement=-1`, so historical SQL-level attribution is not currently available without a separate observability change.
+- [x] API log evidence: `/api/users?offset=0&limit=500&...&load_sub=false` varied from ~53 ms to ~16.15 s. This means the slow samples are not explained by subscription URL generation (`load_sub=false`); do not assume that or add indexes blindly. `limit=500` is accepted from URL/localStorage while the frontend default is 10; a browser preference or URL state is the likely source, but not proven from server logs alone.
+- [ ] Follow-up: instrument or reproduce a slow authenticated users-list request and measure DB execution versus Python serialization/response time. Avoid enabling DB query logging or installing extensions without a planned change window.
 
 ## 2026-10-23 Connection handling diagnostic
 
 - [x] Read-only socket diagnostics on the production host: 1 CLOSE-WAIT socket and 12 SYN-SENT sockets were observed at one sample; the outbound SYN-SENT sockets belong to Xray and require destination/node-level diagnosis rather than blind global TCP tuning.
 - [x] Corrected the panel Nginx vhost so `Connection: upgrade` is sent only when a client requests an upgrade. Added an Nginx `map` and changed the panel vhost header. Config test passed, graceful reload succeeded, and `/health` returned HTTP 200; dashboard returned HTTP 200. Backup: `/etc/nginx/sites-available/vip.qoqnusradio.top.pre-connection-header-20261023T095630Z`.
 - [ ] Continue tracing the Xray SYN-SENT sockets and the Finland node (ID 153) health-check timeouts. Node logs show repeated RPC `DeadlineExceeded` errors while retrieving Xray system stats and panel logs show repeated timeouts for Finland. Do not restart or modify the node until its network path and API reachability are identified.
+
+## 2026-10-23 Full-host backup source control
+
+- [x] Versioned the tested full-host backup and encrypted Telegram delivery scripts under `scripts/`, plus the systemd service/timer definitions under `deploy/systemd/`.
+- [x] Delivery now uses the project-owned Telegram helper instead of relying on an ephemeral `/tmp/send_full.py`; encrypted archive retention follows `/etc/manubisguard/full-backup.conf`.
+- [x] Installer helper installs the backup scripts and units, creates a local 32-byte encryption key only when missing, and enables the 30-minute timer without exposing the key in Git.
+- [x] The current host's existing key and backup archives remain outside the repository; do not commit `backup/*.dump`, `.env`, encryption keys, or full ZIP archives.
+- [ ] Verify a full restore on a separate disposable host; production panel services were not restarted during the backup implementation.

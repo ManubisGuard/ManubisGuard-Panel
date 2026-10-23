@@ -1,6 +1,53 @@
-from sqlalchemy import BigInteger, Numeric, String, TypeDecorator
+from sqlalchemy import BigInteger, LargeBinary, Numeric, String, TypeDecorator
+from sqlalchemy.dialects import mysql
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import FunctionElement
+
+
+class WebAuthnBinary(TypeDecorator):
+    """Legacy migration type for binary WebAuthn public keys."""
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            blob_type = mysql.TINYBLOB() if self.length <= 255 else mysql.BLOB()
+            return dialect.type_descriptor(blob_type)
+        return dialect.type_descriptor(LargeBinary(self.length))
+
+
+class WebAuthnCredentialId(TypeDecorator):
+    """Legacy migration type for indexable WebAuthn credential IDs."""
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int = 1024):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(mysql.VARBINARY(self.length))
+        return dialect.type_descriptor(LargeBinary(self.length))
+
+
+class WebAuthnChallenge(TypeDecorator):
+    """Legacy migration type for WebAuthn challenge values."""
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int = 128):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(mysql.VARBINARY(self.length))
+        return dialect.type_descriptor(LargeBinary(self.length))
 
 
 class CaseSensitiveString(String):
