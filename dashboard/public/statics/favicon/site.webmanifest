@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "short_name": "",
+  "name": "ManubisGuard",
+  "short_name": "Manubis",
   "icons": [
     {
       "src": "/statics/favicon/logo-pwa.png",

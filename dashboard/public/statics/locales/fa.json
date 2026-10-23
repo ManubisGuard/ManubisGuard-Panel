@@ -13,7 +13,13 @@
     "coreInbound": "Core و Inbound",
     "reseller": "Reseller",
     "addCore": "افزودن Core",
-    "nodeCore": "Nodes & Cores"
+    "nodeCore": "Nodes & Cores",
+    "sections": {
+      "operations": "فضای کاری",
+      "infrastructure": "زیرساخت",
+      "access": "دسترسی و ابزارها",
+      "system": "سیستم"
+    }
   },
   "allStatuses": "همه وضعیت‌ها",
   "status": "وضعیت",
@@ -2261,7 +2267,66 @@
     "pink": "صورتی",
     "previewBadge": "زنده",
     "previewCard": "ثانویه",
-    "previewMuted": "مصرف"
+    "previewMuted": "مصرف",
+    "appearance": {
+      "modeLabel": "حالت ظاهری",
+      "darkPro": "دارک پرو",
+      "darkProDescription": "سطوح گرافیتی، مرزبندی ظریف و جلوه‌های حداقلی برای استفاده روزمره.",
+      "neonMode": "حالت نئون",
+      "neonDescription": "درخشش کنترل‌شده بنفش و فیروزه‌ای، نور محیطی و شبکه فنی اختیاری.",
+      "active": "فعال",
+      "appearanceEngine": "موتور ظاهر",
+      "commandCenterTheme": "تم مرکز فرماندهی",
+      "appearanceDescription": "ظاهر کلی پنل را از یک بخش مدیریت کنید. تغییرات فوراً پیش‌نمایش و روی همین دستگاه ذخیره می‌شوند.",
+      "darkNative": "مناسب تم تاریک",
+      "livePreview": "پیش‌نمایش زنده",
+      "presets": "پیش‌تنظیم‌ها",
+      "presetDescription": "ترکیب‌های کامل ظاهری، نه فقط تغییر یک رنگ.",
+      "liveVisualControls": "تنظیمات زنده جلوه‌ها",
+      "liveVisualControlsDescription": "جلوه‌ها را هدفمند و خوانا نگه دارید.",
+      "identityColors": "رنگ‌های هویتی",
+      "identityColorsDescription": "این مقادیر توکن‌های رنگی کل رابط را کنترل می‌کنند.",
+      "colors": {
+        "primary": "اصلی",
+        "secondary": "ثانویه",
+        "accent": "تأکیدی",
+        "background": "پس‌زمینه",
+        "surface": "سطح"
+      },
+      "controls": {
+        "glow": "درخشش",
+        "glass": "شیشه‌ای",
+        "borders": "کادرها",
+        "shadows": "سایه‌ها",
+        "chartGlow": "درخشش نمودار"
+      },
+      "interfaceBehavior": "رفتار رابط",
+      "interfaceBehaviorDescription": "تراکم و حرکت در کل پنل اعمال می‌شوند.",
+      "density": {
+        "compact": "فشرده",
+        "comfortable": "متعادل",
+        "spacious": "باز"
+      },
+      "grid": "شبکه",
+      "ambient": "نور محیطی",
+      "on": "روشن",
+      "off": "خاموش",
+      "advancedControls": "تنظیمات پیشرفته",
+      "hideAdvanced": "پنهان‌کردن پیشرفته",
+      "motion": {
+        "reduced": "حرکت کم",
+        "standard": "حرکت استاندارد",
+        "enhanced": "حرکت بیشتر"
+      },
+      "presetDescriptions": {
+        "cyberPulse": "بنفش الکتریکی با حسگرهای سبز نعنایی.",
+        "midnightViolet": "مرکز فرماندهی بنفش تیره با درخشش ملایم.",
+        "neonOcean": "رنگ‌های فیروزه‌ای سرد روی زمینه‌ای اقیانوسی و تاریک.",
+        "aurora": "تعادل بنفش و آبی‌آبی برای صفحه‌های عملیاتی پرتراکم.",
+        "quantum": "کنتراست دقیق‌تر برای کارهای فنی و توسعه.",
+        "obsidian": "سطوح مشکی مینیمال با جزئیات دقیق."
+      }
+    }
   },
   "coreConfigModal": {
     "addConfig": "افزودن پیکربندی هسته",

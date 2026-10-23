@@ -3,6 +3,7 @@ import { colorThemes, composeTheme, LEGACY_COLOR_THEME, LEGACY_THEME_TO_BASE, ty
 import { applyThemeCustomization, DEFAULT_THEME_CUSTOMIZATION, parseThemeCustomization, type ThemeCustomization, type ThemeDensity, type ThemeNeutral, type ThemeSurface } from '@/lib/theme-color'
 
 export type Theme = 'dark' | 'light' | 'system'
+export type VisualMode = 'dark-pro' | 'neon'
 export type Radius = string
 export type { ColorTheme, BaseColor, ThemeCustomization, ThemeDensity, ThemeNeutral, ThemeSurface }
 
@@ -29,6 +30,8 @@ type ThemeProviderState = {
   setCustomization: (patch: Partial<ThemeCustomization>) => void
   resetToDefaults: () => void
   isSystemTheme: boolean
+  visualMode: VisualMode
+  setVisualMode: (mode: VisualMode) => void
 }
 
 const initialState: ThemeProviderState = {
@@ -43,11 +46,14 @@ const initialState: ThemeProviderState = {
   setCustomization: () => null,
   resetToDefaults: () => null,
   isSystemTheme: true,
+  visualMode: 'dark-pro',
+  setVisualMode: () => null,
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
 
 const VALID_THEMES: Theme[] = ['light', 'dark', 'system']
+const VALID_VISUAL_MODES: VisualMode[] = ['dark-pro', 'neon']
 const RADIUS_MIN = 0
 const RADIUS_MAX = 1.5
 
@@ -123,6 +129,11 @@ export function ThemeProvider({
     return saved && VALID_THEMES.includes(saved) ? saved : defaultTheme
   })
 
+  const [visualMode, setVisualModeState] = useState<VisualMode>(() => {
+    const saved = safeLocalStorage.getItem('manubis-visual-mode') as VisualMode | null
+    return saved && VALID_VISUAL_MODES.includes(saved) ? saved : 'dark-pro'
+  })
+
   const [colorTheme, setColorThemeState] = useState<ColorTheme>(() => {
     const saved = safeLocalStorage.getItem(colorStorageKey)
     if (saved && LEGACY_THEME_TO_BASE[saved]) return 'default'
@@ -161,6 +172,7 @@ export function ThemeProvider({
 
     root.classList.remove('light', 'dark')
     root.classList.add(themeMode)
+    root.dataset.visualMode = visualMode
     root.dataset.density = customizationValue.density
     root.dataset.surface = customizationValue.surface
     root.dataset.style = customizationValue.style
@@ -173,7 +185,7 @@ export function ThemeProvider({
       ...applyThemeCustomization(composeTheme(customizationValue.baseColor, colorThemeName, themeMode), customizationValue),
       '--radius': radiusValue,
     })
-  }, [])
+  }, [visualMode])
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
@@ -195,6 +207,12 @@ export function ThemeProvider({
     setResolvedTheme(newResolvedTheme)
     applyTheme(newResolvedTheme, colorTheme, radius, customization)
   }, [theme, colorTheme, radius, customization, applyTheme])
+
+  const setVisualMode = useCallback((mode: VisualMode) => {
+    if (!VALID_VISUAL_MODES.includes(mode)) return
+    safeLocalStorage.setItem('manubis-visual-mode', mode)
+    setVisualModeState(mode)
+  }, [])
 
   const setTheme = useCallback(
     (newTheme: Theme) => {
@@ -246,7 +264,9 @@ export function ThemeProvider({
     safeLocalStorage.removeItem(colorStorageKey)
     safeLocalStorage.removeItem(radiusStorageKey)
     safeLocalStorage.removeItem(customizationStorageKey)
+    safeLocalStorage.removeItem('manubis-visual-mode')
 
+    setVisualModeState('dark-pro')
     setThemeState(defaultTheme)
     setColorThemeState(defaultColorTheme)
     setRadiusState(defaultRadius)
@@ -266,8 +286,10 @@ export function ThemeProvider({
       setCustomization,
       resetToDefaults,
       isSystemTheme: theme === 'system',
+      visualMode,
+      setVisualMode,
     }),
-    [theme, colorTheme, radius, customization, resolvedTheme, setTheme, setColorTheme, setRadius, setCustomization, resetToDefaults],
+    [theme, colorTheme, radius, customization, resolvedTheme, setTheme, setColorTheme, setRadius, setCustomization, resetToDefaults, visualMode, setVisualMode],
   )
 
   return (

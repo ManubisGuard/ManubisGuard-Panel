@@ -13,7 +13,13 @@
     "coreInbound": "Core & Inbound",
     "reseller": "Reseller",
     "addCore": "Add Core",
-    "nodeCore": "Nodes & Cores"
+    "nodeCore": "Nodes & Cores",
+    "sections": {
+      "operations": "Workspace",
+      "infrastructure": "Infrastructure",
+      "access": "Access & Tools",
+      "system": "System"
+    }
   },
   "allStatuses": "All Statuses",
   "status": "Status",
@@ -2343,7 +2349,66 @@
     "pink": "Pink",
     "previewBadge": "Live",
     "previewCard": "Secondary",
-    "previewMuted": "Usage"
+    "previewMuted": "Usage",
+    "appearance": {
+      "modeLabel": "Visual mode",
+      "darkPro": "Dark Pro",
+      "darkProDescription": "Clean graphite surfaces, subtle borders and minimal visual effects for daily use.",
+      "neonMode": "Neon Mode",
+      "neonDescription": "Controlled violet and cyan glow, ambient lighting and an optional technical grid.",
+      "active": "Active",
+      "appearanceEngine": "Appearance engine",
+      "commandCenterTheme": "Command center theme",
+      "appearanceDescription": "Shape the entire visual language from one place. Changes are previewed immediately and saved on this device.",
+      "darkNative": "Dark-native",
+      "livePreview": "Live preview",
+      "presets": "Presets",
+      "presetDescription": "Complete visual identities, not single-color swaps.",
+      "liveVisualControls": "Live visual controls",
+      "liveVisualControlsDescription": "Keep effects purposeful and readable.",
+      "identityColors": "Identity colors",
+      "identityColorsDescription": "All values feed the global design tokens.",
+      "colors": {
+        "primary": "Primary",
+        "secondary": "Secondary",
+        "accent": "Accent",
+        "background": "Background",
+        "surface": "Surface"
+      },
+      "controls": {
+        "glow": "Glow",
+        "glass": "Glass",
+        "borders": "Borders",
+        "shadows": "Shadows",
+        "chartGlow": "Chart glow"
+      },
+      "interfaceBehavior": "Interface behavior",
+      "interfaceBehaviorDescription": "Density and motion are global, not page-specific.",
+      "density": {
+        "compact": "Compact",
+        "comfortable": "Comfortable",
+        "spacious": "Spacious"
+      },
+      "grid": "Grid",
+      "ambient": "Ambient",
+      "on": "On",
+      "off": "Off",
+      "advancedControls": "Advanced controls",
+      "hideAdvanced": "Hide advanced",
+      "motion": {
+        "reduced": "Reduced motion",
+        "standard": "Standard motion",
+        "enhanced": "Enhanced motion"
+      },
+      "presetDescriptions": {
+        "cyberPulse": "Electric violet with mint telemetry energy.",
+        "midnightViolet": "Deep violet command center with restrained glow.",
+        "neonOcean": "Cool cyan telemetry with a dark ocean foundation.",
+        "aurora": "Balanced violet and aqua for dense operational screens.",
+        "quantum": "Sharper contrast for technical and developer workflows.",
+        "obsidian": "Minimal black surfaces with precision accents."
+      }
+    }
   },
   "coreConfigModal": {
     "addConfig": "Create Core Configuration",

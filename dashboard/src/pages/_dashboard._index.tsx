@@ -3,7 +3,6 @@ import DashboardOverview from '@/features/dashboard/components/dashboard-overvie
 import WorkersHealthCard from '@/features/dashboard/components/workers-health-card'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import { useCommandPaletteStore } from '@/hooks/use-command-palette-store'
-import UserModal from '@/features/users/dialogs/user-modal'
 import { useAdmin } from '@/hooks/use-admin'
 import { useClipboard } from '@/hooks/use-clipboard'
 import type { AdminDetails, UserResponse } from '@/service/api'
@@ -11,7 +10,7 @@ import { useGetSystemResourceStats, useGetSystemUsersStats } from '@/service/api
 import { ArrowUpRight, Bookmark, Plus, Server, Users, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Link } from 'react-router'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -21,6 +20,9 @@ import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import { useQueryClient } from '@tanstack/react-query'
 
 type DashboardAdmin = Pick<AdminDetails, 'id' | 'username'>
+
+// The user editor pulls in advanced usage charts and editors. Load it only when requested.
+const UserModal = lazy(() => import('@/features/users/dialogs/user-modal'))
 
 const totalAdmin: DashboardAdmin = {
   username: 'Total',
@@ -150,7 +152,11 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {isUserModalOpen && <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={handleCreateUserSuccess} />}
+      {isUserModalOpen && (
+        <Suspense fallback={null}>
+          <UserModal isDialogOpen={isUserModalOpen} onOpenChange={setUserModalOpen} form={userForm} editingUser={false} onSuccessCallback={handleCreateUserSuccess} />
+        </Suspense>
+      )}
     </div>
   )
 }

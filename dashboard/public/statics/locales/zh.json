@@ -6,7 +6,13 @@
     "coreInbound": "核心与入站",
     "reseller": "Reseller",
     "addCore": "添加 Core",
-    "nodeCore": "Nodes & Cores"
+    "nodeCore": "Nodes & Cores",
+    "sections": {
+      "operations": "工作区",
+      "infrastructure": "基础设施",
+      "access": "访问与工具",
+      "system": "系统"
+    }
   },
   "dashboard": "仪表板",
   "master": "总体",
@@ -2303,7 +2309,66 @@
     "pink": "粉色",
     "previewBadge": "实时",
     "previewCard": "次要",
-    "previewMuted": "用量"
+    "previewMuted": "用量",
+    "appearance": {
+      "modeLabel": "视觉模式",
+      "darkPro": "Dark Pro",
+      "darkProDescription": "石墨色表面、细腻边框与克制的效果，适合日常使用。",
+      "neonMode": "霓虹模式",
+      "neonDescription": "适度的紫色与青色光晕、环境光，以及可选的技术网格。",
+      "active": "已启用",
+      "appearanceEngine": "外观引擎",
+      "commandCenterTheme": "指挥中心主题",
+      "appearanceDescription": "在一个位置管理整个界面的视觉风格。更改会即时预览并保存在此设备上。",
+      "darkNative": "深色优先",
+      "livePreview": "实时预览",
+      "presets": "预设",
+      "presetDescription": "完整的视觉方案，而不仅仅是替换单一颜色。",
+      "liveVisualControls": "实时视觉控制",
+      "liveVisualControlsDescription": "让视觉效果保持克制且清晰。",
+      "identityColors": "品牌颜色",
+      "identityColorsDescription": "这些值将应用于全局设计颜色变量。",
+      "colors": {
+        "primary": "主色",
+        "secondary": "辅助色",
+        "accent": "强调色",
+        "background": "背景",
+        "surface": "表面"
+      },
+      "controls": {
+        "glow": "光晕",
+        "glass": "玻璃效果",
+        "borders": "边框",
+        "shadows": "阴影",
+        "chartGlow": "图表光晕"
+      },
+      "interfaceBehavior": "界面行为",
+      "interfaceBehaviorDescription": "密度和动效设置会应用于整个面板。",
+      "density": {
+        "compact": "紧凑",
+        "comfortable": "舒适",
+        "spacious": "宽松"
+      },
+      "grid": "网格",
+      "ambient": "环境光",
+      "on": "开启",
+      "off": "关闭",
+      "advancedControls": "高级设置",
+      "hideAdvanced": "隐藏高级设置",
+      "motion": {
+        "reduced": "减少动效",
+        "standard": "标准动效",
+        "enhanced": "增强动效"
+      },
+      "presetDescriptions": {
+        "cyberPulse": "电光紫色搭配薄荷绿遥测点缀。",
+        "midnightViolet": "深紫色指挥中心，搭配克制的光晕。",
+        "neonOcean": "冷青色遥测风格与深海色背景。",
+        "aurora": "均衡的紫色与青绿色，适合高密度操作界面。",
+        "quantum": "更鲜明的对比度，适合技术与开发工作流。",
+        "obsidian": "极简黑色表面与精准的强调色。"
+      }
+    }
   },
   "coreConfigModal": {
     "addConfig": "添加核心配置",

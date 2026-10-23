@@ -13,7 +13,13 @@
     "coreInbound": "Core и Inbound",
     "reseller": "Reseller",
     "addCore": "Добавить Core",
-    "nodeCore": "Nodes & Cores"
+    "nodeCore": "Nodes & Cores",
+    "sections": {
+      "operations": "Рабочая область",
+      "infrastructure": "Инфраструктура",
+      "access": "Доступ и инструменты",
+      "system": "Система"
+    }
   },
   "allStatuses": "Все статусы",
   "status": "Статус",
@@ -2236,7 +2242,66 @@
     "pink": "Розовый",
     "previewBadge": "Живой",
     "previewCard": "Дополнительная",
-    "previewMuted": "Использование"
+    "previewMuted": "Использование",
+    "appearance": {
+      "modeLabel": "Визуальный режим",
+      "darkPro": "Dark Pro",
+      "darkProDescription": "Графитовые поверхности, тонкие границы и минимум эффектов для повседневной работы.",
+      "neonMode": "Режим Neon",
+      "neonDescription": "Умеренное фиолетово-бирюзовое свечение, окружающий свет и необязательная техническая сетка.",
+      "active": "Активен",
+      "appearanceEngine": "Движок оформления",
+      "commandCenterTheme": "Тема центра управления",
+      "appearanceDescription": "Управляйте визуальным стилем панели в одном месте. Изменения сразу видны и сохраняются на этом устройстве.",
+      "darkNative": "Тёмная основа",
+      "livePreview": "Предпросмотр",
+      "presets": "Пресеты",
+      "presetDescription": "Полные визуальные наборы, а не только замена одного цвета.",
+      "liveVisualControls": "Настройки визуальных эффектов",
+      "liveVisualControlsDescription": "Сохраняйте эффекты уместными и читаемыми.",
+      "identityColors": "Основные цвета",
+      "identityColorsDescription": "Эти значения задают глобальные цветовые токены интерфейса.",
+      "colors": {
+        "primary": "Основной",
+        "secondary": "Вторичный",
+        "accent": "Акцент",
+        "background": "Фон",
+        "surface": "Поверхность"
+      },
+      "controls": {
+        "glow": "Свечение",
+        "glass": "Стекло",
+        "borders": "Границы",
+        "shadows": "Тени",
+        "chartGlow": "Свечение графиков"
+      },
+      "interfaceBehavior": "Поведение интерфейса",
+      "interfaceBehaviorDescription": "Плотность и анимация применяются ко всей панели.",
+      "density": {
+        "compact": "Компактно",
+        "comfortable": "Удобно",
+        "spacious": "Свободно"
+      },
+      "grid": "Сетка",
+      "ambient": "Окружающий свет",
+      "on": "Вкл.",
+      "off": "Выкл.",
+      "advancedControls": "Дополнительные настройки",
+      "hideAdvanced": "Скрыть настройки",
+      "motion": {
+        "reduced": "Меньше движения",
+        "standard": "Стандартное движение",
+        "enhanced": "Больше движения"
+      },
+      "presetDescriptions": {
+        "cyberPulse": "Электрический фиолетовый с мятными телеметрическими акцентами.",
+        "midnightViolet": "Тёмно-фиолетовый центр управления с мягким свечением.",
+        "neonOcean": "Холодная бирюзовая телеметрия на тёмно-океаническом фоне.",
+        "aurora": "Сбалансированные фиолетовые и бирюзовые тона для насыщенных экранов.",
+        "quantum": "Повышенный контраст для технических задач и разработки.",
+        "obsidian": "Минималистичные чёрные поверхности и точные акценты."
+      }
+    }
   },
   "coreConfigModal": {
     "addConfig": "Добавить конфигурацию ядра",

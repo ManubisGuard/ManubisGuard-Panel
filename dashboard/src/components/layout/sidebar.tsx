@@ -159,17 +159,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     },
     navMain: [
       ...(canReadSystem
-        ? [{ title: 'dashboard', url: '/', icon: LayoutDashboardIcon }]
+        ? [{ title: 'dashboard', url: '/', icon: LayoutDashboardIcon, section: 'navigation.sections.operations' }]
         : []),
       ...(hasPermission(admin, 'users', 'read')
-        ? [{ title: 'users', url: '/users', icon: UsersIcon }]
+        ? [{ title: 'users', url: '/users', icon: UsersIcon, section: 'navigation.sections.operations' }]
         : []),
       ...(hasPermission(admin, 'nodes', 'stats')
-        ? [{ title: 'statistics', url: '/statistics', icon: PieChart }]
+        ? [{ title: 'statistics', url: '/statistics', icon: PieChart, section: 'navigation.sections.operations' }]
         : []),
       ...(canReadHosts || canReadGroups
         ? [{
             title: 'navigation.hostsGroups',
+            section: 'navigation.sections.infrastructure',
             url: canReadHosts ? '/hosts' : '/groups',
             icon: Layers,
             items: [
@@ -181,6 +182,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ...(canReadNodes || canReadCores || canReadNodeLogs
         ? [{
             title: 'navigation.nodeCore',
+            section: 'navigation.sections.infrastructure',
             url: '/nodes',
             icon: Share2Icon,
             items: [
@@ -194,6 +196,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ...(canReadAdmins || isOwner(admin)
         ? [{
             title: 'navigation.reseller',
+            section: 'navigation.sections.access',
             url: canReadAdmins ? '/admins' : '/admin-roles',
             icon: UserCog,
             items: [
@@ -203,14 +206,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           }]
         : []),
       ...(canReadApiKeys
-        ? [{ title: 'apiKeys.title', url: '/api-keys', icon: Key }]
+        ? [{ title: 'apiKeys.title', url: '/api-keys', icon: Key, section: 'navigation.sections.access' }]
         : []),
       ...(templateNavItems.length > 0
-        ? [{ title: 'templates.title', url: templateNavItems[0].url, icon: LayoutTemplate, items: templateNavItems }]
+        ? [{ title: 'templates.title', url: templateNavItems[0].url, icon: LayoutTemplate, section: 'navigation.sections.access', items: templateNavItems }]
         : []),
       ...(canBulkCreateFromTemplate || canBulkUpdateUsers
         ? [{
             title: 'bulk.title',
+            section: 'navigation.sections.access',
             url: '/bulk',
             icon: Layers,
             items: [
@@ -226,6 +230,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         : []),
       {
         title: 'settings.title',
+        section: 'navigation.sections.system',
         url: '/settings',
         icon: Settings2,
         items: [
