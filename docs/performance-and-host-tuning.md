@@ -54,6 +54,26 @@ curl -sSI -H 'Accept-Encoding: gzip' https://YOUR_PANEL_HOST/dashboard/
 
 On the tested host, JavaScript transfer size changed from 118,730 bytes to 34,015 bytes (71.4% reduction), and CSS changed from 219,610 bytes to 32,443 bytes (85.2% reduction). These are measurements from that build, not universal guarantees.
 
+## Reverse-proxy connection header handling
+
+For the panel vhost, do not unconditionally send `Connection: upgrade` on every proxied request. That header is only appropriate when the client actually requested a protocol upgrade. The tested host uses this mapping in an included file under Nginx's `http` context:
+
+```nginx
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+```
+
+And in the relevant server block:
+
+```nginx
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection $connection_upgrade;
+```
+
+This preserves WebSocket upgrade requests while preventing ordinary HTTP requests from being mislabeled as upgrades. Back up the active configuration, run `nginx -t`, then use a graceful reload. Verify the health endpoint and WebSocket-based dashboard features after the change. This alone does not prove VPN-level stale connections are resolved.
+
 ## Optional swap tuning
 
 Swap size is a per-host operational decision and is **not automatically enabled by the application installer**. Only use a 4 GiB swapfile if the host has sufficient free disk and this is appropriate for its workload. Check existing swap first to avoid creating a duplicate:
