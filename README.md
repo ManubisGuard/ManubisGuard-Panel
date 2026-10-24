@@ -520,7 +520,7 @@ The installer is included in the repository.
 A source-based installation can be started with:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/fix/isolated-letsencrypt-lineage/install-manubisguard.sh)" @ install --database timescaledb
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh)" @ install --database timescaledb
 ```
 
 The installer prepares the runtime, persistent directories, secrets, database, migrations and health checks according to the selected installation options.
