@@ -520,7 +520,7 @@ The installer is included in the repository.
 A source-based installation can be started with:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh)" @ install --database timescaledb
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/fix/isolated-letsencrypt-lineage/install-manubisguard.sh)" @ install --database timescaledb
 ```
 
 The installer prepares the runtime, persistent directories, secrets, database, migrations and health checks according to the selected installation options.
@@ -548,6 +548,8 @@ Examples:
 ```
 
 The interactive SSL wizard reads terminal input from `/dev/tty` so it can be used with the documented remote installation flow.
+
+For Let's Encrypt domain installs, the installer explicitly uses a certificate lineage named after the requested domain (for example, `de.qoqnusradio.top`). This keeps unrelated certificates already present on the host (such as an IP/service certificate) from being selected for expansion or replacement. The installer does not delete unrelated Certbot lineages.
 
 ---
 

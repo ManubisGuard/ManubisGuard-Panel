@@ -162,9 +162,15 @@ prepare_ssl() {
     domain)
       command -v certbot >/dev/null 2>&1 || { export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y certbot; }
       log "Requesting Let's Encrypt certificate for $SSL_DOMAIN..."
-      certbot certonly --standalone --non-interactive --agree-tos --register-unsafely-without-email -d "$SSL_DOMAIN" --preferred-challenges http --http-01-port 80
-      cp "/etc/letsencrypt/live/$SSL_DOMAIN/fullchain.pem" "$DATA_DIR/certs/fullchain.pem"
-      cp "/etc/letsencrypt/live/$SSL_DOMAIN/privkey.pem" "$DATA_DIR/certs/privkey.pem"
+      # Give this domain its own Certbot lineage. Without --cert-name, Certbot
+      # may select an unrelated existing certificate and prompt to expand it.
+      # Never modify or replace another service's certificate lineage.
+      local cert_name="$SSL_DOMAIN"
+      [[ "$cert_name" =~ ^[A-Za-z0-9.-]+$ ]] || die "invalid SSL domain: $SSL_DOMAIN"
+      certbot certonly --standalone --non-interactive --agree-tos --register-unsafely-without-email \
+        --cert-name "$cert_name" -d "$SSL_DOMAIN" --preferred-challenges http --http-01-port 80
+      cp "/etc/letsencrypt/live/$cert_name/fullchain.pem" "$DATA_DIR/certs/fullchain.pem"
+      cp "/etc/letsencrypt/live/$cert_name/privkey.pem" "$DATA_DIR/certs/privkey.pem"
       ;;
     ip)
       log "Generating self-signed certificate with IP SAN $SERVER_IP..."
