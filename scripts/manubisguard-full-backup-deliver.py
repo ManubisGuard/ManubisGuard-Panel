@@ -5,7 +5,7 @@ from pathlib import Path
 PROJECT = Path("/opt/manubisguard-panel")
 BACKUP = Path("/usr/local/sbin/manubisguard-full-backup.py")
 KEY = Path("/etc/manubisguard/full-backup.key")
-OUT = Path("/var/lib/manubisguard/backups/full")
+OUT = Path("/opt/manubisguard/backup/full")
 SENDER_SOURCE = PROJECT / "scripts/send-full-backup-telegram.py"
 def retention_count():
     value = 3

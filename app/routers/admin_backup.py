@@ -37,7 +37,11 @@ from app.services.backup import (
 from config import database_settings
 
 router = APIRouter(prefix="/api/admin/backup", tags=["Admin Backup"])
-UPLOAD_DIR = Path("/var/lib/manubisguard/backups")
+UPLOAD_DIR = Path("/opt/manubisguard/backup/database")
+# Both application restore routes remain disabled until their executor uses an
+# external disposable database and has a verified production rollback boundary.
+APPLICATION_STAGING_RESTORE_ENABLED = False
+NATIVE_PRODUCTION_RESTORE_ENABLED = False
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
 
 
@@ -155,10 +159,17 @@ async def restore_backup_to_staging(
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(require_permission("settings", "update")),
 ):
-    """Restore and migrate a backup only into an isolated disposable staging database.
+    """Restore only into a disposable DB; currently disabled fail-closed.
 
-    This route never applies a backup to the live database.
+    The current staging helper creates its database on the configured production
+    PostgreSQL cluster. Use the host-side --stage-test flow, which starts a
+    network-isolated temporary container, until an external staging DB is wired.
     """
+    if not APPLICATION_STAGING_RESTORE_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Application staging restore is disabled because it would create a staging database on the production PostgreSQL cluster. Use `python3 /opt/manubisguard-panel/scripts/manubisguard-native-restore.py --stage-test <full-archive>` for isolated native recovery testing.",
+        )
     backup = (await db.execute(select(Backup).where(Backup.id == backup_id))).scalar_one_or_none()
     if backup is None:
         raise HTTPException(status_code=404, detail="Backup not found")
@@ -198,7 +209,12 @@ async def restore_backup_to_production(
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(require_permission("settings", "update")),
 ):
-    """Run the same host-side validated --apply restore used by the server CLI."""
+    """Production restore is fail-closed until staged rollback is implemented."""
+    if not NATIVE_PRODUCTION_RESTORE_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Native production restore is disabled until destination preservation, a verified safety backup, and rollback are implemented and tested. No restore was attempted.",
+        )
     backup = (await db.execute(select(Backup).where(Backup.id == backup_id))).scalar_one_or_none()
     if backup is None:
         raise HTTPException(status_code=404, detail="Backup not found")

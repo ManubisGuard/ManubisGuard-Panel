@@ -27,7 +27,7 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ghcr.io/${{ github.repository_owner }}/manubisguard-panel
+          images: ghcr.io/manubisguard/manubisguard-panel
           tags: |
             type=raw,value=feature-amnezia-wg
             type=raw,value=latest

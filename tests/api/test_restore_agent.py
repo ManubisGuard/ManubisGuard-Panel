@@ -51,12 +51,13 @@ def test_restore_agent_runs_apply_only_for_confirmed_backup(monkeypatch):
         backup_root.mkdir()
         backup = backup_root / "sample.zip"
         backup.write_bytes(b"test")
-        fake = root / "migrate"
+        fake = root / "native-restore"
         fake.write_text("#!/bin/sh\nprintf 'APPLY_OK\\n'\n", encoding="utf-8")
         fake.chmod(0o755)
         monkeypatch.setattr(agent, "KEY_FILE", key)
         monkeypatch.setattr(agent, "BACKUP_ROOT", backup_root.resolve())
-        monkeypatch.setattr(agent, "MIGRATE", str(fake))
+        monkeypatch.setattr(agent, "NATIVE_RESTORE", str(fake))
+        monkeypatch.setattr(agent, "PROJECT_DIR", root)
         server = agent.ThreadingHTTPServer(("127.0.0.1", 0), agent.Handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()

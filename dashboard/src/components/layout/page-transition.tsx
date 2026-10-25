@@ -40,13 +40,12 @@ const getMotion = () => {
   return motionCache
 }
 
-const isTab = (a: string, b: string) => (a.startsWith('/settings') && b.startsWith('/settings')) || (a.startsWith('/nodes') && b.startsWith('/nodes'))
-
 export default memo(function PageTransition({ children, isContentTransition = false, className }: PageTransitionProps) {
   const location = useLocation()
   const navType = useNavigationType()
   const [displayChildren, setDisplayChildren] = useState(children)
   const [opacity, setOpacity] = useState(1)
+  const [offsetY, setOffsetY] = useState(0)
   const prev = useRef({
     pathname: location.pathname,
     hash: location.hash,
@@ -75,6 +74,7 @@ export default memo(function PageTransition({ children, isContentTransition = fa
     if (navType === 'POP') {
       setDisplayChildren(children)
       setOpacity(1)
+      setOffsetY(0)
       prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
       return
     }
@@ -84,6 +84,7 @@ export default memo(function PageTransition({ children, isContentTransition = fa
     if (pathnameHashSame && location.search !== prev.current.search) {
       setDisplayChildren(children)
       setOpacity(1)
+      setOffsetY(0)
       prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
       return
     }
@@ -93,16 +94,16 @@ export default memo(function PageTransition({ children, isContentTransition = fa
     const current = `${location.pathname}${location.hash}`
     const prevKey = `${prev.current.pathname}${prev.current.hash}`
     const same = current === prevKey && location.key !== prev.current.key
-    const tabNav = isTab(location.pathname, prev.current.pathname)
 
-    if ((tabNav && !isContentTransition) || noMotion) {
+    if (noMotion) {
       setDisplayChildren(children)
       setOpacity(1)
+      setOffsetY(0)
       prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
       return
     }
 
-    const ms = isContentTransition && mobile ? 200 : mobile ? 150 : 120
+    const ms = isContentTransition ? (mobile ? 230 : 260) : mobile ? 190 : 230
 
     if (same) {
       setDisplayChildren(children)
@@ -112,10 +113,12 @@ export default memo(function PageTransition({ children, isContentTransition = fa
 
     if (current !== prevKey) {
       setOpacity(0)
+      setOffsetY(7)
       requestAnimationFrame(() => {
         setDisplayChildren(children)
         requestAnimationFrame(() => {
           setOpacity(1)
+          setOffsetY(0)
           timeout.current = window.setTimeout(() => {
             prev.current = { pathname: location.pathname, hash: location.hash, search: location.search, key: location.key }
           }, ms)
@@ -132,15 +135,16 @@ export default memo(function PageTransition({ children, isContentTransition = fa
   }, [children, opacity])
 
   const noMotion = getMotion()
-  const ms = isContentTransition && getMobile() ? 200 : getMobile() ? 150 : 120
+  const ms = isContentTransition ? (getMobile() ? 230 : 260) : getMobile() ? 190 : 230
 
   return (
     <div
       className={cn('w-full', className)}
       style={{
         opacity,
-        transform: 'translate3d(0, 0, 0)',
-        ...(!noMotion && { transition: `opacity ${ms}ms cubic-bezier(0.4, 0, 0.2, 1)` }),
+        transform: `translate3d(0, ${offsetY}px, 0)`,
+        willChange: opacity === 1 ? 'auto' : 'opacity, transform',
+        ...(!noMotion && { transition: `opacity ${ms}ms cubic-bezier(0.22, 1, 0.36, 1), transform ${ms}ms cubic-bezier(0.22, 1, 0.36, 1)` }),
       }}
     >
       {displayChildren}

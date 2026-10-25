@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from app.core.domain_intelligence import DomainIntelligence
@@ -159,7 +161,7 @@ def test_certificate_inspector_classifies_expiring_certificate(monkeypatch):
     class FakeTLS:
         def getpeercert(self):
             return {
-                "notAfter": "Oct 01 00:00:00 2026 GMT",
+                "notAfter": (datetime.now(UTC) + timedelta(days=15)).strftime("%b %d %H:%M:%S %Y GMT"),
                 "subjectAltName": (("DNS", "edge.example.com"),),
                 "subject": ((("commonName", "edge.example.com"),),),
                 "issuer": ((("commonName", "Test CA"),),),
@@ -241,13 +243,14 @@ def test_certificate_inspector_classifies_expired_certificate(monkeypatch):
 
 
 def test_existing_certificate_validator_accepts_matching_pair():
-    from app.core.certificate_intelligence import ExistingCertificateValidator
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
+
+    from app.core.certificate_intelligence import ExistingCertificateValidator
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "edge.example.com")])
@@ -257,8 +260,8 @@ def test_existing_certificate_validator_accepts_matching_pair():
         .issuer_name(name)
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.now(timezone.utc) - timedelta(minutes=1))
-        .not_valid_after(datetime.now(timezone.utc) + timedelta(days=90))
+        .not_valid_before(datetime.now(UTC) - timedelta(minutes=1))
+        .not_valid_after(datetime.now(UTC) + timedelta(days=90))
         .add_extension(
             x509.SubjectAlternativeName([x509.DNSName("edge.example.com")]),
             critical=False,
@@ -281,12 +284,14 @@ def test_existing_certificate_validator_accepts_matching_pair():
 
 
 def test_existing_certificate_validator_rejects_mismatched_key_and_domain():
-    from app.core.certificate_intelligence import ExistingCertificateValidator
+    from datetime import datetime, timedelta
+
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
-    from datetime import datetime, timedelta, timezone
+
+    from app.core.certificate_intelligence import ExistingCertificateValidator
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -297,8 +302,8 @@ def test_existing_certificate_validator_rejects_mismatched_key_and_domain():
         .issuer_name(name)
         .public_key(other_key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.now(timezone.utc) - timedelta(minutes=1))
-        .not_valid_after(datetime.now(timezone.utc) + timedelta(days=90))
+        .not_valid_before(datetime.now(UTC) - timedelta(minutes=1))
+        .not_valid_after(datetime.now(UTC) + timedelta(days=90))
         .add_extension(
             x509.SubjectAlternativeName([x509.DNSName("other.example.com")]),
             critical=False,
@@ -323,10 +328,12 @@ def test_existing_certificate_validator_rejects_mismatched_key_and_domain():
 
 def test_certificate_inspector_reports_reachable_invalid_certificate(monkeypatch):
     from datetime import UTC, datetime, timedelta
+
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
+
     from app.core.certificate_intelligence import DomainCertificateInspector
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)

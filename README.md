@@ -98,30 +98,14 @@ ManubisGuard is based on the **PasarGuard Panel** codebase and preserves upstrea
 
 ### Backup, Restore & Migration
 
-- Manual backup creation
-- Backup history
-- ZIP download/upload
-- Backup validation
-- Backup manifest handling
-- Backup scheduling
-- Daily / weekly / monthly schedules
-- Retention count
-- Opt-in scheduler
-- Restore validation
-- Isolated staging restore
-- Production restore safety flow
-- Explicit production restore confirmation
-- Production safety dumps
-- Rollback-oriented cutover
-- PasarGuard-family backup compatibility
-- PostgreSQL backup handling
-- Legacy MariaDB/MySQL → PostgreSQL bridge
-- PostgreSQL major-version compatibility handling
-- TimescaleDB compatibility handling
-- Schema validation
-- Durable row-count validation
-- Hypertable / continuous aggregate validation
-- Migration state validation
+- Full-system and database-only backup commands
+- Backup history, ZIP upload/download, scheduling and retention
+- Native archive manifest and checksum validation (`manubis restore --check`)
+- Isolated native restore drill (`manubis restore --stage-test`) using a temporary filesystem stage and disposable database container
+- PostgreSQL/TimescaleDB version metadata and archive compatibility checks
+- TLS certificate/private-key inventory and integrity checks
+- Explicitly separate cross-panel migration command (`manubis migrate`)
+- Production native restore remains disabled until destination preservation, a verified safety backup and rollback are implemented and tested
 - Deployment identity protection
 
 ### Security
@@ -134,8 +118,8 @@ ManubisGuard is based on the **PasarGuard Panel** codebase and preserves upstrea
 - Encrypted Telegram token storage
 - Sensitive-token redaction from API responses
 - No intentional secret/private-key logging
-- Non-destructive restore validation before production apply
-- Explicit confirmation for destructive production restore
+- Read-only native restore preflight
+- Production native restore fails closed until destination-preservation, safety-backup and rollback gates are implemented
 
 ---
 
@@ -393,37 +377,22 @@ Supported functionality includes:
 - Encrypted Telegram token storage
 - Secret non-disclosure in API responses/logs
 
-### Staging restore
+### Native restore validation and isolated drill
 
-The Panel provides an isolated staging restore flow for migration validation.
+The supported native host-CLI commands are:
 
-The staging path can:
+```bash
+sudo manubis restore --check /opt/manubisguard/backup/full/<archive.zip>
+sudo manubis restore --stage-test /opt/manubisguard/backup/full/<archive.zip>
+```
 
-1. Validate the uploaded backup.
-2. Detect the source format.
-3. Create an isolated staging database.
-4. Run the migration / Timescale safety pipeline.
-5. Validate schema and data transformations.
-6. Report source format, counts and transformations.
-7. Drop the staging database after the operation.
+`--check` is read-only. `--stage-test` reconstructs files in a temporary directory and restores the database into a disposable network-isolated container with tmpfs storage. The application API staging endpoint remains disabled because the previous helper created a staging database on the configured production PostgreSQL cluster.
 
-The production database is not used as the staging restore target.
+### Production native restore — disabled
 
-### Production restore
+Native production apply is intentionally fail-closed. `sudo manubis restore <archive.zip>` does not modify production and exits until destination-preservation rules, a verified pre-restore safety archive, and a tested rollback path are implemented. The current tests validate the existing v1 archive and synthetic v2 fixtures; a real manifest-v2 multi-database backup and disposable application-level restore test remain outstanding.
 
-Production restore is a separate operational action and requires explicit confirmation.
-
-The production restore flow is designed around:
-
-- Validated backups only
-- Safety dumps
-- Explicit confirmation
-- Migration engine execution
-- Previous database retention
-- Rollback-oriented cutover
-- Restore operation status/logging
-
-Do not treat a successful staging restore as an automatic authorization to overwrite a production database.
+Cross-panel migration is a separate operation: use `sudo manubis migrate <archive.zip> --apply` only when you intentionally want a migration. Native disaster recovery never silently dispatches to the migration engine.
 
 ### Deployment identity protection
 
@@ -478,20 +447,16 @@ sudo manubis update
 sudo manubis edit-env
 ```
 
-### Restore commands
+### Native restore commands
 
 ```bash
-sudo manubis restore
-sudo manubis restore-check /path/to/backup.zip
+sudo manubis backup
+sudo manubis backup-db
+sudo manubis restore --check /opt/manubisguard/backup/full/<archive.zip>
+sudo manubis restore --stage-test /opt/manubisguard/backup/full/<archive.zip>
 ```
 
-`manubis restore` discovers available archives from:
-
-```text
-/opt/manubisguard/backup/
-```
-
-`restore-check` performs non-destructive validation.
+Full archives are stored under `/opt/manubisguard/backup/full/`; database-only dumps are stored under `/opt/manubisguard/backup/database/`. `--check` is read-only and `--stage-test` uses a disposable isolated database container. `sudo manubis restore <archive.zip>` remains disabled for production apply and makes no changes until a safety backup and rollback engine are implemented and verified. `manubis migrate <archive.zip> --apply` is only for intentional cross-panel migration.
 
 ### Temporary admin key
 
@@ -639,9 +604,9 @@ Use the deployment files in the selected branch as the source of truth for the e
 - Telegram bot tokens are encrypted at rest where configured.
 - Sensitive tokens are excluded from API responses.
 - Sensitive values are not intentionally written to logs.
-- Restore validation happens before production cutover.
-- Production restore requires explicit confirmation.
-- Safety dumps are retained for rollback-oriented recovery.
+- Native restore preflight is non-destructive and separate from production apply.
+- Production native restore is disabled until destination preservation, a verified safety backup and rollback are implemented and tested.
+- Never treat a successful isolated stage-test as authorization to overwrite production.
 - Backup deployment configuration is not blindly imported.
 - RBAC is preserved across administrative workflows.
 - Destructive operations are separated from non-destructive validation.
@@ -676,8 +641,8 @@ The current development line includes completed implementation work across:
 - API Keys
 - Backup and restore workflows
 - Backup scheduling and retention
-- Isolated staging restore
-- Production restore safety flow
+- Isolated native stage-test (host CLI; application API staging remains disabled)
+- Production native restore remains fail-closed; apply is not enabled
 - PostgreSQL / TimescaleDB migration bridge
 - Domain management foundation
 - Certificate lifecycle
@@ -817,30 +782,14 @@ ManubisGuard Panel بر پایه کدبیس **PasarGuard Panel** توسعه دا
 
 ### Backup / Restore / Migration
 
-- ساخت Backup دستی
-- Backup History
-- Download / Upload به صورت ZIP
-- Backup Validation
-- Manifest Handling
-- Backup Scheduling
-- Daily / Weekly / Monthly
-- Retention Count
-- Scheduler اختیاری
-- Restore Validation
-- Staging Restore ایزوله
-- Production Restore با Safety Flow
-- تأیید صریح برای Restore تولیدی
-- Safety Dump
-- Rollback-oriented Cutover
-- سازگاری با Backupهای خانواده PasarGuard
-- PostgreSQL Backup
-- تبدیل Legacy MariaDB/MySQL به PostgreSQL
-- مدیریت تفاوت Major Versionهای PostgreSQL
-- مدیریت تفاوت نسخه‌های TimescaleDB
-- Schema Validation
-- Row Count Validation
-- بررسی Hypertable و Continuous Aggregate
-- بررسی Migration State
+- Full-system Backup و Database-only Backup
+- Backup History، ZIP Upload/Download، زمان‌بندی و Retention
+- بررسی Read-only آرشیو با `manubis restore --check`
+- تست Restore ایزوله با `manubis restore --stage-test` در فایل‌سیستم موقت و Database Container جداگانه
+- ثبت نسخه PostgreSQL/TimescaleDB و بررسی Checksumها
+- بررسی فایل‌های واقعی TLS Certificate/Private Key
+- فرمان مستقل `manubis migrate` برای Migration بین پنل‌ها
+- Production Native Restore تا زمان تکمیل حفظ تنظیمات مقصد، Safety Backup قابل‌تأیید و Rollback آزمایش‌شده غیرفعال است
 - محافظت از هویت Deployment
 
 ### امنیت
@@ -853,8 +802,8 @@ ManubisGuard Panel بر پایه کدبیس **PasarGuard Panel** توسعه دا
 - رمزنگاری Token تلگرام در محل ذخیره‌سازی
 - عدم بازگرداندن Secretهای حساس در API
 - عدم ثبت عمدی Secret/Private Key در Log
-- اعتبارسنجی Restore قبل از Cutover
-- تأیید صریح برای Restore مخرب روی Production
+- پیش‌بررسی فقط‌خواندنی Native Restore
+- غیرفعال‌بودن Production Native Restore تا تکمیل حفظ مقصد، Safety Backup و Rollback
 
 ---
 
@@ -1104,35 +1053,22 @@ Backup و Restore با رویکرد Safety-first توسعه داده شده‌ا
 - Encrypted Telegram Token
 - عدم افشای Secret در API/Logs
 
-### Staging Restore
+### بررسی Native Restore و تست ایزوله
 
-Staging Restore برای بررسی Migration در یک Database ایزوله استفاده می‌شود:
+فرمان‌های پشتیبانی‌شده در CLI میزبان:
 
-1. Backup بررسی می‌شود.
-2. Source Format تشخیص داده می‌شود.
-3. Database موقت ساخته می‌شود.
-4. Migration/Timescale Pipeline اجرا می‌شود.
-5. Schema و Data Transformation بررسی می‌شوند.
-6. Counts و Result گزارش می‌شوند.
-7. Database موقت حذف می‌شود.
+```bash
+sudo manubis restore --check /opt/manubisguard/backup/full/<archive.zip>
+sudo manubis restore --stage-test /opt/manubisguard/backup/full/<archive.zip>
+```
 
-Production Database هدف Staging Restore نیست.
+`--check` فقط‌خواندنی است. `--stage-test` فایل‌ها را در مسیر موقت بازسازی می‌کند و Database را داخل Container موقت، بدون شبکه و با Storage موقت آزمایش می‌کند. Endpoint مربوط به Staging در API پنل فعلاً غیرفعال است، چون Helper قبلی Database آزمایشی را روی PostgreSQL Production می‌ساخت.
 
-### Production Restore
+### Production Native Restore — غیرفعال
 
-Production Restore یک عملیات جداگانه و عملیاتی است و به تأیید صریح نیاز دارد.
+اجرای Restore بومی روی Production عمداً Fail-closed است. فرمان `sudo manubis restore <archive.zip>` تا زمان تکمیل حفظ تنظیمات مقصد، Safety Backup قابل‌تأیید و Rollback آزمایش‌شده هیچ تغییری ایجاد نمی‌کند. تست‌های فعلی روی آرشیو واقعی v1 و Fixtureهای ساختگی v2 انجام شده‌اند؛ ساخت Backup واقعی v2 چنددیتابیسی و تست کامل اپلیکیشن بازیابی‌شده هنوز باقی است.
 
-این مسیر شامل:
-
-- Backup معتبر
-- Safety Dump
-- Explicit Confirmation
-- Migration Engine
-- نگهداری Database قبلی
-- Rollback-oriented Cutover
-- Operation Status/Logs
-
-Staging PASS به معنی مجوز خودکار برای Overwrite کردن Production نیست.
+Migration بین پنل‌ها عملیات جداگانه‌ای است؛ فقط در صورت قصد واقعی برای Migration از `sudo manubis migrate <archive.zip> --apply` استفاده کنید. Native Restore به‌صورت خودکار به Migration منتقل نمی‌شود.
 
 ### حفاظت از Deployment Identity
 
@@ -1185,20 +1121,16 @@ sudo manubis update
 sudo manubis edit-env
 ```
 
-### Restore
+### Native Restore
 
 ```bash
-sudo manubis restore
-sudo manubis restore-check /path/to/backup.zip
+sudo manubis backup
+sudo manubis backup-db
+sudo manubis restore --check /opt/manubisguard/backup/full/<archive.zip>
+sudo manubis restore --stage-test /opt/manubisguard/backup/full/<archive.zip>
 ```
 
-Archiveها از مسیر زیر قابل کشف هستند:
-
-```text
-/opt/manubisguard/backup/
-```
-
-`restore-check` یک Validation غیرمخرب انجام می‌دهد.
+Full Backup در `/opt/manubisguard/backup/full/` و Database-only Backup در `/opt/manubisguard/backup/database/` ذخیره می‌شود. `--check` فقط‌خواندنی و `--stage-test` ایزوله است. اجرای Production با `sudo manubis restore <archive.zip>` هنوز غیرفعال است و تا تکمیل Safety Backup و Rollback تغییری ایجاد نمی‌کند. `manubis migrate <archive.zip> --apply` فقط برای Migration عمدی بین پنل‌ها است.
 
 ### Temporary Admin Key
 
@@ -1337,9 +1269,9 @@ curl -k https://your-domain.example/health
 - Telegram Token در صورت فعال بودن قابلیت مربوطه به صورت رمزنگاری‌شده نگهداری می‌شود.
 - Secretهای حساس در API Response بازگردانده نمی‌شوند.
 - مقدارهای حساس عمداً در Log ثبت نمی‌شوند.
-- Restore قبل از Production Cutover اعتبارسنجی می‌شود.
-- Production Restore نیازمند تأیید صریح است.
-- Safety Dump برای Recovery/rollback-oriented workflow نگهداری می‌شود.
+- پیش‌بررسی Native Restore غیرمخرب است و از اجرای Production جدا نگه داشته می‌شود.
+- Production Native Restore تا تکمیل حفظ مقصد، Safety Backup قابل‌تأیید و Rollback آزمایش‌شده غیرفعال است.
+- موفقیت تست ایزوله مجوز Overwrite کردن Production نیست.
 - فایل‌های Deployment داخل Backup کورکورانه Import نمی‌شوند.
 - RBAC در Workflowهای مدیریتی حفظ می‌شود.
 - Validation غیرمخرب از عملیات مخرب جدا شده است.
@@ -1374,8 +1306,8 @@ curl -k https://your-domain.example/health
 - API Keys
 - Backup / Restore
 - Backup Scheduling / Retention
-- Isolated Staging Restore
-- Production Restore Safety Flow
+- Isolated native stage-test در CLI میزبان (Staging API غیرفعال)
+- Production native restore فعلاً fail-closed است و apply فعال نیست
 - PostgreSQL / TimescaleDB Migration Bridge
 - Domain Management
 - Certificate Lifecycle

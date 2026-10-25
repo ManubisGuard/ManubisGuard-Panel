@@ -1,26 +1,26 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import subprocess
 import tempfile
 import zipfile
-
-import aiohttp
 from datetime import UTC, datetime as dt
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
+import aiohttp
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Backup
-from app.migration.timescale import filter_postgresql_compatibility_line
 from app.migration.runner import analyze_backup
+from app.migration.timescale import filter_postgresql_compatibility_line
 from app.models.backup import BackupCheckResponse
 from config import database_settings
 
-BACKUP_DIR = Path("/var/lib/manubisguard/backups")
+BACKUP_DIR = Path("/opt/manubisguard/backup/database")
 MAX_BACKUP_SIZE = 10 * 1024 * 1024 * 1024
 
 
@@ -102,7 +102,10 @@ def _write_archive(
         size = tmp_path.stat().st_size
         if size > MAX_BACKUP_SIZE:
             raise RuntimeError("Backup exceeds the configured maximum size")
-        os.replace(tmp_path, archive_path)
+        if archive_path.exists():
+            raise RuntimeError(f"Refusing to overwrite existing backup: {archive_path.name}")
+        os.link(tmp_path, archive_path)
+        tmp_path.unlink()
         archive_path.chmod(0o600)
         return archive_path, size
     finally:
@@ -110,7 +113,7 @@ def _write_archive(
 
 
 async def create_backup(db: AsyncSession, *, created_by: int | None, note: str | None = None) -> Backup:
-    filename = f"manubisguard-{dt.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.zip"
+    filename = f"manubisguard-db-{dt.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}.zip"
     backup = Backup(
         filename=filename,
         size=0,
@@ -272,13 +275,17 @@ async def send_backup_to_telegram(db: AsyncSession, backup: Backup) -> bool:
     timeout = aiohttp.ClientTimeout(total=120)
     form = aiohttp.FormData()
     form.add_field("chat_id", chat_id)
-    with path.open("rb") as handle:
+    handle = await asyncio.to_thread(path.open, "rb")
+    try:
         form.add_field("document", handle, filename=path.name, content_type="application/zip")
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(url, data=form, proxy=telegram.proxy_url) as response:
-                payload = await response.text()
-                if response.status >= 400:
-                    raise RuntimeError(f"Telegram send failed ({response.status}): {payload[-1000:]}")
+        async with aiohttp.ClientSession(timeout=timeout) as session, session.post(
+            url, data=form, proxy=telegram.proxy_url
+        ) as response:
+            payload = await response.text()
+            if response.status >= 400:
+                raise RuntimeError(f"Telegram send failed ({response.status}): {payload[-1000:]}")
+    finally:
+        await asyncio.to_thread(handle.close)
     return True
 
 

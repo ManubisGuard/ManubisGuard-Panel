@@ -16,7 +16,7 @@ SSL_KEYFILE=""
 SERVER_IP=""
 OVERRIDE=false
 MIN_FREE_MB="${MANUBISGUARD_MIN_FREE_MB:-6144}"
-PANEL_IMAGE="ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg"
+PANEL_IMAGE="ghcr.io/manubisguard/manubisguard-panel:feature-amnezia-wg"
 BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
 
 log() { printf '[manubisguard-install] %s\n' "$*"; }
@@ -354,6 +354,7 @@ install_helper() {
   # Keep the full-host backup workflow versioned with the project. The key is
   # generated locally and must never be committed or sent alongside archives.
   install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-full-backup.py" /usr/local/sbin/manubisguard-full-backup.py
+  install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-native-restore.py" /usr/local/sbin/manubisguard-native-restore.py
   install -o root -g root -m 0700 "$INSTALL_DIR/scripts/manubisguard-full-backup-deliver.py" /usr/local/sbin/manubisguard-full-backup-deliver.py
   install -d -o root -g root -m 0700 /etc/manubisguard
   if [ ! -s /etc/manubisguard/full-backup.key ]; then

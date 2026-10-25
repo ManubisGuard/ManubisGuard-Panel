@@ -20,13 +20,18 @@ else
   echo "WARNING: checksum file not found: $CHECKSUM" >&2
 fi
 
-# Prefer a local pg_restore if available; otherwise use the Compose DB container.
+# Prefer a local pg_restore if available; otherwise inspect with an offline disposable container.
 if command -v pg_restore >/dev/null 2>&1; then
   pg_restore --list "$BACKUP" >/dev/null
 else
-  COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
-  DB_SERVICE="${DB_SERVICE:-timescaledb}"
-  docker compose -f "$COMPOSE_FILE" exec -T "$DB_SERVICE" pg_restore --list < "$BACKUP" >/dev/null
+  docker image inspect timescale/timescaledb:latest-pg16 >/dev/null 2>&1 || {
+    echo "ERROR: local pg_restore and required local test image are unavailable; no pull or live-container fallback attempted" >&2
+    exit 3
+  }
+  docker run --rm -i --network none --read-only \
+    --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+    --entrypoint pg_restore timescale/timescaledb:latest-pg16 --list \
+    < "$BACKUP" >/dev/null
 fi
 
 echo "BACKUP VERIFY OK"

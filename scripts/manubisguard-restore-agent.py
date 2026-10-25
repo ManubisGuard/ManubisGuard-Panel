@@ -12,8 +12,9 @@ from pathlib import Path
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("MANUBISGUARD_RESTORE_AGENT_PORT", "8765"))
 KEY_FILE = Path("/etc/manubisguard/restore-agent.key")
-BACKUP_ROOT = Path("/var/lib/manubisguard/backups").resolve()
-MIGRATE = "/usr/local/bin/manubisguard-migrate"
+BACKUP_ROOT = Path("/opt/manubisguard/backup/full").resolve()
+NATIVE_RESTORE = "/usr/local/sbin/manubisguard-native-restore.py"
+PROJECT_DIR = Path("/opt/manubisguard-panel")
 _lock = threading.Lock()
 
 
@@ -57,9 +58,12 @@ class Handler(BaseHTTPRequestHandler):
             if data.get("confirmation") != "RESTORE_PRODUCTION":
                 self._send(400, {"error": "production restore confirmation required"})
                 return
+            if not os.path.isfile(NATIVE_RESTORE) or not os.access(NATIVE_RESTORE, os.X_OK):
+                self._send(503, {"error": "native full restore engine is not installed; no changes made"})
+                return
             proc = subprocess.run(
-                [MIGRATE, str(backup), "--apply"],
-                cwd="/opt/manubisguard-panel",
+                [NATIVE_RESTORE, "--apply", str(backup)],
+                cwd=str(PROJECT_DIR),
                 text=True,
                 capture_output=True,
                 timeout=7200,
@@ -71,7 +75,7 @@ class Handler(BaseHTTPRequestHandler):
                 {"ok": proc.returncode == 0, "returncode": proc.returncode, "output": output[-12000:]},
             )
         except subprocess.TimeoutExpired:
-            self._send(504, {"error": "production restore timed out; inspect migration workspace logs"})
+            self._send(504, {"error": "production restore timed out; inspect native restore diagnostics under /opt/manubisguard/backup/"})
         except Exception as exc:
             self._send(500, {"error": str(exc)})
         finally:

@@ -3,7 +3,9 @@ set -Eeuo pipefail
 
 INSTALLER="/opt/manubisguard-panel/install-manubisguard.sh"
 PROJECT_DIR="/opt/manubisguard-panel"
-BACKUP_DIR="/var/lib/manubisguard/backups"
+BACKUP_DIR="/opt/manubisguard/backup"
+DATABASE_BACKUP_DIR="$BACKUP_DIR/database"
+FULL_BACKUP_DIR="$BACKUP_DIR/full"
 BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
 CLI_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/manubis"
 
@@ -28,7 +30,9 @@ Commands:
   uninstall       – Uninstall ManubisGuard
   install-script  – Install/update manubis script
   install-node    – Install ManubisGuard node
-  backup          – Manual backup launch
+  backup          – Create a full-system backup
+  backup-db       – Create a database-only backup
+  migrate         – Explicit cross-panel migration/apply
   backup-service  – Configure automated database backups
   restore         – Restore database from backup file
   edit            – Edit docker-compose.yml
@@ -57,17 +61,27 @@ install_from_installer() {
 
 restore_command() {
   need_project
+  if [ "${1:-}" = "--check" ] || [ "${1:-}" = "--stage-test" ]; then
+    [ "$#" -eq 2 ] || { echo "Usage: manubis restore --check|--stage-test /opt/manubisguard/backup/full/<archive.zip>" >&2; exit 2; }
+    [ -x /usr/local/sbin/manubisguard-native-restore.py ] || { echo "Native restore validator/test runner is not installed; no changes made." >&2; exit 3; }
+    exec /usr/local/sbin/manubisguard-native-restore.py "$1" "$2"
+  fi
+  if [ "$#" -eq 1 ]; then
+    [ -x /usr/local/sbin/manubisguard-native-restore.py ] || { echo "Native full restore engine is not installed yet; no changes made. Use 'manubis migrate <archive.zip> --apply' only for an intentional cross-panel migration." >&2; exit 3; }
+    exec /usr/local/sbin/manubisguard-native-restore.py --apply "$1"
+  fi
+  [ "$#" -eq 0 ] || { echo "Usage: manubis restore [--check] [/opt/manubisguard/backup/full/<archive.zip>]" >&2; exit 2; }
   local -a backups=()
   local item choice selected
-  mkdir -p "$BACKUP_DIR"
+  mkdir -p "$FULL_BACKUP_DIR"
   while IFS= read -r -d '' item; do backups+=("$item"); done < <(
-    find "$BACKUP_DIR" -maxdepth 1 -type f \( -name '*.dump' -o -name '*.dump.gz' -o -name '*.zip' -o -name '*.tar.gz' \) -print0 2>/dev/null | sort -z -V
+    find "$FULL_BACKUP_DIR" -maxdepth 1 -type f -name 'manubisguard-full-*.zip' -print0 2>/dev/null | sort -z -V
   )
   if [ "${#backups[@]}" -eq 0 ]; then
-    echo "No backup files found in $BACKUP_DIR" >&2
+    echo "No native full backups found in $FULL_BACKUP_DIR" >&2
     exit 1
   fi
-  echo "Available ManubisGuard backups:"
+  echo "Available native ManubisGuard full backups:"
   local i=1
   for item in "${backups[@]}"; do
     printf '  %d) %s (%s)\n' "$i" "$(basename "$item")" "$(du -h "$item" | cut -f1)"
@@ -78,7 +92,16 @@ restore_command() {
   [[ "$choice" =~ ^[0-9]+$ ]] || { echo "Invalid backup selection." >&2; exit 2; }
   (( choice >= 1 && choice <= ${#backups[@]} )) || { echo "Invalid backup selection." >&2; exit 2; }
   selected="${backups[$((choice - 1))]}"
-  exec /usr/local/bin/manubisguard-migrate "$selected" --apply
+  [ -x /usr/local/sbin/manubisguard-native-restore.py ] || { echo "Native full restore engine is not installed yet; selected archive: $selected; no changes made. Use 'manubis migrate <archive.zip> --apply' only for an intentional cross-panel migration." >&2; exit 3; }
+  exec /usr/local/sbin/manubisguard-native-restore.py --apply "$selected"
+}
+
+migrate_command() {
+  need_project
+  [ "$#" -ge 1 ] || { echo "Usage: manubis migrate /path/to/source-archive.zip [--apply]" >&2; exit 2; }
+  local archive="$1"; shift
+  [ "$#" -le 1 ] && { [ "$#" -eq 0 ] || [ "$1" = "--apply" ]; } || { echo "Usage: manubis migrate /path/to/source-archive.zip [--apply]" >&2; exit 2; }
+  exec /usr/local/bin/manubisguard-migrate "$archive" "$@"
 }
 
 case "${1:-help}" in
@@ -141,8 +164,18 @@ case "${1:-help}" in
     exec bash "$PROJECT_DIR/install-node.sh" "$@"
     ;;
   backup)
+    need_project
+    [ "$#" -eq 1 ] || { echo "Usage: manubis backup" >&2; exit 2; }
+    if [ -x /usr/local/sbin/manubisguard-full-backup.py ]; then
+      exec /usr/local/sbin/manubisguard-full-backup.py
+    fi
+    exec python3 "$PROJECT_DIR/scripts/manubisguard-full-backup.py"
+    ;;
+  backup-db)
     need_project; cd "$PROJECT_DIR"
-    exec bash scripts/backup-db.sh "${1:-$BACKUP_DIR}"
+    [ "$#" -le 2 ] || { echo "Usage: manubis backup-db [output-dir]" >&2; exit 2; }
+    shift
+    exec bash scripts/backup-db.sh "${1:-$DATABASE_BACKUP_DIR}"
     ;;
   backup-service)
     need_project
@@ -176,12 +209,11 @@ PY
     ;;
   restore)
     shift
-    if [ "$#" -eq 1 ]; then
-      need_project
-      exec /usr/local/bin/manubisguard-migrate "$1" --apply
-    fi
-    [ "$#" -eq 0 ] || { echo "Usage: manubis restore [/path/to/backup]" >&2; exit 2; }
-    restore_command
+    restore_command "$@"
+    ;;
+  migrate)
+    shift
+    migrate_command "$@"
     ;;
   edit)
     need_project
@@ -210,7 +242,7 @@ PY
     cat > /etc/bash_completion.d/manubis <<'COMP'
 _manubis_completion() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
-  local commands="up down restart status logs cli tui install update uninstall install-script install-node backup backup-service restore edit edit-env version-script completion help"
+  local commands="up down restart status logs cli tui install update uninstall install-script install-node backup backup-db backup-service restore migrate edit edit-env version-script completion help"
   COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
 }
 complete -F _manubis_completion manubis

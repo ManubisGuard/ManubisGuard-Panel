@@ -11,14 +11,16 @@ from app.routers import api_router
 
 
 def _route_contract(router: APIRouter) -> set[tuple[str, str]]:
+    """Inspect included routers recursively; recent FastAPI versions defer flattening."""
     contracts: set[tuple[str, str]] = set()
     for route in router.routes:
         path = getattr(route, "path", None)
         methods = getattr(route, "methods", None)
-        if not path or not methods:
-            continue
-        for method in methods:
-            contracts.add((method.upper(), path))
+        if path and methods:
+            contracts.update((method.upper(), path) for method in methods)
+        nested_router = getattr(route, "original_router", None)
+        if isinstance(nested_router, APIRouter):
+            contracts.update(_route_contract(nested_router))
     return contracts
 
 
