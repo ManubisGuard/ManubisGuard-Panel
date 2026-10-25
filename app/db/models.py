@@ -601,6 +601,15 @@ class ProxyHost(Base, IdMixin):
     cipher_suites: Mapped[str | None] = mapped_column(String(1024), default=None)
 
 
+class HostAdminName(Base, IdMixin):
+    """Per-admin host display name; never changes the shared proxy host."""
+    __tablename__ = "host_admin_names"
+    admin_id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, ForeignKey("admins.id", ondelete="CASCADE"), nullable=False, index=True)
+    host_id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, ForeignKey("hosts.id", ondelete="CASCADE"), nullable=False, index=True)
+    remark: Mapped[str] = mapped_column(String(256), nullable=False)
+    __table_args__ = (UniqueConstraint("admin_id", "host_id", name="uq_host_admin_names_admin_host"),)
+
+
 class System(Base, IdMixin):
     __tablename__ = "system"
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)

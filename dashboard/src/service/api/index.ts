@@ -152,6 +152,7 @@ export interface HostsPermissions {
   create?: HostsPermissionsCreate;
   read?: HostsPermissionsRead;
   update?: HostsPermissionsUpdate;
+  personal_name?: HostsPermissionsUpdate;
 }
 
 export type SettingsPermissionsRead = boolean | {[key: string]: PermissionScope | number} | null;
@@ -1120,6 +1121,7 @@ export interface FinalMask {
 export interface BaseHost {
   id?: number | null;
   remark: string;
+  personal_remark?: string | null;
   address?: string[];
   inbound_tag?: string | null;
   port?: number | null;
@@ -13609,6 +13611,21 @@ export type modifyHostResponseError = (modifyHostResponse401 | modifyHostRespons
 };
 
 export type modifyHostResponse = (modifyHostResponseSuccess | modifyHostResponseError)
+
+export interface PersonalHostNameEntry { host_id: number; host_name: string; personal_name: string | null }
+
+export const getPersonalHostNames = async (options?: RequestInit): Promise<PersonalHostNameEntry[]> => {
+  return orvalFetcher<PersonalHostNameEntry[]>('/api/host/personal-names', { ...options, method: 'GET' })
+}
+
+export const setPersonalHostName = async (hostId: number, remark: string, options?: RequestInit): Promise<PersonalHostNameEntry> => {
+  return orvalFetcher<PersonalHostNameEntry>(`/api/host/${hostId}/personal-name`, {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify({ remark }),
+  })
+}
 
 export const getModifyHostUrl = (hostId: number,) => {
 

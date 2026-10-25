@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { SystemResourceStats, SystemUsersStats, NodeRealtimeStats } from '@/service/api'
 import { useTranslation } from 'react-i18next'
-import { Clock3, Cpu, MemoryStick, HardDrive, Database, Upload, Download } from 'lucide-react'
+import { Clock3, Cpu, MemoryStick, HardDrive, Database, Upload, Download, Activity, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { formatBytes } from '@/utils/formatByte'
@@ -11,9 +11,10 @@ import { CircularProgress } from '@/components/ui/circular-progress'
 interface SystemStatisticsSectionProps {
   currentStats?: SystemResourceStats | NodeRealtimeStats | null
   usersStats?: SystemUsersStats
+  hideCpu?: boolean
 }
 
-export default function SystemStatisticsSection({ currentStats, usersStats }: SystemStatisticsSectionProps) {
+export default function SystemStatisticsSection({ currentStats, usersStats, hideCpu = false }: SystemStatisticsSectionProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
 
@@ -119,32 +120,34 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
       className={cn(
         'grid h-full w-full gap-3 sm:gap-4 lg:gap-6',
         // Responsive grid: 1 column on mobile, 2 columns on tablet/desktop
-        'grid-cols-1 sm:grid-cols-2',
+        'mg-statistics-resource-grid grid-cols-1 sm:grid-cols-2',
+        hideCpu && 'mg-hide-cpu',
         // Ensure equal height for all cards
         'auto-rows-fr',
       )}
     >
       {/* CPU Usage */}
-      <div className="h-full w-full">
+      <div className="mg-stat-tile mg-stat-tile-cpu h-full w-full">
         <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
           <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
             <div className="mb-2 flex items-start justify-between sm:mb-3">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="bg-primary/10 rounded-lg p-1.5 sm:p-2">
+              <div className="mg-cpu-card-heading flex items-center gap-2 sm:gap-3">
+                <div className="mg-cpu-chip bg-primary/10 rounded-lg p-1.5 sm:p-2">
                   <Cpu className="text-primary h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-muted-foreground text-xs leading-tight font-medium sm:truncate sm:text-sm">{t('statistics.cpuUsage')}</p>
                 </div>
               </div>
-              <CircularProgress value={cpu.usage} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" />
+              <div className="mg-cpu-orbit" aria-hidden="true"><span /><span /><span /><Activity size={15} /><CircularProgress value={cpu.usage} size={38} strokeWidth={4} showValue={false} className="shrink-0 opacity-90" /></div>
             </div>
 
-            <div className="flex items-end justify-between gap-2">
+            <div className="mg-cpu-value-row flex items-end justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
-                <span dir="ltr" className="text-xl leading-tight font-bold tabular-nums transition-all duration-300 sm:text-2xl lg:text-3xl">
-                  {cpu.usage}%
+                <span dir="ltr" className="mg-cpu-live-value text-xl leading-tight font-bold tabular-nums transition-all duration-300 sm:text-2xl lg:text-3xl">
+                  {cpu.usage.toFixed(1)}<span className="mg-cpu-percent">%</span>
                 </span>
+                <span className="mg-cpu-live-tag"><Zap size={10} /> {t('mgUi.liveMonitor')}</span>
               </div>
 
               {cpu.cores > 0 && (
@@ -161,7 +164,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
       </div>
 
       {/* Memory Usage */}
-      <div className="h-full w-full">
+      <div className="mg-stat-tile mg-stat-tile-memory h-full w-full">
         <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
           <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
             <div className="mb-2 flex items-start justify-between sm:mb-3">
@@ -192,7 +195,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
 
       {/* Disk Usage (All Nodes / master view) */}
       {!nodeStatsMode && (
-        <div className="h-full w-full">
+        <div className="mg-stat-tile mg-stat-tile-disk h-full w-full">
           <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
             <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
               <div className="mb-2 flex items-start justify-between sm:mb-3">
@@ -225,7 +228,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
       {nodeStatsMode ? (
         <>
           {/* Uplink */}
-          <div className="h-full w-full">
+          <div className="mg-stat-tile mg-stat-tile-uplink h-full w-full">
             <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
               <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
                 <div className="mb-2 flex items-start justify-between sm:mb-3">
@@ -252,7 +255,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
           </div>
 
           {/* Downlink */}
-          <div className="h-full w-full">
+          <div className="mg-stat-tile mg-stat-tile-downlink h-full w-full">
             <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
               <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
                 <div className="mb-2 flex items-start justify-between sm:mb-3">
@@ -279,7 +282,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
           </div>
 
           {/* Node Uptime */}
-          <div className="h-full w-full sm:col-span-2">
+          <div className="mg-stat-tile mg-stat-tile-uptime h-full w-full sm:col-span-2">
             <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
               <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
                 <div className="mb-2 flex items-start justify-between sm:mb-3">
@@ -305,7 +308,7 @@ export default function SystemStatisticsSection({ currentStats, usersStats }: Sy
           {hasTrafficStats && (
             <>
               {/* Total Traffic */}
-              <div className="h-full w-full">
+              <div className="mg-stat-tile mg-stat-tile-traffic h-full w-full">
                 <Card dir={dir} className="group relative h-full w-full overflow-hidden transition-colors hover:bg-accent/40">
                   <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5 lg:p-6">
                     <div className="mb-2 flex items-start justify-between sm:mb-3">

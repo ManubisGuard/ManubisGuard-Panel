@@ -980,3 +980,310 @@ Next: finish D0 runtime/API regression, Telegram mock and secret non-disclosure,
 - [x] Installer helper installs the backup scripts and units, creates a local 32-byte encryption key only when missing, and enables the 30-minute timer without exposing the key in Git.
 - [x] The current host's existing key and backup archives remain outside the repository; do not commit `backup/*.dump`, `.env`, encryption keys, or full ZIP archives.
 - [ ] Verify a full restore on a separate disposable host; production panel services were not restarted during the backup implementation.
+
+
+## 2026-10-24 ManubisGuard cyberpunk UI redesign master plan
+
+- [x] Created the dedicated master brief, route-by-route TODO, initial audit and append-only report log at `/opt/manubisguard-panel/TODO_UI_REDESIGN_MASTER.md`.
+- [x] Verified host `8017638839-32c511`, project path `/opt/manubisguard-panel`, frontend path `/opt/manubisguard-panel/dashboard`, and branch `feature/amnezia-wg`.
+- [x] Recorded four pre-existing uncommitted frontend files; preserve them and do not use destructive Git operations.
+- [x] Recorded the approved visual direction: lightweight cyberpunk security-console UI, dark navy/charcoal, restrained cyan/teal, compact hierarchy, real telemetry, responsive layout, both light and dark themes.
+- [x] Enumerated current frontend routes and split work into independently reviewable phases, from shared shell/dashboard through users, nodes, groups/bulk, statistics, templates/subscriptions, admins/roles/API keys, settings, core editor, login and regression.
+- [x] Verified existing full backup archive and SHA-256, overview backup and SHA-256, and rollback image ID. Panel and TimescaleDB containers are healthy; local `/health` and dashboard root returned HTTP 200.
+- [ ] Complete Phase 0 baseline audit and Phase 1 dashboard implementation review; ask for visual approval before moving to the Users page.
+- [ ] Complete subsequent phases one page at a time; preserve every existing button, tab, form, API integration, permission and backend behavior.
+- [ ] Do not claim GitHub commit/push or final performance improvement until explicitly performed and verified.
+
+- [x] Phase 1 deployed 2026-10-24: dashboard cyber-console layout, static CSS network banner, KPI/resource/platform/user-state cards, tightened admin stats cards, and cyber styling for shared sidebar/topbar.
+- [x] Docker production build passed (5,588 modules transformed); `git diff --check` passed.
+- [x] Live panel and DB containers healthy after deployment; `/health` and `/` returned HTTP 200. Exact prior running image retained as `manubisguard-panel:pre-cyber-dashboard-20261024`.
+- [ ] Browser-based visual and interaction acceptance at mobile/desktop and light/dark modes; request user screenshot/approval before proceeding to the Users page.
+- [ ] Existing large editor/worker chunks remain a performance follow-up; no new dependencies or animated background assets were added in this phase.
+
+- [x] Dashboard card-unification follow-up 2026-10-24: normalized KPI, resource, platform, user-state, admin stats, chart and worker-health cards to the same flat dark surface, thin border, consistent corner radius and no heavy shadow/blur.
+- [x] User statistics rows made compact and consistent; real API data and interactions retained. Backup: `/opt/manubisguard-dashboard-cards-before-unify-20261024T202106Z.tar.gz`.
+- [x] Docker production build and HTTP smoke tests passed; running service healthy after startup. Rollback image: `manubisguard-panel:pre-cyber-cards-unified-20261024`.
+- [ ] User visual acceptance still pending; no other page redesign until dashboard approved.
+
+- [x] 2026-10-24: System Resources redesigned as a lightweight hacker telemetry console with static grid/circuit styling, terminal labels, live status, framed icons, segmented CPU/RAM/Disk meters, and numbered monitor nodes. Existing live values/polling retained; no new dependency or heavy image.
+- [x] Production Docker build passed; deployed to panel container. Backup files: `/opt/manubisguard-resources-before-hacker-pass-20261024T202650Z.tsx`, `/opt/manubisguard-resources-css-before-hacker-pass-20261024T202650Z.css`; rollback image `manubisguard-panel:pre-resource-hacker-20261024`.
+- [x] HTTP health/root smoke test passed after service startup; `git diff --check` passed. No Git commit/push performed.
+
+- [x] 2026-10-25: Extended System Resources hacker-console style to the remaining dashboard sections: KPI cards, platform status, user-state overview, admin statistics/user rows, usage chart loading panel, and workers health. Lightweight CSS-only details; no added dependency, images, loops, or API/back-end changes.
+- [x] Production Docker build and HTTP smoke checks; rollback image `manubisguard-panel:pre-dashboard-full-cyber-20261025`; backup `/opt/manubisguard-dashboard-rest-before-cyber-20261024T203111Z.tar.gz`. `git diff --check` passed. No commit/push.
+- [ ] User to visually approve dashboard before next page is redesigned.
+
+- [x] 2026-10-25: Statistics page redesigned with a cyber telemetry hero, compact node selector, framed system stats, and responsive chart grid; changed layout/spacing rather than recoloring only. Existing data fetching, polling, RBAC and chart behavior retained.
+- [x] Production Docker build passed; deployment smoke checks performed. Backup `/opt/manubisguard-statistics-before-cyber-20261024T203724Z.tar.gz`; rollback image `manubisguard-panel:pre-statistics-cyber-20261025`. No commit/push.
+- [ ] User visual approval of Statistics page.
+
+- [x] 2026-10-25: Statistics page v2: materially new asymmetric cyber-operations layout, explicit chart/resource hooks, distinct telemetry tiles and responsive grid; preserved data/API/interactions.
+- [x] Production Docker build passed; deployed with rollback image `manubisguard-panel:pre-statistics-cyber-v2-20261025`. Backup `/opt/manubisguard-statistics-layout-v2-backup-20261024T204240Z.tar.gz`. No commit/push.
+- [ ] User visual approval of Statistics v2.
+
+- [x] 2026-10-25: Real-Time Data header and CPU Usage tile given lightweight CSS-only telemetry animations (orbit, scan shimmer, live signal); respects reduced-motion.
+- [x] Production build passed and deployed; rollback image `manubisguard-panel:pre-realtime-cpu-20261025`; backup `/opt/manubisguard-realtime-cpu-before-20261024T204910Z.tar.gz`. No commit/push.
+- [ ] User visual approval of live telemetry animation.
+
+## 2026-10-25 Live Network Intelligence + localization follow-up
+
+- [x] Added `GET /api/system/network-intelligence` behind existing `system:read` permission and a best-effort OS socket collector. TCP/UDP socket counts are reported as socket counts (not unique proxy users); unavailable permissions/errors remain explicitly unavailable rather than fake zero values.
+- [x] Added the Live Network Intelligence statistics panel. Master server shows OS TCP/UDP socket telemetry and existing panel-reported online-user metric; node view shows current agent bandwidth telemetry and explicitly states that node-side TCP/UDP counts are not exposed by the current agent API.
+- [x] Added unit tests in `tests/test_network_connection_stats.py` for TCP states, UDP sockets, and access-denied behavior. Test execution still needs to be recorded before considering this change fully verified.
+- [x] Added translation namespace `mgUi` to `dashboard/public/statics/locales/{en,fa,ru,zh}.json`; localized the new telemetry panel, updated dashboard headings/cards/status labels, and sidebar accessibility labels. Live HTTP checks returned 200 for all four locale JSON files and confirmed translated strings are served.
+- [x] Built Docker image `manubisguard-panel:localization-fix-20261025b` with Docker build memory capped at 1200 MiB; Vite/PWA build completed. Deployed to the existing panel service only; DB container was not recreated. Final health check returned `{"status":"ok"}`, container healthy, restart count 0 after startup.
+- [x] Preserved intermediate rollback image `manubisguard-panel:rollback-localization-intermediate-20261025` and prior localization backup archive `/opt/manubisguard-localization-before-20261025T212435Z.tar.gz`.
+- [x] `git diff --check` passed. Current branch: `feature/amnezia-wg`; base HEAD at start of localization follow-up was `4fb41c5` (`docs: point installer instructions to updated feature branch`).
+- [ ] Run Python unit tests and any applicable type/build checks separately; record exact results.
+- [ ] Audit all changes together, inspect secrets and unintended files, verify report paths, and review final diff before staging.
+- [ ] No Git commit or GitHub push has been performed. Keep changes uncommitted until the complete diff and test results are reviewed.
+
+
+---
+
+# CONTINUATION HANDOFF — 2026-10-25 — PERSONAL HOST NAME + ADMIN ROLE HOST SCOPE BUG
+
+> **Exact resume point:** Continue from the unresolved Admin Role / Host permission bug described in §1 below. Do not restart the UI redesign or reimplement the already-added personal host name feature. The immediate task is to audit and correct the coupling between host-tab visibility and the new `hosts.personal_name` permission, while making Host use the same None / Own / All scope pattern as other resources where appropriate.
+
+## 1. Latest user-reported bug — MUST BE FIRST NEXT SESSION
+
+User clarified the actual behavior in Persian:
+- In Admin Role, enabling the new **edit personal Host name** permission does not make the Host tab appear.
+- The Host tab only appears if the administrator also enables the general **Host display/read** permission.
+- Once general Host display/read is enabled, the admin sees **all hosts**, which is broader than intended.
+- The Host permission in Admin Role currently does not expose the same **Own / All** scope selector seen for other resources.
+- User explicitly said this is a permission-model/UI + API behavior bug, not an image/UI mockup task.
+
+Required target behavior (confirm against existing RBAC semantics in code before implementing):
+1. `hosts.personal_name` remains an independent capability and must not implicitly grant general host create/update/delete permissions.
+2. Admin Role editor must expose Host read scope consistently with other scoped resources: `None / Own / All` (localized, using the existing permission editor model).
+3. A role with personal-host-name permission should be able to reach the relevant Host UI needed for that action without being forced to grant unrestricted Host visibility.
+4. The API must enforce scope server-side; merely hiding rows in the frontend is not security.
+5. `Own` must follow the project's existing definition of Own for scoped resources. Do not invent a different meaning (creator ownership vs role scope) without checking existing implementation and discussing any genuine ambiguity with the user.
+6. Do not silently grant broader access to existing roles. Check how permission defaults and persisted role JSON work; create a safe migration/default strategy if needed.
+7. Keep the canonical shared Host remark unchanged when saving a personal name. Personal name must remain isolated to the owning admin's view/subscriptions as currently designed.
+
+## 2. Known code facts from the previous audit
+
+- Repo: `/opt/manubisguard-panel`
+- Branch: `feature/amnezia-wg`
+- Remote: `origin/feature/amnezia-wg`
+- HEAD observed: `4fb41c5` — `docs: point installer instructions to updated feature branch`
+- Current working tree has many uncommitted changes; **do not reset, clean, revert broadly, or discard any work**.
+- Existing permission implementation: `app/operation/permissions.py` contains `PermissionScope` with None/Own/All and helpers such as `_resolve_scope`, `enforce_permission`, `enforce_scope`, `is_scope_all`, `get_scope_admin_id`. Previous audit noted scope enforcement was explicitly limited to users resource in some paths; inspect actual current code and all call sites.
+- Admin Role UI: `dashboard/src/features/admin-roles/components/permission-editor.tsx` renders scope dropdowns for entries marked scoped; `PERMISSION_GROUPS` lives in `dashboard/src/features/admin-roles/forms/admin-role-form.ts`.
+- Current uncommitted change adds `personal_name: RoleActionValue | None = None` to `HostsPermissions` and adds `{ resource: 'hosts', action: 'personal_name' }` to the Hosts group in `PERMISSION_GROUPS`. The Host read entry currently appears not to be scoped in the permission-group definition; inspect and align it with the existing scope UI contract.
+- Host list route is `app/routers/host.py` (`GET /api/hosts`); the previous change currently fetches all hosts through `host_operator.get_hosts(db=db, query=query)` and overlays the current admin's `personal_remark`. This is the likely security-sensitive path that needs scope filtering.
+- Single-host and related endpoints, host operations, subscription generation and any alternate host-list routes must also be audited; do not filter only the list endpoint and leave direct-ID access open.
+- `ProxyHost` is currently a shared/global model and has no creator/admin owner field. Do not add creator ownership unless existing `Own` semantics and product requirements prove that is the intended definition.
+- `HostAdminName` model in `app/db/models.py` stores `admin_id`, `host_id`, `remark`, with unique admin/host constraint.
+- Migration added: `app/db/migrations/versions/20261025_host_admin_names.py`.
+- Endpoint added: `PUT /api/host/{host_id}/personal-name`, guarded by `require_permission('hosts', 'personal_name')`; it stores an admin-specific remark and clears subscription config cache.
+- Subscription rendering in `app/subscription/share.py` uses the subscription owner's admin ID to apply the personal name on model copies; the shared host cache/canonical name must not be mutated.
+- CRUD in `app/db/crud/host.py` excludes `personal_remark` from persisted canonical host fields.
+- Frontend host action UI: `dashboard/src/features/hosts/components/host-actions-menu.tsx`; Grid display fix in `dashboard/src/features/hosts/components/sortable-host.tsx` uses `host.personal_remark || host.remark || ''`.
+- Current personal-name implementation has not yet been fully tested with real role combinations and every host API route. Treat that as open verification.
+
+## 3. Personal Host name feature — existing implementation inventory
+
+Uncommitted changes associated with this feature include at least:
+- `app/db/models.py`: `HostAdminName` table/model.
+- `app/db/migrations/versions/20261025_host_admin_names.py`: migration.
+- `app/models/admin_role.py`: `HostsPermissions.personal_name`.
+- `app/models/host.py`: transient/API `personal_remark`.
+- `app/routers/host.py`: host list overlays per-admin personal names and new personal-name PUT endpoint.
+- `app/db/crud/host.py`: prevents transient personal name being persisted as canonical host remark.
+- `app/subscription/share.py`: per-admin subscription labels.
+- `dashboard/src/features/admin-roles/forms/admin-role-form.ts`: permission group entry.
+- `dashboard/src/features/hosts/components/host-actions-menu.tsx`: action/dialog and API integration.
+- `dashboard/src/features/hosts/components/sortable-host.tsx`, `hosts-list.tsx`, `use-hosts-list-columns.tsx`: display changes.
+- `dashboard/src/service/api/index.ts`: API client.
+- `dashboard/public/statics/locales/{en,fa,ru,zh}.json`: translated labels.
+- Other unrelated uncommitted UI and network-intelligence changes are listed in §5; preserve all.
+
+Known runtime notes from prior session:
+- Production container: `manubisguard-panel-manubisguard-1`.
+- DB container: `manubisguard-panel-timescaledb-1`.
+- Production image tag: `ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg`.
+- Pre-feature DB backup reported at `/opt/backups/manubisguard-pre-host-personal-name-20261025.dump`.
+- Rollback image reported: `manubisguard-panel:rollback-before-host-personal-name-20261025`.
+- Latest Grid fix image: `manubisguard-panel:personal-name-grid-fix-20261025`, tagged to production tag and deployed to the existing panel service only.
+- Previous deployment verification: panel container healthy, startup complete, `/health` HTTP 200. No browser-based end-to-end verification was performed; user should hard-refresh after rollout.
+- Grid bug fix: `sortable-host.tsx` now displays `host.personal_remark || host.remark || ''`. Do not undo it.
+
+These paths and deployment details were reported by the previous execution session. Re-verify before relying on them.
+
+## 4. Exact next execution checklist
+
+### Phase A — safe baseline and source audit
+- [ ] Confirm the target device is `8017638839-32c511` (device ID `889bb61a-a98c-4c4b-8b1b-8fea06f7f10b`) and repo path `/opt/manubisguard-panel`; stop if the target/path differs.
+- [ ] Record `git status --short --branch`, `git rev-parse HEAD`, `git diff --stat`, untracked files, current Compose status, running image ID, and `/health`.
+- [ ] Read `app/operation/permissions.py`, `app/models/admin_role.py`, `app/routers/host.py`, host operations/CRUD, every host-related route, the full permission editor and scoped-resource examples.
+- [ ] Inspect actual role serialization, persisted JSON defaults, migration behavior, permission editor logic and tests.
+- [ ] Enumerate every API that returns host objects or uses a host ID, including subscriptions/config output, to prevent IDOR/scope bypass.
+- [ ] Inspect the full existing diff before edits. Preserve all user and prior-agent work.
+
+### Phase B — minimal implementation
+- [ ] Make Host read scope selector use the same supported scope control as other resources.
+- [ ] Make tab visibility account for the independently granted personal-name capability, without implicitly granting unrestricted host access.
+- [ ] Enforce the established Own/All semantics in backend list and individual-host operations.
+- [ ] Ensure host IDs outside the admin's allowed scope cannot be read/modified through direct API calls.
+- [ ] Ensure `personal_name` only authorizes changing that admin's personal label; it must not authorize canonical Host updates.
+- [ ] Keep all existing personal-name, subscription isolation and Grid display behavior.
+- [ ] Update translations for en/fa/ru/zh if new strings are needed.
+- [ ] Add regression tests for None/Own/All, tab/action permissions, direct-ID denial, canonical remark preservation, per-admin isolation, and subscription rendering.
+
+### Phase C — verification and release gates
+- [ ] Run focused permission and Host tests first; record exact commands, counts and results.
+- [ ] Run Ruff/lint/type checks used by this repository and `git diff --check`.
+- [ ] Run frontend production build; distinguish build success from browser E2E success.
+- [ ] Test roles with combinations: (a) personal-name only, (b) Host read Own, (c) Host read All, (d) no Host access, and verify no accidental all-host exposure.
+- [ ] If deploying, create/verify fresh source backup and DB backup; retain rollback image; deploy only the Panel service (do not recreate TimescaleDB unless explicitly necessary).
+- [ ] Verify container health, `/health`, and HTTP root after restart; do not claim visual acceptance without browser verification.
+- [ ] Append exact implementation/test/deployment evidence to this TODO before staging.
+- [ ] Review complete diff, check secrets, and identify every intended file.
+- [ ] **Commit and push all intended project changes to `origin feature/amnezia-wg` only after tests/build/security review pass.** Do not include secrets, backups, dump files, local generated artifacts or accidental files. Before commit, confirm remote/branch and user authorization for push; no force push.
+- [ ] Verify pushed commit SHA and clean/remaining worktree afterward, and update this handoff with the exact SHA.
+
+## 5. Current working tree inventory — observed 2026-10-25
+
+Observed `git status --short --branch`:
+- Branch: `feature/amnezia-wg...origin/feature/amnezia-wg`
+- HEAD: `4fb41c5` (grafted checkout as reported by Git).
+- Modified:
+  - `TODO.md`
+  - Backend: `app/db/crud/host.py`, `app/db/models.py`, `app/models/admin_role.py`, `app/models/host.py`, `app/models/system.py`, `app/routers/host.py`, `app/routers/system.py`, `app/subscription/share.py`, `app/utils/system.py`
+  - Locales: `dashboard/public/statics/locales/en.json`, `fa.json`, `ru.json`, `zh.json`
+  - Shell/layout: `dashboard/src/components/layout/manubis-topbar.tsx`, `dashboard/src/components/layout/sidebar.tsx`, `dashboard/src/index.css`, `dashboard/src/lib/theme-color.ts`, `dashboard/src/locales/i18n.ts`
+  - Admin roles/hosts: `dashboard/src/features/admin-roles/forms/admin-role-form.ts`, `dashboard/src/features/hosts/components/host-actions-menu.tsx`, `hosts-list.tsx`, `sortable-host.tsx`, `use-hosts-list-columns.tsx`
+  - Dashboard: `dashboard/src/features/dashboard/components/admin-statistics-card.tsx`, `dashboard-overview.tsx`, `users-statistics-card.tsx`, `workers-health-card.tsx`, `dashboard/src/pages/_dashboard._index.tsx`
+  - Statistics: `dashboard/src/features/statistics/components/statistics-charts.tsx`, `system-statistics-section.tsx`, `dashboard/src/pages/_dashboard.statistics.tsx`
+  - Users: `dashboard/src/features/users/components/data-table.tsx`, `filters.tsx`, `users-statistics.tsx`, `users-table.tsx`, `dashboard/src/pages/_dashboard.users.tsx`
+  - Routes/API: `dashboard/src/pages/_dashboard.hosts.tsx`, `dashboard/src/service/api/index.ts`
+- Untracked:
+  - `TODO_UI_REDESIGN_MASTER.md`
+  - `app/db/migrations/versions/20261025_host_admin_names.py`
+  - `dashboard/src/features/statistics/components/live-network-intelligence.tsx`
+  - `tests/test_network_connection_stats.py`
+- Last observed aggregate diff: 39 tracked files changed, 1,445 insertions and 227 deletions, plus the untracked files above. This is a snapshot only; recalculate before committing.
+- No commit or GitHub push has been performed for these current changes.
+- Do not assume every change in this worktree is complete or tested merely because the UI image was built/deployed.
+
+## 6. Other uncommitted work that must not be lost
+
+### Cyberpunk UI redesign
+- Main planning/report file: `/opt/manubisguard-panel/TODO_UI_REDESIGN_MASTER.md`.
+- Approved direction: compact, lightweight cyber/security-console UI, dark navy/charcoal with restrained cyan/teal accents, responsive, both light and dark themes, preserving all backend functions, tabs, buttons and permissions.
+- Dashboard shell, overview cards, system resource cards, statistics page, real-time/CPU section, and Users first pass have been changed and built/deployed in prior reported passes. The master brief contains the chronological change log, backup archives, rollback image tags, build notes and pending visual acceptance.
+- User previously asked to preserve the changes and gather them before final GitHub commit/push. Do not discard or reset them.
+- UI redesign has not received complete browser-based visual/interaction acceptance across mobile/desktop and both themes. Large editor/worker JS chunk warnings were reported in builds and remain a follow-up.
+- Current branch changes include all those UI edits; review the actual diff and use the master report rather than repeating prior work.
+
+### Live Network Intelligence / localization
+- Backend adds `GET /api/system/network-intelligence` under existing `system:read` permission, best-effort OS socket metrics; unavailable values must not be represented as zero.
+- Frontend adds Live Network Intelligence to Statistics; node-side TCP/UDP socket counts are explicitly unavailable if the node-agent API does not provide them.
+- Tests in `tests/test_network_connection_stats.py` were created, but prior report says pytest itself was unavailable in the production image; only equivalent direct smoke assertions passed. Run the actual appropriate test suite in a dev/test environment.
+- Locales include `mgUi` namespace in en/fa/ru/zh; locale URL cache-busting was deployed and checked over HTTP.
+- Previous reports claim production panel healthy after deployment, TimescaleDB not recreated, rollback images preserved. Reverify live state.
+
+## 7. Git / commit / push policy
+
+- Expected branch: `feature/amnezia-wg`; remote: `origin`; never change `main`.
+- User explicitly wants all changes recorded and then committed/pushed so another AI can continue from an exact checkpoint. The next agent must first finish the current Host permission bug and test the complete accumulated diff.
+- Do not commit before reviewing all changes, running applicable tests/build, checking secrets and determining that the intended files are ready.
+- Do not use `git reset --hard`, `git clean`, broad checkout/revert, force-push, or destructive cleanup.
+- Do not stage backup archives, DB dumps, secrets, certificates, runtime env files, Docker volumes or generated local build artifacts.
+- Commit message should describe the actual reviewed bundle (Host personal-name/permission-scope fix plus completed UI/network changes only if they all pass); do not falsely imply unfinished UI phases are complete.
+- Push to `origin feature/amnezia-wg`, then verify the remote commit SHA and record it here. If a push is blocked or credentials unavailable, report that exact blocker; do not claim pushed.
+
+## 8. Continuation prompt for the next AI
+
+You are continuing ManubisGuard Panel, not starting over. First read `/opt/manubisguard-panel/TODO.md` and `/opt/manubisguard-panel/TODO_UI_REDESIGN_MASTER.md`. Verify the correct remote device, project path, branch, HEAD, complete worktree and running deployment. Preserve every existing change. Resume with the unresolved bug in section “Latest user-reported bug — MUST BE FIRST NEXT SESSION”: Admin Role Host tab requires general Host display/read permission, and when enabled exposes all hosts; Host read lacks the expected Own/All scope control, while the new `hosts.personal_name` permission must stay independent. Inspect actual permission semantics and every host API route, implement a minimal secure fix, add tests for None/Own/All and personal-name isolation, run backend/frontend checks, and update this TODO with evidence. Then review the entire accumulated diff, commit and push the intended verified changes to `origin feature/amnezia-wg` (never main, never force-push), verify the pushed SHA, and update this report. Never claim an unrun test/deploy or discard uncommitted work.
+
+
+## 2026-10-25 — Secure personal host-name editor separation (in progress)
+- Preserved existing uncommitted UI redesign, network intelligence, and host personal-name work.
+- Added a dedicated /host-names dashboard route controlled only by hosts.personal_name; /hosts remains gated by hosts.read.
+- Added a limited backend list contract exposing only host IDs and the current admin's own personal label; the personal-name update response no longer serializes the full host configuration.
+- Added a dedicated edit-only page and a clear Admin Role permission label. No Own scope semantics were invented because hosts do not have an established admin-owner relationship.
+- Validation/deployment/commit status is pending; do not deploy or commit until tests and diff review succeed.
+
+### Validation attempt — 2026-10-25
+- `git diff --check`: passed.
+- `python3 -m compileall -q app/routers/host.py tests/api/test_permissions.py`: passed (syntax/bytecode compilation only).
+- Python AST checks and JSON parsing for en/fa/ru/zh locale files: passed.
+- Added regression tests asserting `hosts.personal_name` does not imply `hosts.read` and vice versa; tests could not be executed because host Python has no pytest/FastAPI/SQLAlchemy installed, and the running app container has no pytest and does not bind-mount the edited router/test files.
+- Frontend build/typecheck could not be executed: dashboard dependencies/node_modules and Bun/TypeScript CLI are absent. No package installation, container rebuild, service restart, migration, deployment, commit, or push was performed.
+- Added API contract regression tests verifying the personal-name response schema contains only `host_id` and `personal_name`, and both list/update routes use that minimal schema.
+- Final check confirmed the separate route and role label exist; the original inline personal-name editor was removed from the full Hosts menu so the edit capability is surfaced only in the new tab.
+
+### Build and pre-deploy checkpoint — 2026-10-25
+- Built a separate validation image successfully: manubisguard-panel:host-names-check (sha256:c81e9c3e38c40cdfa9894335aebec3f587dbea5b521c36769559d9b12e551756). Dashboard production build completed; only the existing large-chunk warning was emitted.
+- Runtime backend assertions passed for the minimal personal-name response schema, route response models, and independent hosts.personal_name / hosts.read permission behavior.
+- Database revision check reports 20261025_host_admin_names (the intended migration is already the current head); no new schema migration is expected during this rollout.
+- Created and validated a fresh custom-format PostgreSQL backup: /opt/backups/manubisguard-pre-host-names-20261024-235810.dump (size 125626 bytes; pg_restore --list succeeded with 364 archive-list lines). The PostgreSQL container reported healthy.
+- Current app image before rollout: sha256:8028f9440eb1515beb438f76734916e7fd4545ac77a38e32507487b7207c09fb. Rollback image tag reserved: manubisguard-panel:rollback-host-names-20261025-000359.
+- Targeted pytest execution remains unavailable in the host environment (pytest is not installed); source syntax and static contract checks passed. This limitation is not represented as a full pytest pass.
+
+### Deployment and live smoke checks — 2026-10-25
+- Deployed the locally built image to the existing panel service only (no image push): image sha256:c81e9c3e38c40cdfa9894335aebec3f587dbea5b521c36769559d9b12e551756.
+- Preserved the previous running image as local rollback tag manubisguard-panel:rollback-host-names-20261025-000359; source registry tag now points locally at the new image for this host. No remote registry push was performed.
+- The application container is running/healthy; the TimescaleDB container remains running/healthy. The live /health endpoint returned status ok.
+- Live smoke checks: GET /api/host/personal-names without authentication returned 401 (route mounted and authentication enforced); GET /api/host/1/personal-name returned 405 for the wrong HTTP method (route mounted); frontend root returned HTTP 200; built host-names JavaScript asset exists at /code/dashboard/build/statics/_dashboard.host-names-Dr1TpfeC.js.
+- Database alembic_version remains 20261025_host_admin_names after startup; no migration change was required. Fresh backup is /opt/backups/manubisguard-pre-host-names-20261024-235810.dump and was archive-validated before deployment.
+- Full pytest suite was not run because pytest is unavailable in the host environment. Production dashboard build and focused runtime backend RBAC/response-schema assertions passed. No commit or push performed.
+
+
+## 2026-10-25 — Hosts/Groups separation deployed
+
+- Hosts and Groups are now separate top-level sidebar entries; Groups renders directly at `/groups`, and legacy `/hosts/groups` redirects there. Personal host names remain under Hosts with their own permission.
+- Host personal-name cards display the original host name as the bold title, personal name below in smaller muted text (or an unset label), and ID as secondary metadata.
+- Production Docker build succeeded: `manubisguard-panel:separate-hosts-groups-20261025`, image `sha256:4e2b54faae1c1b10c53a4d217cebc04b1ec46dbad5f67e34ca0fab9955953ed4`.
+- Deployed app-only with `docker compose up -d --no-deps --force-recreate manubisguard`; app is healthy. TimescaleDB was not recreated and remains healthy.
+- Rollback image preserved as `manubisguard-panel:rollback-separate-hosts-groups-20261025-1` (`sha256:c81e9c3e38c40cdfa9894335aebec3f587dbea5b521c36769559d9b12e551756`). Existing database backup remains `/opt/backups/manubisguard-pre-host-names-20261024-235810.dump`.
+- Live smoke: `/health` HTTP 200, frontend root HTTP 200, unauthenticated personal-name list API HTTP 401 as expected. Build contains hosts, groups, host-names and hosts-content bundles. `git diff --check` and Python compileall passed.
+- Browser visual acceptance and full pytest remain pending; pytest was not run. Hard-refresh/reopen panel to bypass cached JS. No commit or push.
+
+## 2026-10-25 — ManubisGuard v1.0.0, brand/version decoupling, accumulated UI changes, GitHub release preparation
+
+### Verified repository baseline
+- [x] Confirmed target device label `8017638839-32c511`, repository `/opt/manubisguard-panel`, branch `feature/amnezia-wg`, HEAD `4fb41c5c80deecc7491dd327564f099f0ad1884f`.
+- [x] Confirmed `origin` is `https://github.com/ManubisGuard/ManubisGuard-Panel.git`; remote `feature/amnezia-wg` resolves to the same HEAD; `main` is a separate ref and was not modified.
+- [x] Recorded the accumulated working-tree changes before release preparation. Existing UI redesign, Host personal-name feature, Hosts/Groups separation, localization, network-intelligence code, version/branding changes, migration and tests are to be preserved.
+- [x] `git diff --check` passed at the baseline review.
+- [x] No obvious secret/backup/dump/.env filename appeared in the changed/untracked status list. This filename check is not a substitute for final content review.
+
+### v1.0.0 branding and upstream-update decoupling
+- [x] `pyproject.toml` project version is `1.0.0`.
+- [x] Dashboard package identity/version are `manubisguard-dashboard` / `1.0.0`; `dashboard/bun.lock` package identity was synchronized.
+- [x] Dashboard version-check hook no longer queries PasarGuard's upstream releases; version badge stays hidden until a ManubisGuard-owned release feed exists.
+- [x] Telegram status text uses `ManubisGuard Version` rather than `PasarGuard Version`.
+- [x] Built image `manubisguard-panel:manubis-v1.0.0-20261025` (SHA256 `7ea32715a31f0faf3db533ba37a08e779e597326321d02b0eb0e8e894b46090f`, reported size 554 MB) and deployed to the existing app service only. Runtime reports version `1.0.0`; app container was healthy after startup. TimescaleDB was not recreated; rollback image `manubisguard-panel:rollback-pre-v1.0.0-20261025` preserved.
+- [ ] This removes misleading upstream release notifications; it does not remove every PasarGuard-derived code/dependency. A ManubisGuard-owned release feed remains a future feature.
+
+### Sidebar branding and accumulated product/UI work
+- [x] New cyber shield logo asset exists at `dashboard/public/statics/branding/manubisguard-cyber.png`; sidebar references the ManubisGuard branding.
+- [x] Preserve the accumulated dashboard/statistics/users cyber UI, locale changes, live network-intelligence panel/API/tests, Host personal-name feature, Hosts/Groups separation, and new host-name page/migration/tests. Refer to `TODO_UI_REDESIGN_MASTER.md` for the append-only UI change log.
+- [ ] Full browser visual/interaction acceptance across desktop/mobile and light/dark themes remains outstanding; successful image builds are not browser E2E acceptance.
+- [ ] Full pytest/permission matrix has not yet been executed for the accumulated changes. Previous entries document test tooling limitations and the remaining Host scope/RBAC review; do not claim these gates passed.
+
+### Current live check and verification limits
+- [x] `docker compose ps` reports the existing ManubisGuard app and TimescaleDB containers healthy; running app image is `ghcr.io/arsamnikzaad/manubisguard-panel:feature-amnezia-wg` (local tag resolves to SHA256 `7ea32715a31f`).
+- [x] Runtime Python reports app version `1.0.0`.
+- [ ] A fresh direct `curl http://127.0.0.1:8000/health` and root probe returned an empty reply/HTTP 000 in this check; the app's Docker health status is healthy, but HTTP probe scheme/port/bind must be reconciled before claiming the external smoke test passed. Check `healthcheck.sh` and configured listener without exposing `.env` values.
+- [x] Python compileall passed for the changed backend files and the added API/network tests; all dashboard locale JSON files parsed successfully.
+- [x] `git diff --check` passed.
+- [ ] Host machine has no `uv`, `bun`, or `pytest` CLI on PATH. Do not claim a fresh pytest or local frontend build from this host. Production Docker build was successful in the prior v1.0.0 build, but the complete accumulated test suite still needs a reproducible test environment.
+
+### Lightweight installation/build findings
+- [x] Current Dockerfile already uses a multi-stage build: Bun/UV dependencies and dashboard compilation happen in `builder`; runtime is based on `python:3.14-slim-trixie`; dashboard `node_modules` is removed before runtime copy; UV/Bun cache mounts are present.
+- [x] Current production image is about 554 MB. `.dockerignore` excludes `node_modules`, `.git`, env files, tests, caches, and several development artifacts; avoid blanket deletion of source or migration files because runtime startup imports Python source and Compose bind-mounts Alembic migrations.
+- [x] The Docker build includes Python dependency resolution, `bun install --frozen-lockfile`, dashboard Vite build, and Python/runtime layers. BuildKit cache should reduce repeat builds; a clean first install will still be slower.
+- [ ] Next optimization investigation: measure each Docker build stage; check whether `start.sh` performs only Alembic + app startup (current source indicates it does) and whether deployment/install script unnecessarily rebuilds the image on every restart/update; inspect `install-manubisguard.sh` and related scripts before changing the installation contract.
+- [ ] Candidate optimizations requiring measurement and regression checks: publish/pull a prebuilt versioned GHCR image instead of compiling on the target host; use BuildKit layer/cache mounts; separate build-only tooling from runtime; audit runtime-only Python dependencies; reduce unnecessary OS packages only after checking CLI/migration use. Do not remove node_modules/source blindly or alter DB volumes.
+
+### GitHub release gate
+- [ ] Review every intended tracked diff and untracked source/test/migration/logo file, inspect the full diff for secrets and accidental artifacts, and confirm migration chain consistency.
+- [ ] Resolve/explicitly disposition the outstanding Host scope/RBAC and test gates recorded in the continuation checklist above. Do not mark unfinished behavior complete merely to enable a commit.
+- [ ] Stage only reviewed source, tests, locales, migration, and intended TODO/design documentation using explicit paths; keep the operational AI handoff prompt and any private/reference/backup artifacts local unless separately approved.
+- [ ] Commit only after the complete review and applicable checks; push to `origin feature/amnezia-wg` without force-push; verify the remote SHA and record it here. No commit/push has been performed in this checkpoint yet.

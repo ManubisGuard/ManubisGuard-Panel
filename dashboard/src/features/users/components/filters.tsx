@@ -441,7 +441,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   }
 
   return (
-    <div dir={dir} className="bg-background/80 sticky top-0 z-20 flex flex-col gap-2 py-3 backdrop-blur-md">
+    <div dir={dir} className="mg-users-filters bg-background/80 sticky top-0 z-20 flex flex-col gap-2 py-3 backdrop-blur-md">
       <div className="flex items-center gap-2 md:gap-3">
       {/* Search Input */}
       <div className="relative w-full min-w-0 max-w-xs flex-1 sm:max-w-sm sm:flex-none lg:w-64 lg:max-w-none">
@@ -683,7 +683,7 @@ export const PaginationControls = ({ currentPage, totalPages, itemsPerPage, isLo
   const paginationRange = getPaginationRange(currentPage, totalPages)
   const dir = useDirDetection()
   return (
-    <div className="mt-4 flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
+    <div className="mg-users-pagination mt-4 flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
       <div className="flex items-center gap-2">
         <Select value={itemsPerPage.toString()} onValueChange={value => onItemsPerPageChange(parseInt(value, 10))} disabled={isLoading}>
           <SelectTrigger className="w-[70px]">

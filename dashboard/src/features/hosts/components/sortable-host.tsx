@@ -66,7 +66,7 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
             <div className="flex min-w-0 items-center gap-2">
               {selectionControl}
               <div className={cn('min-h-2 min-w-2 rounded-full', host.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
-              <div className="truncate font-medium">{host.remark ?? ''}</div>
+              <div className="truncate font-medium">{host.personal_remark || host.remark || ''}</div>
             </div>
             <div className={cn('flex items-center gap-1', dir === 'rtl' && 'justify-start')}>
               <ChevronsLeftRightEllipsis className="text-muted-foreground h-4 w-4" />

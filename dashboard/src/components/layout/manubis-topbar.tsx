@@ -10,13 +10,13 @@ export default function ManubisTopbar() {
   const setCommandPaletteOpen = useCommandPaletteStore(s => s.setOpen)
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/60 bg-background/70 px-3 backdrop-blur-2xl sm:px-5 lg:px-6">
+    <header className="mg-topbar sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-3 sm:px-5 lg:px-6">
       <SidebarTriggerWithBadge />
 
       <button
         type="button"
         onClick={() => setCommandPaletteOpen(true)}
-        className="group flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border/60 bg-card/45 px-3.5 text-sm text-muted-foreground shadow-[0_8px_30px_hsl(0_0%_0%_/_0.18)] transition-all hover:border-primary/35 hover:bg-card/70 hover:shadow-[0_0_24px_hsl(var(--primary)/.08)] sm:max-w-xl"
+        className="mg-search-trigger group flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground transition-colors sm:max-w-xl"
       >
         <Search className="h-4 w-4 shrink-0" />
         <span className="truncate">{t('search', { defaultValue: 'Search' })}</span>
@@ -24,11 +24,11 @@ export default function ManubisTopbar() {
       </button>
 
       <div className="ms-auto flex shrink-0 items-center gap-2">
-        <div className="hidden items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1.5 text-[11px] font-medium text-primary sm:flex">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/.7)]" />
+        <div className="mg-topbar-status hidden items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-medium sm:flex">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
           <span>{t('online', { defaultValue: 'Online' })}</span>
         </div>
-        <div className="flex h-9 items-center gap-2 rounded-lg border border-border/60 bg-card/35 px-2.5">
+        <div className="mg-topbar-user flex h-9 items-center gap-2 rounded-lg border px-2.5">
           <ShieldCheck className="h-4 w-4 text-primary" />
           <span className="hidden max-w-32 truncate text-xs font-medium sm:block">{admin?.username || 'Admin'}</span>
         </div>

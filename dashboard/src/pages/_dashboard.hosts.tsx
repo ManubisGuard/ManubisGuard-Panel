@@ -1,12 +1,12 @@
 import MainSection from '@/features/hosts/components/hosts-list'
-import { Group, Plus, Server } from 'lucide-react'
-import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { Plus } from 'lucide-react'
+import { Outlet, useNavigate, useSearchParams } from 'react-router'
 import { cn } from '@/lib/utils'
 import { type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
 import { BaseHost, createHost, CreateHost, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
-import { canReadResourcePage, hasPermission } from '@/utils/rbac'
+import { hasPermission } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -291,49 +291,18 @@ export function HostsPage() {
 
 export default function HostsLayout() {
   const { admin } = useAdmin()
-  const { t } = useTranslation()
-  const location = useLocation()
-  const navigate = useNavigate()
-  const canReadHosts = canReadResourcePage(admin, 'hosts')
-  const canReadGroups = canReadResourcePage(admin, 'groups')
-
   const canCreateHosts = hasPermission(admin, 'hosts', 'create')
-  const tabs = [
-    ...(canReadHosts ? [{ id: 'hosts', label: t('hosts'), icon: Server, url: '/hosts' }] : []),
-    ...(canReadGroups ? [{ id: 'groups', label: t('groups'), icon: Group, url: '/hosts/groups' }] : []),
-  ]
-
-  const activeTab = location.pathname.startsWith('/hosts/groups') ? 'groups' : 'hosts'
-  const activeLabel = tabs.find(tab => tab.id === activeTab)?.label || t('hosts')
+  const navigate = useNavigate()
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-0">
       <PageHeader
-        title={activeLabel}
+        title="hosts"
         description="manageHosts"
-        buttonIcon={activeTab === 'hosts' && canCreateHosts ? Plus : undefined}
-        buttonText={activeTab === 'hosts' && canCreateHosts ? 'createHost' : undefined}
-        onButtonClick={activeTab === 'hosts' && canCreateHosts ? () => navigate('/hosts?create=1') : undefined}
+        buttonIcon={canCreateHosts ? Plus : undefined}
+        buttonText={canCreateHosts ? 'createHost' : undefined}
+        onButtonClick={canCreateHosts ? () => navigate('/hosts?create=1') : undefined}
       />
-      <div className="scrollbar-hide flex w-full overflow-x-auto border-b px-4 lg:flex-wrap">
-        {tabs.map(tab => {
-          const isActive = activeTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => navigate(tab.url)}
-              className={cn(
-                'relative flex shrink-0 items-center gap-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
-                isActive ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <tab.icon className="h-4 w-4" />
-              <span>{tab.label}</span>
-            </button>
-          )
-        })}
-      </div>
       <div className="min-w-0">
         <Outlet />
       </div>

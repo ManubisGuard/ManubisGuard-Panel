@@ -78,14 +78,15 @@ const Statistics = () => {
   })
 
   return (
-    <div className="flex w-full flex-col items-start gap-2">
-      <div className="w-full transform-gpu">
+    <div className="mg-statistics-page flex w-full flex-col items-start gap-2">
+      <div className="mg-statistics-hero w-full transform-gpu">
+        <div className="mg-statistics-hero-kicker"><span className="mg-statistics-live-dot" /> {t('mgUi.telemetry')} <span className="mg-statistics-hero-code">SYS.MON // 01</span></div>
         <PageHeader title="statistics" description="monitorServers" />
         <Separator />
       </div>
 
       {canViewNodeStats && (canViewSystemStats || nodesData.length > 0) && (
-        <div className="w-full px-3 pt-2 sm:px-4 sm:pt-4">
+        <div className="mg-statistics-node-selector w-full px-3 pt-2 sm:px-4 sm:pt-4">
           <div className="transform-gpu">
             <Card>
               <CardContent className="p-4 sm:p-6">
@@ -127,11 +128,11 @@ const Statistics = () => {
         </div>
       )}
 
-      <div className="w-full">
-        <div className="w-full px-3 pt-2 sm:px-4">
+      <div className="mg-statistics-content w-full">
+        <div className="mg-statistics-content-inner w-full px-3 pt-2 sm:px-4">
           <div className="transform-gpu">
-            <Card>
-              <CardContent className="p-4 sm:p-6">
+            <Card className="mg-statistics-shell">
+              <CardContent className="mg-statistics-shell-content p-4 sm:p-6">
                 <MainContent
                   error={error}
                   isLoading={isLoading}

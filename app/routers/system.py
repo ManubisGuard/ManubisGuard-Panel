@@ -10,6 +10,7 @@ from app.db.crud.wireguard import get_subnet_usage
 from app.models.admin import AdminDetails
 from app.models.settings import Telegram
 from app.models.system import (
+    SystemNetworkIntelligence,
     InboundSummary,
     SystemResourceStats,
     SystemStats,
@@ -27,6 +28,7 @@ from app.settings import telegram_settings
 from app.telegram import get_bot, get_dispatcher
 from app.utils import responses
 from app.utils.logger import EndpointFilter, get_logger
+from app.utils.system import network_connection_stats
 from config import telegram_env_settings
 
 from .authentication import require_permission
@@ -56,6 +58,15 @@ async def get_system_resource_stats(
 ):
     """Fetch system resource stats without user metrics."""
     return await system_operator.get_system_resource_stats()
+
+
+@router.get("/system/network-intelligence", response_model=SystemNetworkIntelligence)
+async def get_system_network_intelligence(
+    _: AdminDetails = Depends(require_permission("system", "read")),
+):
+    """Return OS socket counts for the panel server; these are not proxy-user counts."""
+    result = await asyncio.to_thread(network_connection_stats)
+    return SystemNetworkIntelligence(**result)
 
 
 @router.get("/system/users", response_model=SystemUsersStats)

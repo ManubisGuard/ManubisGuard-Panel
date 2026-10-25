@@ -90,8 +90,8 @@ const WorkersHealthCard = () => {
   if (!isLoading && !isError && workersDisabled) return null
 
   return (
-    <Card className="border-border/60 bg-card/55 shadow-[0_14px_40px_hsl(0_0%_0%_/_0.14)] backdrop-blur-xl" dir={dir}>
-      <CardHeader className="p-2">
+    <Card className="mg-cyber-card mg-workers-health overflow-hidden rounded-xl" dir={dir}>
+      <CardHeader className="p-2.5 sm:p-3">
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-2 p-2 text-left sm:items-center">
             <div className="bg-primary/10 rounded-md p-1.5">
@@ -141,7 +141,7 @@ const WorkersHealthCard = () => {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 px-4">
+      <CardContent className="space-y-3 px-3.5 pb-3.5 sm:px-4 sm:pb-4">
         {isLoading ? (
           <div className="space-y-2">
             <Skeleton className="h-8 w-full" />
@@ -154,7 +154,7 @@ const WorkersHealthCard = () => {
         ) : (
           <div className="space-y-2">
             {isCollapsed ? (
-              <div className="bg-muted/30 flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs">
+              <div className="mg-inner-panel flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-1">
                     <span className={cn('h-2 w-2 rounded-full', dotClassMap[schedulerMeta.variant])} />
@@ -168,7 +168,7 @@ const WorkersHealthCard = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs">
+                <div className="mg-inner-panel flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs">
                   <div className="flex items-center gap-2">
                     <ServerCog className="text-muted-foreground h-3.5 w-3.5" />
                     <span className="font-medium">{t('workersHealth.scheduler', { defaultValue: 'Scheduler' })}</span>
@@ -181,7 +181,7 @@ const WorkersHealthCard = () => {
                 </div>
                 {scheduler?.error && <div className="text-muted-foreground px-1 text-xs">{scheduler.error}</div>}
 
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs">
+                <div className="mg-inner-panel flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs">
                   <div className="flex items-center gap-2">
                     <Server className="text-muted-foreground h-3.5 w-3.5" />
                     <span className="font-medium">{t('workersHealth.node', { defaultValue: 'Node Worker' })}</span>

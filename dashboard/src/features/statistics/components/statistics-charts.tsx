@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { CostumeBarChart } from '@/components/charts/costume-bar-chart'
 import { EmptyState } from '@/components/charts/empty-state'
 import UserSubUpdatePieChart from '@/components/charts/user-sub-update-pie-chart'
+import LiveNetworkIntelligence from './live-network-intelligence'
 import SystemStatisticsSection from './system-statistics-section'
 import { AllNodesStackedBarChart } from '@/components/charts/all-nodes-stacked-bar-chart'
 import { AreaCostumeChart } from '@/components/charts/area-costume-chart'
@@ -119,38 +120,37 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
   const showRealtimeSystemStats = (actualSelectedServer === 'master' && !!data) || selectedNodeConnected
 
   return (
-    <div className="space-y-8">
+    <div className="mg-statistics-chart-layout space-y-8">
       {/* System Statistics Section - show for all admins */}
       {showRealtimeSystemStats && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="mg-statistics-system-block space-y-4">
+          <div className="mg-statistics-section-title flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BarChart3 className="text-primary h-5 w-5" />
               <h2 className="text-lg font-semibold">{t('statistics.system')}</h2>
             </div>
           </div>
-          <div className="transform-gpu">
-            <SystemStatisticsSection currentStats={currentStats} usersStats={actualSelectedServer === 'master' ? usersData : undefined} />
-          </div>
+          <LiveNetworkIntelligence selectedServer={actualSelectedServer} nodeStats={actualSelectedServer === 'master' ? undefined : selectedNodeConnected ? (nodeStats as NodeRealtimeStats) : null} usersStats={actualSelectedServer === 'master' ? usersData : undefined} />
+          <div className="transform-gpu"><SystemStatisticsSection currentStats={currentStats} usersStats={actualSelectedServer === 'master' ? usersData : undefined} hideCpu /></div>
         </div>
       )}
 
       {/* Charts Section */}
-      <div className="space-y-8">
+      <div className="mg-statistics-charts-grid">
         {canViewNodeStats && (
-          <div className="transform-gpu">
+          <div className="mg-stat-chart-panel mg-stat-chart-traffic transform-gpu">
             {actualSelectedServer === 'master' ? <AllNodesStackedBarChart /> : <CostumeBarChart nodeId={selectedNodeId} />}
           </div>
         )}
-        <div className="transform-gpu">
+        <div className="mg-stat-chart-panel mg-stat-chart-users transform-gpu">
           <UserCountsChart nodeId={selectedNodeId} isSudo={canViewNodeStats} nodesData={nodesData} />
         </div>
         {actualSelectedServer === 'master' && (
-          <div className="transform-gpu">
+          <div className="mg-stat-chart-panel mg-stat-chart-subscriptions transform-gpu">
             <UserSubUpdatePieChart />
           </div>
         )}
-        <div className="transform-gpu">
+        <div className="mg-stat-chart-panel mg-stat-chart-timeline transform-gpu">
           <AreaCostumeChart
             key={chartRefreshKey}
             nodeId={selectedNodeId}

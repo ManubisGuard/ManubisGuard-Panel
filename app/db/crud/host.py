@@ -159,7 +159,7 @@ async def create_host(db: AsyncSession, new_host: CreateHost) -> ProxyHost:
     Returns:
         ProxyHost: The retrieved or newly created proxy host.
     """
-    db_host = ProxyHost(**new_host.model_dump(exclude={"inbound_tag", "id"}))
+    db_host = ProxyHost(**new_host.model_dump(exclude={"inbound_tag", "id", "personal_remark"}))
     db_host.inbound = await get_or_create_inbound(db, new_host.inbound_tag)
 
     db.add(db_host)
@@ -169,7 +169,7 @@ async def create_host(db: AsyncSession, new_host: CreateHost) -> ProxyHost:
 
 
 async def modify_host(db: AsyncSession, db_host: ProxyHost, modified_host: CreateHost) -> ProxyHost:
-    host_data = modified_host.model_dump(exclude={"id", "inbound_tag"})
+    host_data = modified_host.model_dump(exclude={"id", "inbound_tag", "personal_remark"})
 
     for key, value in host_data.items():
         setattr(db_host, key, value)

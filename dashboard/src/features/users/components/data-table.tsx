@@ -338,7 +338,7 @@ export const DataTable = memo(
     }, [data, expandedRow, isLoadingData, layout])
 
     return (
-      <div className="relative overflow-hidden rounded-xl border">
+      <div className="mg-users-data-grid relative overflow-hidden rounded-xl border">
         <div ref={scrollRef} onScroll={onScroll} className="scrollbar-hide max-h-[min(70vh,800px)] overflow-auto">
           <Table dir={isRTL ? 'rtl' : 'ltr'} containerClassName="overflow-visible">
             <TableHeader ref={headerRef}>

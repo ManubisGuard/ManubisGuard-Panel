@@ -11,7 +11,7 @@ type DashboardAdmin = Pick<AdminDetails, 'id' | 'username'>
 
 function DataUsageChartSkeleton() {
   return (
-    <div className="bg-card/80 rounded-lg border p-4">
+    <div className="mg-cyber-card mg-admin-chart-skeleton rounded-xl border p-3.5 sm:p-4">
       <div className="flex items-center justify-between gap-2">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-4 w-20" />
@@ -73,14 +73,14 @@ const AdminStatisticsCard = ({
 
   if (showAdminInfo)
     return (
-      <div className="flex flex-col gap-6 rounded-2xl border border-border/60 bg-card/25 p-4 shadow-[0_16px_45px_hsl(0_0%_0%_/_0.12)] backdrop-blur-xl sm:p-5">
+      <div className="mg-cyber-card mg-admin-statistics flex flex-col gap-4 rounded-xl border p-3.5 sm:p-4">
         <div className="flex flex-row items-center justify-between">
           <div className="flex min-w-0 flex-row items-center gap-2">
             {admin.username === 'Total' ? <Users className="text-muted-foreground size-6 md:size-7" /> : <UserCog className="text-muted-foreground size-6 md:size-7" />}
             <span className="truncate text-lg font-bold md:text-xl">{admin.username === 'Total' ? t('admins.total') : admin.username}</span>
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <UserStatisticsCard data={statsToUse} />
           <DeferredDataUsageChart adminUsername={shouldScopeAdminData ? admin.username : undefined} />
         </div>
@@ -88,7 +88,7 @@ const AdminStatisticsCard = ({
     )
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       <UserStatisticsCard data={statsToUse} />
       <DeferredDataUsageChart adminUsername={shouldScopeAdminData ? admin.username : undefined} />
     </div>

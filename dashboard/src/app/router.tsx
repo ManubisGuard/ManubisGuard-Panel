@@ -26,6 +26,7 @@ const BulkGroupsPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.b
 const BulkProxyPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.bulk.proxy'))
 const Groups = lazyWithChunkRecovery(() => import('../pages/_dashboard.groups'))
 const Hosts = lazyWithChunkRecovery(() => import('../pages/_dashboard.hosts'))
+const HostNames = lazyWithChunkRecovery(() => import('../pages/_dashboard.host-names'))
 const HostsContent = lazyWithChunkRecovery(() => import('../pages/_dashboard.hosts.content'))
 const Nodes = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes'))
 const NodesIndex = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes._index'))
@@ -147,19 +148,27 @@ export const router = createHashRouter([
               </Suspense>
             ),
           },
-          {
-            path: '/hosts/groups',
-            element: (
-              <Suspense fallback={<LoadingSpinner />}>
-                <Groups />
-              </Suspense>
-            ),
-          },
         ],
       },
       {
+        path: '/host-names',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <HostNames />
+          </Suspense>
+        ),
+      },
+      {
         path: '/groups',
-        element: <Navigate to="/hosts/groups" replace />,
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <Groups />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/hosts/groups',
+        element: <Navigate to="/groups" replace />,
       },
       {
         path: '/nodes',

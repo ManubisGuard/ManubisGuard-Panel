@@ -28,19 +28,20 @@ const Users = () => {
   useCommandCreate('user', handleCreateUser)
 
   return (
-    <div className="flex w-full flex-col items-start gap-2">
+    <div className="mg-users-page flex w-full flex-col items-start gap-3">
       <div className="w-full">
         <PageHeader
           title="users"
           description="manageAccounts"
+          className="mg-users-page-header"
           buttonIcon={canCreateUsers ? Plus : undefined}
           buttonText={canCreateUsers ? 'createUser' : undefined}
           onButtonClick={canCreateUsers ? handleCreateUser : undefined}
         />
-        <Separator />
+        <Separator className="mg-users-page-separator" />
       </div>
 
-      <div className="w-full px-4 pt-2">
+      <div className="mg-users-page-content w-full px-4 pt-2">
         <UsersStatistics />
         <UsersTable />
       </div>

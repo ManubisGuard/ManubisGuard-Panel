@@ -81,6 +81,7 @@ class HostsPermissions(_ResourcePermissions):
     create: RoleActionValue | None = None
     read: RoleActionValue | None = None
     update: RoleActionValue | None = None
+    personal_name: RoleActionValue | None = None
 
 
 class SettingsPermissions(_ResourcePermissions):

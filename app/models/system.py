@@ -18,6 +18,18 @@ class SystemResourceStats(BaseModel):
     cpu_usage: float | None = None
 
 
+class SystemNetworkIntelligence(BaseModel):
+    collected_at: str
+    source: str
+    available: bool
+    unavailable_reason: str | None = None
+    tcp_total: int | None = None
+    tcp_established: int | None = None
+    tcp_listen: int | None = None
+    tcp_other: int | None = None
+    udp_sockets: int | None = None
+
+
 class SystemUsersStats(BaseModel):
     total_user: int
     online_users: int

@@ -598,6 +598,7 @@ class SubscriptionTemplates(BaseModel):
 class BaseHost(BaseModel):
     id: int | None = Field(default=None)
     remark: str
+    personal_remark: str | None = Field(default=None)
     address: set[str] = Field(default_factory=set)
     inbound_tag: str | None = Field(default=None)
     port: int | None = Field(default=None)

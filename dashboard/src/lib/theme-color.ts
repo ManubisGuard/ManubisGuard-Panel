@@ -29,25 +29,25 @@ export type ThemeCustomization = {
 }
 
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
-  density: 'comfortable',
-  surface: 'subtle',
+  density: 'compact',
+  surface: 'flat',
   neutral: 'cool',
-  baseColor: 'default',
+  baseColor: 'slate',
   style: 'vega',
-  primaryColor: '#6667FD',
-  secondaryColor: '#66F0D1',
-  accentColor: '#9B5CFF',
-  backgroundColor: '#05060B',
-  surfaceColor: '#111522',
-  borderColor: '#FFFFFF',
-  glowIntensity: 32,
-  glassEffect: 55,
-  borderIntensity: 10,
-  shadowIntensity: 30,
-  backgroundGrid: true,
-  ambientEffects: true,
-  animationIntensity: 'standard',
-  chartGlow: 35,
+  primaryColor: '#27CFC3',
+  secondaryColor: '#27CFC3',
+  accentColor: '#27CFC3',
+  backgroundColor: '#0B1118',
+  surfaceColor: '#111A22',
+  borderColor: '#8CA3AD',
+  glowIntensity: 0,
+  glassEffect: 0,
+  borderIntensity: 12,
+  shadowIntensity: 10,
+  backgroundGrid: false,
+  ambientEffects: false,
+  animationIntensity: 'reduced',
+  chartGlow: 0,
 }
 
 const BACKGROUND_TOKENS = new Set([
@@ -202,6 +202,24 @@ export function parseThemeCustomization(raw: string | null): ThemeCustomization 
   if (!raw) return { ...DEFAULT_THEME_CUSTOMIZATION }
   try {
     const parsed = JSON.parse(raw) as Partial<ThemeCustomization>
+    const isLegacyStockPreset = parsed.primaryColor === '#6667FD' && parsed.accentColor === '#9B5CFF'
+    if (isLegacyStockPreset) {
+      parsed.density = parsed.density === 'comfortable' ? 'compact' : parsed.density
+      parsed.surface = parsed.surface === 'subtle' ? 'flat' : parsed.surface
+      parsed.baseColor = parsed.baseColor === 'default' ? 'slate' : parsed.baseColor
+      parsed.primaryColor = '#27CFC3'
+      parsed.secondaryColor = parsed.secondaryColor === '#66F0D1' ? '#27CFC3' : parsed.secondaryColor
+      parsed.accentColor = '#27CFC3'
+      parsed.backgroundColor = parsed.backgroundColor === '#05060B' ? '#0B1118' : parsed.backgroundColor
+      parsed.surfaceColor = parsed.surfaceColor === '#111522' ? '#111A22' : parsed.surfaceColor
+      parsed.glowIntensity = parsed.glowIntensity === 32 ? 0 : parsed.glowIntensity
+      parsed.glassEffect = parsed.glassEffect === 55 ? 0 : parsed.glassEffect
+      parsed.shadowIntensity = parsed.shadowIntensity === 30 ? 10 : parsed.shadowIntensity
+      parsed.backgroundGrid = parsed.backgroundGrid === true ? false : parsed.backgroundGrid
+      parsed.ambientEffects = parsed.ambientEffects === true ? false : parsed.ambientEffects
+      parsed.animationIntensity = parsed.animationIntensity === 'standard' ? 'reduced' : parsed.animationIntensity
+      parsed.chartGlow = parsed.chartGlow === 35 ? 0 : parsed.chartGlow
+    }
     const baseColors: ThemeBaseColor[] = ['default', 'zinc', 'slate', 'stone', 'gray', 'mauve', 'olive', 'mist']
     const styles: ThemeStyleName[] = ['vega', 'nova', 'maia', 'lyra']
     return {

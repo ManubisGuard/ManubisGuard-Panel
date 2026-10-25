@@ -8,7 +8,10 @@ from jdatetime import date as jd
 
 from app.core.hosts import host_manager
 from app.db.crud.wireguard import pick_peer_ip_for_inbound
-from app.db.models import UserStatus
+from sqlalchemy import select
+
+from app.db import GetDB
+from app.db.models import HostAdminName, UserStatus
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
@@ -172,7 +175,7 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
             continue
         try:
             format_variables[key] = raw_value.format_map(base_variables)
-        except ValueError, KeyError:
+        except (ValueError, KeyError):
             format_variables[key] = raw_value
 
     return format_variables
@@ -182,7 +185,7 @@ def _format_dynamic_value(value, format_variables: dict):
     if isinstance(value, str):
         try:
             return value.format_map(format_variables)
-        except ValueError, KeyError:
+        except (ValueError, KeyError):
             return value
     if isinstance(value, list):
         return [_format_dynamic_value(item, format_variables) for item in value]
@@ -426,7 +429,29 @@ async def process_inbounds_and_tags(
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
-    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+
+    # Personal host names are scoped to the subscription owner's admin account.
+    # Never mutate the shared host cache: use model copies for this user's output only.
+    host_map = await host_manager.get_hosts()
+    personal_names: dict[int, str] = {}
+    admin_id = getattr(user.admin, "id", None) if user.admin else None
+    if admin_id and host_map:
+        async with GetDB() as db:
+            result = await db.execute(
+                select(HostAdminName.host_id, HostAdminName.remark).where(
+                    HostAdminName.admin_id == admin_id,
+                    HostAdminName.host_id.in_(list(host_map.keys())),
+                )
+            )
+            personal_names = dict(result.all())
+
+    subscription_hosts = [
+        host_data.model_copy(update={"remark": personal_names[host_id]})
+        if host_id in personal_names
+        else host_data
+        for host_id, host_data in host_map.items()
+    ]
+    hosts = await filter_hosts(subscription_hosts, user.status)
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
 

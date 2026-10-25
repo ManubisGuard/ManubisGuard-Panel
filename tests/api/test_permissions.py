@@ -74,6 +74,20 @@ def test_scope_none_raises():
         enforce_permission(admin, "users", "read")  # explicitly disabled
 
 
+def test_personal_host_name_permission_does_not_grant_host_read():
+    admin = _make_admin(permissions={"hosts": {"personal_name": True}})
+    enforce_permission(admin, "hosts", "personal_name")
+    with pytest.raises(PermissionDenied):
+        enforce_permission(admin, "hosts", "read")
+
+
+def test_host_read_does_not_grant_personal_name_edit():
+    admin = _make_admin(permissions={"hosts": {"read": True}})
+    enforce_permission(admin, "hosts", "read")
+    with pytest.raises(PermissionDenied):
+        enforce_permission(admin, "hosts", "personal_name")
+
+
 # --- enforce_scope ---
 
 

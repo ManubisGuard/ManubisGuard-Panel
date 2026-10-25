@@ -14,7 +14,9 @@ export function VersionBadge({ currentVersion, className }: VersionBadgeProps) {
   const { hasUpdate, latestVersion, releaseUrl, isLoading } = useVersionCheck(currentVersion)
   const { state, isMobile } = useSidebar()
 
-  if (isLoading || !currentVersion) {
+  // No ManubisGuard-owned release feed is configured yet, so don't show a
+  // misleading "up to date" state or link to upstream releases.
+  if (isLoading || !currentVersion || !latestVersion) {
     return null
   }
 

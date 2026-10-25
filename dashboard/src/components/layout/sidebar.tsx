@@ -43,6 +43,7 @@ import {
   Logs,
   Network,
   Palette,
+  Pencil,
   PieChart,
   RssIcon,
   Send,
@@ -66,6 +67,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { admin } = useAdmin()
   const canReadSystem = hasPermission(admin, 'system', 'read')
   const canReadHosts = canReadResourcePage(admin, 'hosts')
+  const canEditPersonalHostNames = hasPermission(admin, 'hosts', 'personal_name')
   const canReadGroups = canReadResourcePage(admin, 'groups')
   const canReadAdmins = canReadResourcePage(admin, 'admins')
   const canReadApiKeys = canReadResourcePage(admin, 'api_keys')
@@ -167,17 +169,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ...(hasPermission(admin, 'nodes', 'stats')
         ? [{ title: 'statistics', url: '/statistics', icon: PieChart }]
         : []),
-      ...(canReadHosts || canReadGroups
+      ...(canReadHosts || canEditPersonalHostNames
         ? [{
-            title: 'navigation.hostsGroups',
-            url: canReadHosts ? '/hosts' : '/groups',
-            icon: Layers,
+            title: 'hosts',
+            url: canReadHosts ? '/hosts' : '/host-names',
+            icon: ListTodo,
             items: [
               ...(canReadHosts ? [{ title: 'hosts', url: '/hosts', icon: ListTodo }] : []),
-              ...(canReadGroups ? [{ title: 'groups', url: '/groups', icon: Group }] : []),
+              ...(canEditPersonalHostNames ? [{ title: 'personalHostNamesTab', url: '/host-names', icon: Pencil }] : []),
             ],
           }]
         : []),
+      ...(canReadGroups ? [{ title: 'groups', url: '/groups', icon: Group }] : []),
       ...(canReadNodes || canReadCores || canReadNodeLogs
         ? [{
             title: 'navigation.nodeCore',
@@ -276,7 +279,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <>
-      <Sidebar variant="sidebar" collapsible="icon" {...props} className="border-sidebar-border/70 bg-sidebar/80 p-0 shadow-[18px_0_60px_hsl(0_0%_0%_/_0.22)] backdrop-blur-2xl" side={isRTL ? 'right' : 'left'}>
+      <Sidebar variant="sidebar" collapsible="icon" {...props} className="mg-cyber-sidebar border-sidebar-border p-0" side={isRTL ? 'right' : 'left'}>
         <SidebarRail />
         <SidebarHeader>
           <SidebarMenu>
@@ -299,7 +302,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   >
                     <a href={REPO_URL} target="_blank">
                       <img
-                        src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
+                        src="/statics/branding/manubisguard-cyber.png"
                         alt="ManubisGuard Logo"
                         className="h-6 w-6 flex-shrink-0 object-contain"
                       />
@@ -323,7 +326,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           onClick={toggleSidebar}
                         >
                           <ChevronsRight className={cn('h-5 w-5 flex-shrink-0', isRTL && 'scale-x-[-1]')} />
-                          <span className="sr-only">Expand Sidebar</span>
+                          <span className="sr-only">{t('mgUi.expandSidebar')}</span>
                           {canReadSystem && hasUpdate && <VersionBadge currentVersion={normalizedVersion} />}
                         </SidebarMenuButton>
                       </TooltipTrigger>
@@ -338,12 +341,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuButton size="lg" className={cn('w-full !gap-2')}>
                     <a href={REPO_URL} target="_blank" className="flex min-w-0 flex-1 items-center gap-2">
                       <img
-                        src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
+                        src="/statics/branding/manubisguard-cyber.png"
                         alt="ManubisGuard Logo"
                         className="h-8 w-8 flex-shrink-0 object-contain"
                       />
                       <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden">
-                        <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm leading-tight font-semibold')}>MANUBISGUARD</span>
+                        <span className={cn(isRTL ? 'text-right' : 'text-left', 'mg-brand-wordmark truncate text-sm leading-tight font-semibold')}>MANUBISGUARD</span>
                         {canReadSystem && (
                           <div className="flex min-w-0 flex-wrap items-center gap-0.75 leading-none">
                             <span className="max-w-full truncate text-xs leading-none opacity-45">{displayVersion}</span>
@@ -374,7 +377,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           }}
                         >
                           <ChevronsLeft className={cn('h-4 w-4', isRTL && 'scale-x-[-1]')} />
-                          <span className="sr-only">Collapse Sidebar</span>
+                          <span className="sr-only">{t('mgUi.collapseSidebar')}</span>
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side={isRTL ? 'left' : 'right'}>
@@ -387,12 +390,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuButton size="lg" asChild className="!gap-2">
                   <a href={REPO_URL} target="_blank">
                     <img
-                      src={resolvedTheme === 'dark' ? window.location.pathname + 'statics/favicon/logo.png' : window.location.pathname + 'statics/favicon/logo-dark.png'}
+                      src="/statics/branding/manubisguard-cyber.png"
                       alt="ManubisGuard Logo"
                       className="h-8 w-8 flex-shrink-0 object-contain"
                     />
                     <div className="flex min-w-0 flex-col overflow-hidden">
-                      <span className={cn(isRTL ? 'text-right' : 'text-left', 'truncate text-sm leading-tight font-semibold')}>MANUBISGUARD</span>
+                      <span className={cn(isRTL ? 'text-right' : 'text-left', 'mg-brand-wordmark truncate text-sm leading-tight font-semibold')}>MANUBISGUARD</span>
                       {canReadSystem && (
                         <div className="flex min-w-0 flex-wrap items-center gap-0.75 leading-none">
                           <span className="max-w-full truncate text-xs leading-none opacity-45">{displayVersion}</span>

@@ -26,7 +26,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged, canUpd
         cell: host => (
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn('h-2 w-2 shrink-0 rounded-full', host.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
-            <span className="truncate font-medium">{host.remark ?? ''}</span>
+            <span className="truncate font-medium">{host.personal_remark || host.remark || ''}</span>
           </div>
         ),
       },

@@ -24,7 +24,8 @@ i18n
         caches: ['localStorage'],
       },
       backend: {
-        loadPath: joinURL(import.meta.env.BASE_URL, `statics/locales/{{lng}}.json`),
+        // Version the locale URL so browsers/proxies cannot keep serving pre-mgUi dictionaries.
+        loadPath: `${joinURL(import.meta.env.BASE_URL || '/', `statics/locales/{{lng}}.json`)}?v=20261025-mgui2`,
       },
     },
     function (err) {

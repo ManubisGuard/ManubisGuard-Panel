@@ -105,3 +105,24 @@ def readable_duration(seconds: float) -> str:
             return f"{amount:.2f} {label}s"
 
     return f"{seconds} seconds"
+
+
+def network_connection_stats() -> dict[str, int | bool | str | None]:
+    """Return OS-level TCP state and UDP socket counts for this network namespace."""
+    from datetime import UTC, datetime
+
+    collected_at = datetime.now(UTC).isoformat()
+    try:
+        tcp_connections = psutil.net_connections(kind="tcp")
+        udp_connections = psutil.net_connections(kind="udp")
+    except (psutil.AccessDenied, PermissionError, OSError) as exc:
+        return {"collected_at": collected_at, "source": "psutil.net_connections", "available": False,
+                "unavailable_reason": type(exc).__name__, "tcp_total": None, "tcp_established": None,
+                "tcp_listen": None, "tcp_other": None, "udp_sockets": None}
+
+    established = sum(1 for item in tcp_connections if item.status == psutil.CONN_ESTABLISHED)
+    listening = sum(1 for item in tcp_connections if item.status == psutil.CONN_LISTEN)
+    return {"collected_at": collected_at, "source": "psutil.net_connections", "available": True,
+            "unavailable_reason": None, "tcp_total": len(tcp_connections), "tcp_established": established,
+            "tcp_listen": listening, "tcp_other": max(0, len(tcp_connections) - established - listening),
+            "udp_sockets": len(udp_connections)}

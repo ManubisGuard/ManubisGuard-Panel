@@ -1185,7 +1185,7 @@ const UsersTable = memo(() => {
   const isSearchEmpty = !isCurrentlyLoading && usersList.length === 0 && hasActiveFilters
 
   return (
-    <div>
+    <div className="mg-users-workspace">
       <Filters
         filters={filters}
         onFilterChange={handleFilterChange}
