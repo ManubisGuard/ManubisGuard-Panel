@@ -1464,3 +1464,11 @@ Conclusion: native preflight and isolated restore drill pass, but implementation
 
 - [x] Final documentation correction: README (English and Persian) now documents the real `manubis backup`, `backup-db`, `restore --check`, and `restore --stage-test` commands and explicitly says production native apply is disabled. Removed the obsolete `restore-check` command and unimplemented production/staging claims.
 - [x] Full-repository CI Ruff command was tested in a disposable source copy. It initially found an executable Python helper missing its shebang; added `#!/usr/bin/env python3` to `scripts/send-full-backup-telegram.py`. Re-run completed with exit 0 (`49` auto-fixable lint issues fixed in the disposable copy; none remaining). The disposable copy was not copied back into the working tree.
+
+### 2026-10-25 — Test-candidate commit pushed
+
+- [x] Committed the reviewed 24-file test candidate as `55b152526b4db01d75ac70bcaefaf28be83743c7` (`feat: harden native backup and restore workflow`).
+- [x] Pushed `feature/amnezia-wg` to `origin`; remote branch accepted the commit. The operational handoff prompt remains local/untracked and was not included.
+- [x] Push is for installing and validating the available commands on a separate test server. It is not a production-ready native restore release: `manubis restore --check` and `--stage-test` are available; production `manubis restore <archive>` remains fail-closed with no changes.
+- [ ] GitHub Actions image publication has not yet been confirmed; the local Docker build succeeded. Do not assume the GHCR tag is updated until the publish workflow completes. The installer builds the selected branch from source locally.
+- [x] No installation, deployment, container recreation/restart, or restore was run on the current live panel host after the push.
