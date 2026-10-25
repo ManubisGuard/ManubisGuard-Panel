@@ -1287,3 +1287,12 @@ You are continuing ManubisGuard Panel, not starting over. First read `/opt/manub
 - [ ] Resolve/explicitly disposition the outstanding Host scope/RBAC and test gates recorded in the continuation checklist above. Do not mark unfinished behavior complete merely to enable a commit.
 - [ ] Stage only reviewed source, tests, locales, migration, and intended TODO/design documentation using explicit paths; keep the operational AI handoff prompt and any private/reference/backup artifacts local unless separately approved.
 - [ ] Commit only after the complete review and applicable checks; push to `origin feature/amnezia-wg` without force-push; verify the remote SHA and record it here. No commit/push has been performed in this checkpoint yet.
+
+### Git checkpoint result — 2026-10-25
+- [x] Reviewed and explicitly staged 53 project/source/test/migration/branding/TODO files; operational `AI_HANDOFF_PROMPT_2026-10-25.md` was intentionally left local because it is an execution handoff rather than a product artifact.
+- [x] Secret-pattern scan of added source lines reported 0 matches; filename scan found no changed `.env`, key, dump, backup or archive files. `git diff --cached --check` passed.
+- [x] Created local commit `fe1b907b85ef29d5125dd7e31e80287f674b366e` — `feat: brand ManubisGuard v1.0.0 and redesign dashboard` (53 files, 2,342 insertions, 385 deletions).
+- [ ] GitHub push was attempted but blocked because HTTPS credentials are not configured on this server: `fatal: could not read Username for 'https://github.com': terminal prompts disabled`. SSH fallback also returned `Permission denied (publickey)`; no GitHub branch was changed and no push is claimed.
+- [ ] Push gate: configure an authorized GitHub credential on the server (credential helper/token with least privilege, or a deploy key with write access), then push `fe1b907` to `origin feature/amnezia-wg` and verify remote SHA. Do not place a token in this TODO, shell history, or repository files; do not force-push.
+- [ ] Full pytest and browser E2E are still outstanding. Runtime `/health` and root checks passed over HTTPS (`https://127.0.0.1:8000/health` returned `{"status":"ok"}`; root HTTP 200). Earlier plain HTTP probes were invalid for this server because SSL cert/key are configured.
+- [ ] Do not mark the full release acceptance complete until the remaining Host scope/RBAC review and applicable test suite are run in an equipped test environment.
