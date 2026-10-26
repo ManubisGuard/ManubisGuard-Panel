@@ -29,9 +29,9 @@ The internal archive key `pasarguard_data/` and fresh-restore marker are intenti
 
 ## Archive coverage and limitations
 
-The upstream backup/restore implementation captures the panel configuration, persistent application data, and database using engine-aware backup routines rather than copying a live database data directory. It includes validation and compatibility checks from the pinned upstream implementation. The original archive format is retained; this adapter does not substitute the custom `manubisguard-full-*.zip` format.
+The upstream backup/restore implementation captures the panel configuration under `/opt/manubisguard-panel/`, persistent application data under `/var/lib/manubisguard/`, and the configured database using engine-aware dump routines rather than copying a live database data directory. Core definitions, AWG parameters and other panel records persisted in the database are covered by that database dump. The original archive format is retained; this adapter does not substitute the custom `manubisguard-full-*.zip` format.
 
-AmneziaWG/WireGuard-specific runtime state must only be added after its actual configured storage locations, secrets, service definitions, and restore ordering have been verified. The installer retires the newer custom full-backup timer without deleting any existing archives. The current adapter does not claim that remote-node runtime state is included; panel-stored AWG/WireGuard configuration remains covered by the database backup, while external node state requires a separately verified backup plan. A separate, tested extension is required for any state stored elsewhere.
+The installer retires the newer custom full-backup timer without deleting any existing archives. Panel-stored AWG/WireGuard core definitions and obfuscation parameters are covered by the database dump. The separate ManubisGuard Node service persists generated runtime configuration and TLS material under `/var/lib/pg-node/` by default; that node-side state, node API credentials, and host proxy/ACME files outside `/var/lib/manubisguard/` are **not** included by the panel backup and must be backed up on each relevant node/host separately. Do not add remote node paths to the panel archive or imply they are covered without a coordinated, tested node recovery design.
 
 ## Separation of responsibilities
 
@@ -43,4 +43,4 @@ Do not pass a full native system backup to the migration command as a substitute
 
 ## Validation status
 
-The code path and documentation have been updated on the isolated recovery branch. Shell syntax and end-to-end restore have **not yet been reported as passing** in this repository revision. Before enabling this branch in production, run CI, generate a backup on a disposable test host, run `--check`, and complete a restore round-trip in an isolated environment. Do not test destructive restore against the live server or database.
+The code path and documentation have been updated on the isolated recovery branch. The repository shell syntax/static check is wired into PR CI, but no CI result or end-to-end restore pass has yet been confirmed for this revision. Before enabling this branch in production, run CI, generate a backup on a disposable test host, run `--check`, and complete a restore round-trip in an isolated environment. Do not test destructive restore against the live server or database.
