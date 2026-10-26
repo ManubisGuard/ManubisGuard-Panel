@@ -319,9 +319,9 @@ def test_database_backup_archive_streams_and_filters_dump_lines(monkeypatch, tmp
 
     monkeypatch.setattr(backup_service, "BACKUP_DIR", tmp_path)
     with tempfile.TemporaryFile(mode="w+b", dir=tmp_path) as payload:
-        payload.write(b"SET statement_timeout = 0;\\n")
-        payload.write(b"SET transaction_timeout = 0;\\n")
-        payload.write(b"SELECT 1;\\n")
+        payload.write(b"SET statement_timeout = 0;\n")
+        payload.write(b"SET transaction_timeout = 0;\n")
+        payload.write(b"SELECT 1;\n")
         payload.seek(0)
 
         archive_path, archive_size, database_size = backup_service._write_archive(
