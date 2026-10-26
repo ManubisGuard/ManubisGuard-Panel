@@ -360,6 +360,7 @@ def test_pg_dump_credentials_are_removed_from_url_and_escaped_for_pgpass(monkeyp
 
 
 def test_pg_dump_streams_output_and_cleans_temporary_pgpass(monkeypatch, tmp_path):
+    from pathlib import Path
     from types import SimpleNamespace
 
     from app.services import backup as backup_service
@@ -379,18 +380,18 @@ def test_pg_dump_streams_output_and_cleans_temporary_pgpass(monkeypatch, tmp_pat
         pgpass_path = kwargs["env"]["PGPASSFILE"]
         captured["pgpass_contents"] = Path(pgpass_path).read_text(encoding="utf-8")
         captured["pgpass_mode"] = Path(pgpass_path).stat().st_mode & 0o777
-        kwargs["stdout"].write(b"SELECT 1;\\\\n")
+        kwargs["stdout"].write(b"SELECT 1;\n")
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(backup_service.subprocess, "run", fake_run)
     payload = backup_service._pg_dump(target_pg_major=16)
     try:
-        assert payload.read() == b"SELECT 1;\\\\n"
+        assert payload.read() == b"SELECT 1;\n"
     finally:
         payload.close()
 
     assert captured["stdout_is_file"]
     assert "secret" not in captured["command"][-1]
-    assert captured["pgpass_contents"] == "db.example:5432:panel:backup-user:secret\\\\:value\\\\n"
+    assert captured["pgpass_contents"] == "db.example:5432:panel:backup-user:secret\\:value\n"
     assert captured["pgpass_mode"] == 0o600
     assert not list(tmp_path.glob(".pgpass-*"))
