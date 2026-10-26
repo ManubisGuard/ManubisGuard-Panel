@@ -631,7 +631,7 @@ The current development line includes completed implementation work across:
 - Backup and restore workflows
 - Backup scheduling and retention
 - Native system backup/restore through the paired upstream engine; cross-panel migration remains separate
-- Production native restore remains fail-closed; apply is not enabled
+- Restore is a state-changing operation; isolated end-to-end recovery validation remains pending
 - PostgreSQL / TimescaleDB migration bridge
 - Domain management foundation
 - Certificate lifecycle
