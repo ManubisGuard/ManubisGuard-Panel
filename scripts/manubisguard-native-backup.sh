@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # ManubisGuard adapter for the original PasarGuard backup/restore CLI.
 # Upstream source is pinned to a reviewed commit; this command never changes
-# services or data except when the operator explicitly requests restore.
+# running services during backup; destructive changes occur only on explicit restore.
 readonly UPSTREAM_COMMIT="21f64e42e0cc2f9a7c4f633642e9b8f6365ea5a7"
 readonly PROJECT_DIR="/opt/manubisguard-panel"
 readonly DATA_DIR="/var/lib/manubisguard"
