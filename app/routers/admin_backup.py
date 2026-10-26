@@ -108,6 +108,7 @@ async def _store_uploaded_archive(file: UploadFile, admin_id: int) -> tuple[str,
     UPLOAD_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     temporary_path: Path | None = None
     published_path: Path | None = None
+    published = False
     size = 0
     try:
         fd, raw_path = tempfile.mkstemp(prefix=".upload-", suffix=".tmp", dir=UPLOAD_DIR)
@@ -125,10 +126,11 @@ async def _store_uploaded_archive(file: UploadFile, admin_id: int) -> tuple[str,
         # publication is atomic and cannot replace an existing path.
         published_path = UPLOAD_DIR / f"upload-{admin_id}-{uuid.uuid4().hex}-{filename}"
         os.link(temporary_path, published_path)
+        published = True
         published_path.chmod(0o600)
         return filename, published_path, size
     except Exception:
-        if published_path is not None:
+        if published and published_path is not None:
             published_path.unlink(missing_ok=True)
         raise
     finally:
