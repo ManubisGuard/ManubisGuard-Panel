@@ -1488,3 +1488,13 @@ Conclusion: native preflight and isolated restore drill pass, but implementation
 - [ ] Run a disposable backup → `--check` → restore round-trip; test both current ManubisGuard archives and legacy PasarGuard archives where supported.
 - [x] Verified AWG core definitions/obfuscation settings are persisted by the panel and included in the database dump. The separate Node repository defaults generated configuration and TLS material to `/var/lib/pg-node/`; this is outside the panel backup and must be backed up per node/host separately.
 - [ ] Review PR diff and all checks before marking the change production-ready. No live host, container, service, or database has been touched.
+
+
+## 2026-10-26 — Decision: restore original PasarGuard system backup/restore path
+
+- [x] Keep the upstream PasarGuard backup/restore CLI and paired libraries as the system-level engine; adapt only required runtime paths and the scheduled public CLI path.
+- [x] Keep database-only exports and cross-panel migration separate from system backup/restore.
+- [x] Remove the custom full-host archive generator, custom restore validator, restore-agent server, and custom full-backup Telegram delivery runner from the active code path.
+- [x] Installer now retires the old full-backup timer and restore-agent service, removes obsolete helper executables/key, and preserves historical archives. Historical encrypted archives may still need their encryption key; do not delete that key automatically.
+- [x] Remove the obsolete restore-agent secret mount from Compose. AWG implementation, subscription behavior, per-admin hostnames, and UI source files were not modified by this cleanup.
+- [ ] Run the static CI checks and a disposable original-format backup/check/restore round-trip before merging. No live server or database has been changed.
