@@ -351,24 +351,17 @@ install_helper() {
   install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-migrate.sh" /usr/local/bin/manubisguard-migrate
   command -v unzip >/dev/null 2>&1 || die "unzip is required for backup restore operations."
 
-  # Keep the full-host backup workflow versioned with the project. The key is
-  # generated locally and must never be committed or sent alongside archives.
-  install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-full-backup.py" /usr/local/sbin/manubisguard-full-backup.py
-  install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-native-restore.py" /usr/local/sbin/manubisguard-native-restore.py
-  install -o root -g root -m 0700 "$INSTALL_DIR/scripts/manubisguard-full-backup-deliver.py" /usr/local/sbin/manubisguard-full-backup-deliver.py
-  install -d -o root -g root -m 0700 /etc/manubisguard
-  if [ ! -s /etc/manubisguard/full-backup.key ]; then
-    openssl rand -hex 32 > /etc/manubisguard/full-backup.key
-    chmod 0600 /etc/manubisguard/full-backup.key
-  fi
-  if [ ! -s /etc/manubisguard/full-backup.conf ]; then
-    printf 'INTERVAL_MINUTES=30\nRETENTION_COUNT=3\n' > /etc/manubisguard/full-backup.conf
-    chmod 0600 /etc/manubisguard/full-backup.conf
-  fi
-  install -o root -g root -m 0644 "$INSTALL_DIR/deploy/systemd/manubisguard-full-backup.service" /etc/systemd/system/manubisguard-full-backup.service
-  install -o root -g root -m 0644 "$INSTALL_DIR/deploy/systemd/manubisguard-full-backup.timer" /etc/systemd/system/manubisguard-full-backup.timer
+  # Install the native backup/restore adapter outside the panel directory so
+  # an explicit --fresh restore can recover a host without an existing checkout.
+  install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-native-backup.sh" /usr/local/bin/manubisguard-native-backup
+
+  # Retire the newer custom full-host archive timer. Preserve existing archives;
+  # standard system backups now use the original paired backup/restore format.
+  systemctl disable --now manubisguard-full-backup.timer 2>/dev/null || true
+  systemctl stop manubisguard-full-backup.service 2>/dev/null || true
+  rm -f /etc/systemd/system/manubisguard-full-backup.service /etc/systemd/system/manubisguard-full-backup.timer
+  rm -f /usr/local/sbin/manubisguard-full-backup.py /usr/local/sbin/manubisguard-full-backup-deliver.py
   systemctl daemon-reload
-  systemctl enable --now manubisguard-full-backup.timer
   rm -f /usr/local/bin/manubisguard
 }
 show_result() {
