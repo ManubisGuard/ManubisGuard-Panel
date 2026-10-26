@@ -60,7 +60,6 @@ install_from_installer() {
 }
 
 restore_command() {
-  need_project
   exec bash "$PROJECT_DIR/scripts/manubisguard-native-backup.sh" restore "$@"
 }
 
