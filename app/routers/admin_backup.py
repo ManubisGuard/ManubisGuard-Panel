@@ -124,7 +124,7 @@ async def _store_uploaded_archive(file: UploadFile, admin_id: int) -> tuple[str,
 
         # The random server-generated name avoids user-controlled collisions; hard-link
         # publication is atomic and cannot replace an existing path.
-        published_path = UPLOAD_DIR / f"upload-{admin_id}-{uuid.uuid4().hex}-{filename}"
+        published_path = UPLOAD_DIR / f"upload-{admin_id}-{uuid.uuid4().hex}.zip"
         os.link(temporary_path, published_path)
         published = True
         published_path.chmod(0o600)
