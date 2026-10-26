@@ -99,3 +99,13 @@ HEAD مبنا: `4312e72bfff2d080ae5aed77ab29b586c677eb19`
 - snapshot قبل و بعد برابر بود: manubisguard-panel-manubisguard-1 و manubisguard-panel-timescaledb-1 هر دو running/healthy با restart_count=0. پرچم‌های DISPOSABLE_TEST_CLEANUP=PASS و PRODUCTION_CONTAINERS_UNCHANGED=PASS ثبت شدند.
 - خلاصهٔ قابل‌نگهداری نتایج تست در /opt/manubisguard-work/awg-native-roundtrip-20261026/final-focused-tests.log بازنویسی شد تا خروجی ناموفق اولیهٔ Ruff روی میزبان را با اجرای نهایی موفقِ Ruff در کانتینر ایزوله اشتباه نگیرد. لاگ Restore معتبر همچنان awg-native-roundtrip-retry.log است.
 - git diff --check نهایی پیش از stage پاک بود. HEAD محلی 4312e72bfff2d080ae5aed77ab29b586c677eb19 بود و ls-remote تأیید کرد که origin/feature/amnezia-wg نیز همین commit است. فایل AI_HANDOFF_PROMPT_2026-10-25.md همچنان untracked و خارج از Commit می‌ماند.
+
+
+### مرحله I: Commit و Push تأیید شد (2026-10-26)
+- Commit: cd5be779734d3eac36d59b4bf1099f7dd9291f65
+- پیام: test: verify native AWG backup restore round-trip
+- Push به origin/feature/amnezia-wg موفق شد؛ مقدار ls-remote پس از Push دقیقاً با HEAD محلی برابر بود و COMMIT_PUSH_VERIFY=PASS ثبت شد.
+- پنج مسیر بررسی‌شده داخل commit هستند: router بکاپ، گزارش پیشرفت، حذف تست obsolete، تست جدید fail-closed و تست shell adapter. هیچ فایل با git add -A اضافه نشد.
+- وضعیت نهایی Git فقط AI_HANDOFF_PROMPT_2026-10-25.md را به‌صورت untracked نشان می‌دهد؛ این فایل محلی عمداً commit یا push نشده است.
+- نتیجهٔ پذیرش این مرحله: Native AWG round-trip در محیط ایزوله PASS؛ 94 تست متمرکز PASS؛ Ruff PASS؛ API restore تولید و staging همچنان fail-closed. Full pytest هنوز اجرا/تأیید نشده و ادعای قبولی کامل آن وجود ندارد.
+- هیچ Restore، Restart، Deploy یا تغییر داده‌ای در سرویس‌های تولید انجام نشد؛ پروژهٔ آزمایشی حذف و سلامت کانتینرهای تولید پس از پاک‌سازی تأیید شد.
