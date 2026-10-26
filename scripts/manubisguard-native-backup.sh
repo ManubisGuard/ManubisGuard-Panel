@@ -51,8 +51,8 @@ sed -i 's/local backup_dir="$APP_DIR\/backup"/local backup_dir="${BACKUP_DIR:-$A
 find "$work" -type f -print0 | xargs -0 sed -i 's/pasarguard/manubisguard/g; s/PasarGuard/ManubisGuard/g'
 # The main script's library names are part of the original CLI contract.
 # Rename the transformed library filenames to match the transformed loader.
-mv "$work/lib/manubisguard-backup.sh" "$work/lib/manubisguard-backup.sh" 2>/dev/null || true
-mv "$work/lib/manubisguard-restore.sh" "$work/lib/manubisguard-restore.sh" 2>/dev/null || true
+mv "$work/lib/pasarguard-backup.sh" "$work/lib/manubisguard-backup.sh"
+mv "$work/lib/pasarguard-restore.sh" "$work/lib/manubisguard-restore.sh"
 # Set all canonical paths explicitly; no installation/update command is exposed.
 export APP_NAME=manubisguard APP_DIR="$PROJECT_DIR" DATA_DIR="$DATA_DIR" BACKUP_DIR="$BACKUP_DIR"
 mkdir -p "$BACKUP_DIR"
