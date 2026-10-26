@@ -1484,5 +1484,5 @@ Conclusion: native preflight and isolated restore drill pass, but implementation
 - [x] Added adapter contract checks to the existing ManubisGuard CI workflow.
 - [ ] Confirm the latest PR CI result; local shell syntax/end-to-end execution could not be run in this session because the execution container has no GitHub network access.
 - [ ] Run a disposable backup → `--check` → restore round-trip; test both current ManubisGuard archives and legacy PasarGuard archives where supported.
-- [ ] Inventory the exact external AWG/node persistent-state paths; do not claim remote-node runtime state is covered by the panel backup until verified.
+- [x] Verified AWG core definitions/obfuscation settings are persisted by the panel and included in the database dump. The separate Node repository defaults generated configuration and TLS material to `/var/lib/pg-node/`; this is outside the panel backup and must be backed up per node/host separately.
 - [ ] Review PR diff and all checks before marking the change production-ready. No live host, container, service, or database has been touched.
