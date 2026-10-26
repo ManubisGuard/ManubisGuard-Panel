@@ -128,3 +128,334 @@ def test_backup_interval_due_rules(last_run_minutes, interval_minutes, expected)
     last_run_at = None if last_run_minutes is None else now - timedelta(minutes=last_run_minutes)
     schedule = SimpleNamespace(enabled=True, frequency="interval", interval_minutes=interval_minutes, hour=2, minute=0, weekday=None, day_of_month=None, last_run_at=last_run_at)
     assert _is_due(now, schedule) is expected
+
+
+@pytest.mark.asyncio
+async def test_upload_storage_uses_unique_paths_and_never_overwrites(monkeypatch, tmp_path):
+    from app.routers import admin_backup
+
+    monkeypatch.setattr(admin_backup, "UPLOAD_DIR", tmp_path)
+
+    class FakeUpload:
+        filename = "same-name.zip"
+
+        def __init__(self, payload):
+            self.payload = payload
+
+        async def read(self, _size):
+            payload, self.payload = self.payload, b""
+            return payload
+
+    first, second = await asyncio.gather(
+        admin_backup._store_uploaded_archive(FakeUpload(b"first"), 7),
+        admin_backup._store_uploaded_archive(FakeUpload(b"second"), 7),
+    )
+
+    assert first[1] != second[1]
+    assert first[1].suffix == ".zip" and second[1].suffix == ".zip"
+    assert "same-name" not in first[1].name and "same-name" not in second[1].name
+    assert first[1].read_bytes() == b"first"
+    assert second[1].read_bytes() == b"second"
+    assert first[1].stat().st_mode & 0o777 == 0o600
+    assert second[1].stat().st_mode & 0o777 == 0o600
+    assert not list(tmp_path.glob(".upload-*.tmp"))
+
+
+@pytest.mark.asyncio
+async def test_upload_storage_removes_only_temporary_file_on_size_limit(monkeypatch, tmp_path):
+    from fastapi import HTTPException
+
+    from app.routers import admin_backup
+
+    monkeypatch.setattr(admin_backup, "UPLOAD_DIR", tmp_path)
+    monkeypatch.setattr(admin_backup, "MAX_UPLOAD_SIZE", 3)
+
+    class FakeUpload:
+        filename = "oversize.zip"
+
+        def __init__(self):
+            self.chunks = [b"1234", b""]
+
+        async def read(self, _size):
+            return self.chunks.pop(0)
+
+    with pytest.raises(HTTPException) as exc:
+        await admin_backup._store_uploaded_archive(FakeUpload(), 7)
+
+    assert exc.value.status_code == 413
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_backup_retention_deletes_only_old_scheduled_backups(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    backups = [
+        SimpleNamespace(id=1, status="created", metadata_json={"note": "scheduled:daily"}),
+        SimpleNamespace(id=2, status="uploaded", metadata_json={"upload": True}),
+        SimpleNamespace(id=3, status="created", metadata_json={"note": "manual request"}),
+        SimpleNamespace(id=4, status="created", metadata_json={"note": "scheduled:daily"}),
+        SimpleNamespace(id=5, status="created", metadata_json={"note": "scheduled:daily", "telegram_delivery": "failed"}),
+    ]
+
+    class FakeScalars:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def __iter__(self):
+            return iter(self.rows)
+
+    class FakeResult:
+        def scalars(self):
+            return FakeScalars(backups)
+
+    class FakeDB:
+        async def execute(self, _statement):
+            return FakeResult()
+
+    deleted = []
+
+    async def fake_delete(_db, backup):
+        deleted.append(backup.id)
+
+    monkeypatch.setattr(backup_service, "delete_backup", fake_delete)
+
+    count = await backup_service.apply_backup_retention(FakeDB(), 1)
+
+    assert count == 1
+    assert deleted == [4]
+
+
+@pytest.mark.asyncio
+async def test_delete_backup_refuses_paths_outside_backup_root(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    outside = tmp_path / "important.txt"
+    outside.write_text("preserve", encoding="utf-8")
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", backup_root)
+
+    class FakeDB:
+        async def execute(self, _statement):
+            raise AssertionError("database row must not be deleted for an unsafe path")
+
+    with pytest.raises(ValueError, match="outside the configured backup directory"):
+        await backup_service.delete_backup(FakeDB(), SimpleNamespace(id=1, backup_path=str(outside)))
+
+    assert outside.read_text(encoding="utf-8") == "preserve"
+
+
+@pytest.mark.asyncio
+async def test_delete_backup_refuses_symlinked_paths(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    target = backup_root / "real.zip"
+    target.write_bytes(b"keep")
+    link = backup_root / "linked.zip"
+    link.symlink_to(target)
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", backup_root)
+
+    class FakeDB:
+        async def execute(self, _statement):
+            raise AssertionError("database row must not be deleted for a symlinked path")
+
+    with pytest.raises(ValueError, match="symlink"):
+        await backup_service.delete_backup(FakeDB(), SimpleNamespace(id=1, backup_path=str(link)))
+
+    assert target.read_bytes() == b"keep"
+    assert link.is_symlink()
+
+
+@pytest.mark.asyncio
+async def test_delete_backup_restores_archive_when_database_commit_fails(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    archive = backup_root / "keep.zip"
+    archive.write_bytes(b"archive payload")
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", backup_root)
+
+    class FakeDB:
+        rolled_back = False
+
+        async def execute(self, _statement):
+            return None
+
+        async def commit(self):
+            raise RuntimeError("simulated commit failure")
+
+        async def rollback(self):
+            self.rolled_back = True
+
+    db = FakeDB()
+    backup = SimpleNamespace(id=99, backup_path=str(archive))
+
+    with pytest.raises(RuntimeError, match="simulated commit failure"):
+        await backup_service.delete_backup(db, backup)
+
+    assert db.rolled_back
+    assert archive.read_bytes() == b"archive payload"
+    assert not list(backup_root.glob(".deleting-*.tmp"))
+
+
+def test_database_backup_archive_streams_and_filters_dump_lines(monkeypatch, tmp_path):
+    import json
+    import tempfile
+    import zipfile
+
+    from app.services import backup as backup_service
+
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", tmp_path)
+    with tempfile.TemporaryFile(mode="w+b", dir=tmp_path) as payload:
+        payload.write(b"SET statement_timeout = 0;\n")
+        payload.write(b"SET transaction_timeout = 0;\n")
+        payload.write(b"SELECT 1;\n")
+        payload.seek(0)
+
+        archive_path, archive_size, database_size = backup_service._write_archive(
+            payload,
+            "streamed.zip",
+            target_pg_major=16,
+            source_metadata={"product": "manubisguard"},
+        )
+
+    with zipfile.ZipFile(archive_path) as archive:
+        sql_dump = archive.read("db.sql")
+        manifest = json.loads(archive.read("manifest.json"))
+
+    assert b"SET statement_timeout = 0;" in sql_dump
+    assert b"SET transaction_timeout = 0;" not in sql_dump
+    assert b"SELECT 1;" in sql_dump
+    assert database_size == len(sql_dump)
+    assert manifest["database_size"] == len(sql_dump)
+    assert archive_size == archive_path.stat().st_size
+    assert not list(tmp_path.glob(".backup-*.tmp"))
+
+
+def test_pg_dump_credentials_are_removed_from_url_and_escaped_for_pgpass(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    monkeypatch.setattr(
+        backup_service,
+        "database_settings",
+        SimpleNamespace(url="postgresql+asyncpg://backup-user:secret%3Avalue%5Cpass@db.example:5432/panel"),
+    )
+
+    assert backup_service._pg_dump_url() == "postgresql://backup-user@db.example:5432/panel"
+    assert backup_service._pgpass_line() == r"db.example:5432:panel:backup-user:secret\:value\\pass"
+
+
+def test_pg_dump_streams_output_and_cleans_temporary_pgpass(monkeypatch, tmp_path):
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", tmp_path)
+    monkeypatch.setattr(
+        backup_service,
+        "database_settings",
+        SimpleNamespace(url="postgresql+asyncpg://backup-user:secret%3Avalue@db.example:5432/panel"),
+    )
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["env"] = kwargs["env"]
+        captured["stdout_is_file"] = hasattr(kwargs["stdout"], "write")
+        pgpass_path = kwargs["env"]["PGPASSFILE"]
+        captured["pgpass_contents"] = Path(pgpass_path).read_text(encoding="utf-8")
+        captured["pgpass_mode"] = Path(pgpass_path).stat().st_mode & 0o777
+        kwargs["stdout"].write(b"SELECT 1;\n")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(backup_service.subprocess, "run", fake_run)
+    payload = backup_service._pg_dump(target_pg_major=16)
+    try:
+        assert payload.read() == b"SELECT 1;\n"
+    finally:
+        payload.close()
+
+    assert captured["stdout_is_file"]
+    assert "secret" not in captured["command"][-1]
+    assert captured["pgpass_contents"] == "db.example:5432:panel:backup-user:secret\\:value\n"
+    assert captured["pgpass_mode"] == 0o600
+    assert not list(tmp_path.glob(".pgpass-*"))
+
+
+def test_full_backup_hashing_reads_large_files_in_chunks(tmp_path):
+    import hashlib
+    import importlib.util
+    from pathlib import Path
+
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "manubisguard-full-backup.py"
+    spec = importlib.util.spec_from_file_location("manubisguard_full_backup_test", script_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+
+    payload = (b"backup-payload-" * 200_000) + b"end"
+    file_path = tmp_path / "payload.bin"
+    file_path.write_bytes(payload)
+    assert module.sha256_file(file_path) == hashlib.sha256(payload).hexdigest()
+
+    with file_path.open("rb") as stream:
+        assert module.sha256_stream(stream, chunk_size=4096) == hashlib.sha256(payload).hexdigest()
+
+
+def test_native_restore_hashes_zip_members_and_checks_dump_as_stream(monkeypatch, tmp_path):
+    import hashlib
+    import importlib.util
+    from pathlib import Path
+    import tempfile
+    import zipfile
+    from types import SimpleNamespace
+
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "manubisguard-native-restore.py"
+    spec = importlib.util.spec_from_file_location("manubisguard_native_restore_test", script_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+
+    payload = (b"custom-pg-dump-" * 150_000) + b"end"
+    archive_path = tmp_path / "fixture.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("database.dump", payload)
+
+    with zipfile.ZipFile(archive_path) as archive:
+        assert module.sha256_zip_member(archive, "database.dump") == hashlib.sha256(payload).hexdigest()
+        with archive.open("database.dump") as archive_stream, tempfile.TemporaryFile(mode="w+b") as stream:
+            import shutil
+
+            shutil.copyfileobj(archive_stream, stream, length=4096)
+            stream.seek(0)
+            captured = {}
+
+            def fake_run(command, **kwargs):
+                captured["stdin_is_stream"] = kwargs.get("stdin") is stream
+                captured["input_present"] = "input" in kwargs
+                captured["bytes_read"] = len(kwargs["stdin"].read())
+                return SimpleNamespace(returncode=0, stderr=b"")
+
+            monkeypatch.setattr(module.shutil, "which", lambda _name: "/usr/bin/pg_restore")
+            monkeypatch.setattr(module.subprocess, "run", fake_run)
+            ok, detail = module.check_database_dump(stream)
+
+    assert ok, detail
+    assert captured["stdin_is_stream"]
+    assert not captured["input_present"]
+    assert captured["bytes_read"] == len(payload)

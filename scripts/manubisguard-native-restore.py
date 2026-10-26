@@ -27,6 +27,21 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def sha256_stream(stream, *, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    while True:
+        chunk = stream.read(chunk_size)
+        if not chunk:
+            break
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
+def sha256_zip_member(archive: zipfile.ZipFile, name: str) -> str:
+    with archive.open(name, "r") as stream:
+        return sha256_stream(stream)
+
+
 def safe_member_name(name: str) -> bool:
     path = PurePosixPath(name)
     return bool(name) and not path.is_absolute() and ".." not in path.parts and "\x00" not in name
@@ -58,8 +73,8 @@ def validate_tar_member(member: tarfile.TarInfo) -> str | None:
     return None
 
 
-def check_database_dump(payload: bytes) -> tuple[bool, str]:
-    """Inspect the dump using a local tool or a disposable offline container.
+def check_database_dump(stream) -> tuple[bool, str]:
+    """Inspect a streamed dump without materializing the entire archive in RAM.
 
     Never exec into the live database container during preflight. The fallback
     container has no network, a read-only root filesystem, and no mounted data.
@@ -74,7 +89,8 @@ def check_database_dump(payload: bytes) -> tuple[bool, str]:
             "--entrypoint", "pg_restore", "timescale/timescaledb:latest-pg16", "--list",
         ]
     try:
-        result = subprocess.run(command, input=payload, stdout=subprocess.DEVNULL,
+        stream.seek(0)
+        result = subprocess.run(command, stdin=stream, stdout=subprocess.DEVNULL,
                                 stderr=subprocess.PIPE, check=False, timeout=180)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return False, f"isolated pg_restore validation could not run: {exc}"
@@ -194,10 +210,9 @@ def validate_archive(path: Path) -> int:
                     extra_database_members = {name for name in names if name.startswith("databases/")} - catalog_members
                     if extra_database_members:
                         errors.append("database archive members are not represented in database_catalog: " + ", ".join(sorted(extra_database_members)))
-            if manifest.get("database_dump_sha256") != sha256_bytes(archive.read("database.dump")):
+            if manifest.get("database_dump_sha256") != sha256_zip_member(archive, "database.dump"):
                 errors.append("database.dump SHA-256 mismatch")
-            filesystem = archive.read("filesystem.tar.gz")
-            if manifest.get("filesystem_archive_sha256") != sha256_bytes(filesystem):
+            if manifest.get("filesystem_archive_sha256") != sha256_zip_member(archive, "filesystem.tar.gz"):
                 errors.append("filesystem.tar.gz SHA-256 mismatch")
             if manifest.get("manifest_version", 1) >= 2:
                 payload_checksums = manifest.get("payload_sha256")
@@ -208,7 +223,7 @@ def validate_archive(path: Path) -> int:
                         if not isinstance(payload_name, str) or not safe_member_name(payload_name) or payload_name not in names:
                             errors.append("unsafe or missing payload in checksum inventory: " + str(payload_name))
                             continue
-                        if not isinstance(expected_digest, str) or expected_digest != sha256_bytes(archive.read(payload_name)):
+                        if not isinstance(expected_digest, str) or expected_digest != sha256_zip_member(archive, payload_name):
                             errors.append(f"payload SHA-256 inventory mismatch: {payload_name}")
                     for payload_name in ("database.dump", "globals.sql", "filesystem.tar.gz", "runtime-inventory.json"):
                         if payload_name not in payload_checksums:
@@ -232,13 +247,18 @@ def validate_archive(path: Path) -> int:
             for database_member in sorted(database_members):
                 if database_member not in names:
                     continue
-                db_ok, db_detail = check_database_dump(archive.read(database_member))
+                with tempfile.TemporaryFile(mode="w+b") as database_stream:
+                    with archive.open(database_member, "r") as archive_stream:
+                        shutil.copyfileobj(archive_stream, database_stream, length=1024 * 1024)
+                    database_stream.seek(0)
+                    db_ok, db_detail = check_database_dump(database_stream)
                 if not db_ok:
                     errors.append(f"database archive unreadable ({database_member}): " + db_detail)
                 else:
                     print(f"PASS: {database_member}: {db_detail}")
-            with tempfile.TemporaryFile() as fs:
-                fs.write(filesystem)
+            with tempfile.TemporaryFile(mode="w+b") as fs:
+                with archive.open("filesystem.tar.gz", "r") as filesystem_stream:
+                    shutil.copyfileobj(filesystem_stream, fs, length=1024 * 1024)
                 fs.seek(0)
                 with tarfile.open(fileobj=fs, mode="r:gz") as tar:
                     seen: set[str] = set()
@@ -272,8 +292,8 @@ def validate_archive(path: Path) -> int:
                         errors.append("filesystem member inventory or per-file SHA-256 mismatch")
                     errors.extend(validate_certificates(tar, manifest))
                     total_unpacked = sum(max(0, m.size) for m in tar.getmembers() if m.isfile())
-            database_payload_bytes = sum(len(archive.read(name)) for name in database_members if name in names)
-            globals_payload_bytes = len(archive.read("globals.sql")) if "globals.sql" in names else 0
+            database_payload_bytes = sum(archive.getinfo(name).file_size for name in database_members if name in names)
+            globals_payload_bytes = archive.getinfo("globals.sql").file_size if "globals.sql" in names else 0
             required_free = total_unpacked + database_payload_bytes + globals_payload_bytes + (1024 * 1024 * 1024)
             free = shutil.disk_usage(BACKUP_ROOT if BACKUP_ROOT.exists() else path.parent).free
             if free < required_free:

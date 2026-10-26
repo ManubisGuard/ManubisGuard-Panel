@@ -51,6 +51,28 @@ PATHS = [
     '/etc/docker/daemon.json', '/etc/cron.d',
 ]
 
+def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    """Hash large backup artifacts incrementally without loading them into RAM."""
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        while True:
+            chunk = stream.read(chunk_size)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def sha256_stream(stream, *, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    while True:
+        chunk = stream.read(chunk_size)
+        if not chunk:
+            break
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
 def run(args, *, stdout=None, input_data=None):
     return subprocess.run(args, stdout=stdout, input=input_data, stderr=subprocess.PIPE, check=False)
 
@@ -97,7 +119,7 @@ def discover_certificate_files():
             inventory.append({'configured_path': raw, 'exists': False})
             raise RuntimeError(f'Configured TLS file is missing: {raw}')
         resolved = candidate.resolve(strict=True)
-        digest = hashlib.sha256(resolved.read_bytes()).hexdigest()
+        digest = sha256_file(resolved)
         inventory.append({
             'configured_path': str(candidate),
             'resolved_path': str(resolved),
@@ -229,7 +251,14 @@ def main():
                     proc = run(['docker', 'compose', '-f', str(COMPOSE), 'exec', '-T', 'timescaledb', 'pg_dump', '-U', user, '-d', database_name, '-Fc', '--no-owner', '--no-acl'], stdout=handle)
                 if proc.returncode != 0 or target_dump.stat().st_size == 0:
                     raise RuntimeError(f'Database dump failed for {database_name!r}: ' + proc.stderr.decode(errors='replace')[-1500:])
-                check = run(['docker', 'run', '--rm', '-i', '--network', 'none', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m', '--entrypoint', 'pg_restore', 'timescale/timescaledb:latest-pg16', '--list'], input_data=target_dump.read_bytes(), stdout=subprocess.DEVNULL)
+                with target_dump.open('rb') as dump_handle:
+                    check = subprocess.run(
+                        ['docker', 'run', '--rm', '-i', '--network', 'none', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m', '--entrypoint', 'pg_restore', 'timescale/timescaledb:latest-pg16', '--list'],
+                        stdin=dump_handle,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                        check=False,
+                    )
                 if check.returncode != 0:
                     raise RuntimeError(f'Database archive validation failed for {database_name!r}: ' + check.stderr.decode(errors='replace')[-1000:])
                 member_name = 'database.dump' if database_name == dbname else f'databases/{index:04d}.dump'
@@ -313,17 +342,17 @@ def main():
                     if member is None or not member.isfile():
                         raise RuntimeError('Required TLS file is not present as a regular archive member: ' + cert['resolved_path'])
                     extracted = verify_tar.extractfile(member)
-                    if extracted is None or hashlib.sha256(extracted.read()).hexdigest() != cert['sha256']:
+                    if extracted is None or sha256_stream(extracted) != cert['sha256']:
                         raise RuntimeError('TLS file archive checksum mismatch: ' + cert['configured_path'])
             filesystem_inventory = inventory_filesystem_archive(tar_path)
             payload_checksums = {
-                'database.dump': hashlib.sha256(db_dump.read_bytes()).hexdigest(),
-                'globals.sql': hashlib.sha256(globals_dump.read_bytes()).hexdigest(),
-                'filesystem.tar.gz': hashlib.sha256(tar_path.read_bytes()).hexdigest(),
+                'database.dump': sha256_file(db_dump),
+                'globals.sql': sha256_file(globals_dump),
+                'filesystem.tar.gz': sha256_file(tar_path),
                 'runtime-inventory.json': hashlib.sha256(json.dumps(runtime, indent=2, sort_keys=True).encode()).hexdigest(),
             }
             for member_name, dump_path in database_dumps.items():
-                payload_checksums[member_name] = hashlib.sha256(dump_path.read_bytes()).hexdigest()
+                payload_checksums[member_name] = sha256_file(dump_path)
             manifest = {
                 'manifest_version': 2,
                 'product': 'ManubisGuard', 'kind': 'full-host-panel-backup',
@@ -336,8 +365,8 @@ def main():
                 'globals_dump': 'globals.sql',
                 'payload_sha256': payload_checksums,
                 'filesystem_members': filesystem_inventory,
-                'database_dump_sha256': hashlib.sha256(db_dump.read_bytes()).hexdigest(),
-                'filesystem_archive_sha256': hashlib.sha256(tar_path.read_bytes()).hexdigest(),
+                'database_dump_sha256': sha256_file(db_dump),
+                'filesystem_archive_sha256': sha256_file(tar_path),
                 'included_paths': included, 'paths_not_present': missing,
                 'excluded_paths': sorted(EXCLUDES),
                 'certificate_files': certificate_files,
@@ -366,7 +395,7 @@ def main():
                 raise RuntimeError('Refusing to overwrite an existing full backup archive.') from exc
             temp_zip.unlink()
             final.chmod(0o600)
-            digest = hashlib.sha256(final.read_bytes()).hexdigest()
+            digest = sha256_file(final)
             sidecar = final.with_suffix('.zip.sha256')
             sidecar.write_text(f'{digest}  {final.name}\n')
             sidecar.chmod(0o600)

@@ -1,5 +1,8 @@
 import asyncio
 import json
+import os
+import tempfile
+import uuid
 from pathlib import Path
 from typing import Annotated
 from urllib.error import HTTPError, URLError
@@ -96,25 +99,55 @@ async def update_schedule(
     return await configure_backup_schedule(db, **payload.model_dump())
 
 
+async def _store_uploaded_archive(file: UploadFile, admin_id: int) -> tuple[str, Path, int]:
+    """Stream an upload to a unique, no-overwrite file in the configured upload directory."""
+    filename = Path(file.filename or "backup.zip").name
+    if not filename.lower().endswith(".zip") or filename in {"", ".", ".."}:
+        raise HTTPException(status_code=400, detail="Only ZIP backup files are accepted")
+
+    UPLOAD_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    published_path: Path | None = None
+    published = False
+    size = 0
+    try:
+        fd, raw_path = tempfile.mkstemp(prefix=".upload-", suffix=".tmp", dir=UPLOAD_DIR)
+        temporary_path = Path(raw_path)
+        with os.fdopen(fd, "wb") as handle:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_UPLOAD_SIZE:
+                    raise HTTPException(status_code=413, detail="Backup file is too large")
+                handle.write(chunk)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        # The random server-generated name avoids user-controlled collisions; hard-link
+        # publication is atomic and cannot replace an existing path.
+        published_path = UPLOAD_DIR / f"upload-{admin_id}-{uuid.uuid4().hex}.zip"
+        os.link(temporary_path, published_path)
+        published = True
+        published_path.chmod(0o600)
+        return filename, published_path, size
+    except Exception:
+        if published and published_path is not None:
+            published_path.unlink(missing_ok=True)
+        raise
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
 @router.post("/upload", response_model=BackupResponse, status_code=status.HTTP_201_CREATED)
 async def upload_backup(
     file: Annotated[UploadFile, File(...)],
     db: AsyncSession = Depends(get_db),
     admin: AdminDetails = Depends(require_permission("settings", "update")),
 ):
-    filename = Path(file.filename or "backup.zip").name
-    if not filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Only ZIP backup files are accepted")
-    UPLOAD_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
-    target = UPLOAD_DIR / f"upload-{admin.id}-{filename}"
-    size = 0
+    committed = False
+    target: Path | None = None
     try:
-        with target.open("wb") as handle:
-            while chunk := await file.read(1024 * 1024):
-                size += len(chunk)
-                if size > MAX_UPLOAD_SIZE:
-                    raise HTTPException(status_code=413, detail="Backup file is too large")
-                handle.write(chunk)
+        filename, target, size = await _store_uploaded_archive(file, admin.id)
         backup = Backup(
             filename=filename,
             size=size,
@@ -125,14 +158,19 @@ async def upload_backup(
         )
         db.add(backup)
         await db.commit()
+        committed = True
         await db.refresh(backup)
         return backup
     except HTTPException:
-        target.unlink(missing_ok=True)
+        if target is not None and not committed:
+            target.unlink(missing_ok=True)
         raise
     except Exception as exc:
-        target.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"Backup upload failed: {exc}") from exc
+        if target is not None and not committed:
+            target.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail="Backup upload failed") from exc
+    finally:
+        await file.close()
 
 
 @router.post("/check/{backup_id}", response_model=BackupCheckResponse)
