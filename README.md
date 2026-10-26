@@ -432,16 +432,20 @@ sudo manubis update
 sudo manubis edit-env
 ```
 
-### Native restore commands
+### Standard backup and restore commands
 
 ```bash
 sudo manubis backup
 sudo manubis backup-db
-sudo manubis restore --check /opt/manubisguard/backup/full/<archive.zip>
-sudo manubis restore --stage-test /opt/manubisguard/backup/full/<archive.zip>
+sudo manubis restore /path/to/backup.zip --check
+sudo manubis restore /path/to/backup.zip
+sudo manubis restore --fresh /path/to/backup.zip
+sudo manubis backup-service
 ```
 
-Full archives are stored under `/opt/manubisguard/backup/full/`; database-only dumps are stored under `/opt/manubisguard/backup/database/`. `--check` is read-only and `--stage-test` uses a disposable isolated database container. `sudo manubis restore <archive.zip>` remains disabled for production apply and makes no changes until a safety backup and rollback engine are implemented and verified. `manubis migrate <archive.zip> --apply` is only for intentional cross-panel migration.
+System archives use `/opt/manubisguard/backup/`; database-only exports use `/opt/manubisguard/backup/database/`. The ordinary restore command uses the paired native PasarGuard engine adapted for ManubisGuard; `manubis migrate` is reserved for intentional cross-panel migration.
+
+Restore is a state-changing operation. `--check` is the read-only preflight, not a rollback guarantee. Before restoring, verify the archive, make an independent backup of the destination, and test the archive on a disposable host. Fresh recovery with `--fresh` requires an empty destination and recovery metadata with pinned images. The former custom `/full/` archive format is legacy and is not interchangeable without explicit compatibility verification.
 
 ### Temporary admin key
 
@@ -589,9 +593,9 @@ Use the deployment files in the selected branch as the source of truth for the e
 - Telegram bot tokens are encrypted at rest where configured.
 - Sensitive tokens are excluded from API responses.
 - Sensitive values are not intentionally written to logs.
-- Native restore preflight is non-destructive and separate from production apply.
-- Production native restore is disabled until destination preservation, a verified safety backup and rollback are implemented and tested.
-- Never treat a successful isolated stage-test as authorization to overwrite production.
+- Native restore preflight is read-only; applying a restore can change files and database state.
+- Keep an independent destination backup and perform a disposable-host restore drill before production recovery.
+- A successful archive check is not proof of a complete application-level recovery.
 - Backup deployment configuration is not blindly imported.
 - RBAC is preserved across administrative workflows.
 - Destructive operations are separated from non-destructive validation.
@@ -784,8 +788,8 @@ ManubisGuard Panel بر پایه کدبیس **PasarGuard Panel** توسعه دا
 - رمزنگاری Token تلگرام در محل ذخیره‌سازی
 - عدم بازگرداندن Secretهای حساس در API
 - عدم ثبت عمدی Secret/Private Key در Log
-- پیش‌بررسی فقط‌خواندنی Native Restore
-- غیرفعال‌بودن Production Native Restore تا تکمیل حفظ مقصد، Safety Backup و Rollback
+- پیش‌بررسی آرشیو Native Restore فقط‌خواندنی است؛ اجرای Restore می‌تواند فایل‌ها و دیتابیس را تغییر دهد.
+- قبل از بازیابی Production، بکاپ مستقل مقصد و تست روی سرور آزمایشی لازم است.
 
 ---
 
@@ -1094,16 +1098,20 @@ sudo manubis update
 sudo manubis edit-env
 ```
 
-### Native Restore
+### فرمان‌های استاندارد بکاپ و بازیابی
 
 ```bash
 sudo manubis backup
 sudo manubis backup-db
-sudo manubis restore --check /opt/manubisguard/backup/full/<archive.zip>
-sudo manubis restore --stage-test /opt/manubisguard/backup/full/<archive.zip>
+sudo manubis restore /path/to/backup.zip --check
+sudo manubis restore /path/to/backup.zip
+sudo manubis restore --fresh /path/to/backup.zip
+sudo manubis backup-service
 ```
 
-Full Backup در `/opt/manubisguard/backup/full/` و Database-only Backup در `/opt/manubisguard/backup/database/` ذخیره می‌شود. `--check` فقط‌خواندنی و `--stage-test` ایزوله است. اجرای Production با `sudo manubis restore <archive.zip>` هنوز غیرفعال است و تا تکمیل Safety Backup و Rollback تغییری ایجاد نمی‌کند. `manubis migrate <archive.zip> --apply` فقط برای Migration عمدی بین پنل‌ها است.
+آرشیوهای سیستم در `/opt/manubisguard/backup/` و خروجی دیتابیس‌تنها در `/opt/manubisguard/backup/database/` ذخیره می‌شوند. فرمان Restore از موتور اصلی PasarGuard سازگارشده برای ManubisGuard استفاده می‌کند؛ `manubis migrate` فقط برای مهاجرت عمدی بین پنل‌ها است.
+
+Restore عملیاتی تغییردهنده است. `--check` فقط پیش‌بررسی خواندنی است و تضمین Rollback محسوب نمی‌شود. قبل از Restore، آرشیو را بررسی کنید، از مقصد یک بکاپ مستقل بگیرید و آرشیو را روی سرور آزمایشی جداگانه امتحان کنید. بازیابی تازه با `--fresh` به مقصد خالی و آرشیو دارای metadata بازیابی و imageهای پین‌شده نیاز دارد. فرمت سفارشی قدیمی `/full/` با فرمت native قابل‌تعویض فرض نمی‌شود؛ سازگاری آن باید جداگانه بررسی شود.
 
 ### Temporary Admin Key
 
@@ -1279,8 +1287,8 @@ curl -k https://your-domain.example/health
 - API Keys
 - Backup / Restore
 - Backup Scheduling / Retention
-- Isolated native stage-test در CLI میزبان (Staging API غیرفعال)
-- Production native restore فعلاً fail-closed است و apply فعال نیست
+- Native backup/restore بر پایه موتور اصلی PasarGuard با مسیرهای ManubisGuard
+- Cross-panel migration به‌صورت فرمان مستقل
 - PostgreSQL / TimescaleDB Migration Bridge
 - Domain Management
 - Certificate Lifecycle
