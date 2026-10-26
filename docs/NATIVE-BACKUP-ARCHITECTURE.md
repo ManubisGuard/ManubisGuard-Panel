@@ -35,7 +35,7 @@ The upstream archive keys, including `pasarguard_data/` and `.pasarguard-fresh-r
 - `manubis backup-db` and the panel backup API: database-only exports.
 - `manubis migrate`: intentional cross-panel import using its separate migration executor and staging logic.
 
-Do not pass a full native system archive to the migration command as a substitute for normal restore. The installer disables the newer custom full-backup timer without deleting existing custom-format archives; those archives are not assumed to be compatible with the upstream engine.
+Do not pass a full native system archive to the migration command as a substitute for normal restore. The installer disables the custom full-backup timer and restore-agent service, removes obsolete helper executables, and preserves existing custom-format archives and their encryption keys. The custom restore validator has been removed; those archives are not assumed to be compatible with the upstream engine.
 
 ## Archive coverage and limitations
 
