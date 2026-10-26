@@ -23,6 +23,11 @@ grep -Fq 'manubisguard-migrate' "$CLI"
 grep -Fq '/usr/local/bin/manubisguard-native-backup' "$ROOT/install-manubisguard.sh"
 grep -Fq 'disable --now manubisguard-full-backup.timer' "$ROOT/install-manubisguard.sh"
 grep -Fq 'disable --now manubisguard-restore-agent.service' "$ROOT/install-manubisguard.sh"
+grep -Fq '--update) UPDATE_MODE=true; ASSUME_YES=true; OVERRIDE=true; shift ;;' "$ROOT/install-manubisguard.sh"
+grep -Fq '[ "$UPDATE_MODE" != true ]; then prepare_ssl' "$ROOT/install-manubisguard.sh"
+grep -Fq 'Preserving existing SSL/TLS environment and certificate files during update.' "$ROOT/install-manubisguard.sh"
+grep -Fq '--update requires an existing ManubisGuard checkout.' "$ROOT/install-manubisguard.sh"
+grep -Fq 'install_from_installer install --update' "$CLI"
 grep -Fq 'rm -f /usr/local/bin/manubisguard-restore-agent' "$ROOT/install-manubisguard.sh"
 if grep -Fq 'install_restore_agent' "$ROOT/install-manubisguard.sh"; then
   echo "FAIL: installer still installs the custom restore agent" >&2
