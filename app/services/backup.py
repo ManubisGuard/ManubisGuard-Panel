@@ -10,7 +10,7 @@ import zipfile
 from datetime import UTC, datetime as dt
 from pathlib import Path
 from typing import BinaryIO
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 import aiohttp
 from sqlalchemy import delete, func, select, text
@@ -31,8 +31,36 @@ def _database_name() -> str:
 
 
 def _pg_dump_url() -> str:
+    """Return a libpq URL with the password removed from process arguments."""
     parsed = urlsplit(database_settings.url)
-    return urlunsplit(("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
+    netloc = parsed.netloc
+    if "@" in netloc:
+        userinfo, hostinfo = netloc.rsplit("@", 1)
+        username = userinfo.split(":", 1)[0]
+        netloc = f"{username}@{hostinfo}"
+    return urlunsplit(("postgresql", netloc, parsed.path, parsed.query, parsed.fragment))
+
+
+def _pgpass_line() -> str | None:
+    """Build an escaped pgpass entry so the DB password is not exposed in argv."""
+    parsed = urlsplit(database_settings.url)
+    if parsed.password is None:
+        return None
+
+    fields = (
+        parsed.hostname or "*",
+        str(parsed.port) if parsed.port is not None else "*",
+        unquote((parsed.path or "").lstrip("/")) or "*",
+        unquote(parsed.username or "") or "*",
+        unquote(parsed.password),
+    )
+    if any("\\n" in field or "\\r" in field for field in fields):
+        raise ValueError("Database URL contains a newline that cannot be represented in a pgpass entry")
+
+    def escape(value: str) -> str:
+        return value.replace("\\\\", "\\\\\\\\").replace(":", "\\\\:")
+
+    return ":".join(escape(field) for field in fields)
 
 
 def _source_metadata(
@@ -56,7 +84,26 @@ def _pg_dump(*, target_pg_major: int | None) -> BinaryIO:
     BACKUP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     payload = tempfile.TemporaryFile(mode="w+b", dir=BACKUP_DIR)
     stderr = tempfile.TemporaryFile(mode="w+b", dir=BACKUP_DIR)
+    pgpass_path: Path | None = None
     try:
+        env = None
+        pgpass = _pgpass_line()
+        if pgpass is not None:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=BACKUP_DIR,
+                prefix=".pgpass-",
+                delete=False,
+            ) as handle:
+                pgpass_path = Path(handle.name)
+                handle.write(pgpass + "\\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            pgpass_path.chmod(0o600)
+            env = os.environ.copy()
+            env["PGPASSFILE"] = str(pgpass_path)
+
         result = subprocess.run(
             [
                 "pg_dump",
@@ -70,6 +117,7 @@ def _pg_dump(*, target_pg_major: int | None) -> BinaryIO:
             stderr=stderr,
             timeout=900,
             check=False,
+            env=env,
         )
         if result.returncode != 0:
             stderr.seek(0, os.SEEK_END)
@@ -87,6 +135,8 @@ def _pg_dump(*, target_pg_major: int | None) -> BinaryIO:
         raise
     finally:
         stderr.close()
+        if pgpass_path is not None:
+            pgpass_path.unlink(missing_ok=True)
 
 
 def _write_archive(
