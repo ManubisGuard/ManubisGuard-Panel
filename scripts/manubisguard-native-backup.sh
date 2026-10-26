@@ -57,7 +57,7 @@ cp -a "$CACHE_DIR/." "$work/"
 #    configured backup directory.
 # 2) Schedule the installed public CLI (manubis), not APP_NAME (which must
 #    match the Docker Compose project name: manubisguard-panel).
-sed -i 's/local backup_dir="$APP_DIR\/backup"/local backup_dir="${BACKUP_DIR:-$APP_DIR\/backup}"/g' "$work/lib/pasarguard-backup.sh" "$work/lib/pasarguard-restore.sh"
+sed -i 's|local backup_dir="$APP_DIR/backup"|local backup_dir="${BACKUP_DIR:-$APP_DIR/backup}"|g' "$work/lib/pasarguard-backup.sh" "$work/lib/pasarguard-restore.sh"
 sed -i 's#local script_path="/usr/local/bin/\$APP_NAME"#local script_path="/usr/local/bin/manubis"#g' "$work/lib/pasarguard-backup.sh"
 sed -i 's#script_path=$(which "\$APP_NAME" 2>/dev/null || echo "/usr/local/bin/\$APP_NAME")#script_path=$(command -v manubis 2>/dev/null || echo "/usr/local/bin/manubis")#g' "$work/lib/pasarguard-backup.sh"
 
@@ -68,7 +68,8 @@ done
 
 # APP_NAME must match the Compose project name generated from the app directory.
 # DATA_DIR and BACKUP_DIR are explicit; no install/update action is exposed here.
-export APP_NAME=manubisguard-panel APP_DIR="$PROJECT_DIR" DATA_DIR="$DATA_DIR" BACKUP_DIR="$BACKUP_DIR"
+export APP_NAME=manubisguard-panel APP_DIR="$PROJECT_DIR"
+export DATA_DIR BACKUP_DIR
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 case "$command_name" in
