@@ -98,15 +98,12 @@ ManubisGuard is based on the **PasarGuard Panel** codebase and preserves upstrea
 
 ### Backup, Restore & Migration
 
-- Full-system and database-only backup commands
-- Backup history, ZIP upload/download, scheduling and retention
-- Native archive manifest and checksum validation (`manubis restore --check`)
-- Isolated native restore drill (`manubis restore --stage-test`) using a temporary filesystem stage and disposable database container
-- PostgreSQL/TimescaleDB version metadata and archive compatibility checks
-- TLS certificate/private-key inventory and integrity checks
-- Explicitly separate cross-panel migration command (`manubis migrate`)
-- Production native restore remains disabled until destination preservation, a verified safety backup and rollback are implemented and tested
-- Deployment identity protection
+- Standard system-level backup and restore through the paired PasarGuard backup/restore engine, adapted for ManubisGuard
+- Canonical archive directory: `/opt/manubisguard/backup/`
+- Database-only exports and panel backup API remain separate under `/opt/manubisguard/backup/database/`
+- Upstream archive integrity checks, database-engine compatibility checks, interactive restore and explicit fresh-host recovery where metadata permits
+- Explicitly separate cross-panel migration command (`manubis migrate`); native restore never dispatches to migration
+- AmneziaWG panel configuration is stored in the panel database; external node runtime state requires its own verified backup plan
 
 ### Security
 
@@ -118,8 +115,8 @@ ManubisGuard is based on the **PasarGuard Panel** codebase and preserves upstrea
 - Encrypted Telegram token storage
 - Sensitive-token redaction from API responses
 - No intentional secret/private-key logging
-- Read-only native restore preflight
-- Production native restore fails closed until destination-preservation, safety-backup and rollback gates are implemented
+- Native restore archive preflight and explicit destructive restore flow
+- Cross-panel migration remains a separate command and executor
 
 ---
 
@@ -358,57 +355,45 @@ Auto Select evaluates SNI candidates against the existing Reality target rather 
 
 ## 💾 Backup & Restore
 
-Backup and restore is designed as a safety-first operational workflow.
+Standard system-level backup and recovery use the paired original PasarGuard backup/restore implementation adapted for ManubisGuard. The standard archive format is intentionally separate from database-only exports and cross-panel migration.
 
-### Backup
-
-Supported functionality includes:
-
-- Manual backup creation
-- Backup history
-- ZIP download
-- Backup upload
-- Backup validation
-- Backup retention
-- Daily, weekly and monthly schedules
-- Configurable retention count
-- Opt-in scheduling
-- Telegram notification configuration
-- Encrypted Telegram token storage
-- Secret non-disclosure in API responses/logs
-
-### Native restore validation and isolated drill
-
-The supported native host-CLI commands are:
+### Standard system backup and restore
 
 ```bash
-sudo manubis restore --check /opt/manubisguard/backup/full/<archive.zip>
-sudo manubis restore --stage-test /opt/manubisguard/backup/full/<archive.zip>
+sudo manubis backup
+sudo manubis restore
+sudo manubis restore /path/to/backup.zip --check
+sudo manubis restore /path/to/backup.zip
+sudo manubis restore --fresh /path/to/backup.zip
+sudo manubis backup-service
 ```
 
-`--check` is read-only. `--stage-test` reconstructs files in a temporary directory and restores the database into a disposable network-isolated container with tmpfs storage. The application API staging endpoint remains disabled because the previous helper created a staging database on the configured production PostgreSQL cluster.
+- System backup/restore archives are stored under `/opt/manubisguard/backup/`.
+- The archive includes application configuration, persistent application files, and engine-aware database dumps with integrity/version metadata from the pinned upstream implementation.
+- `--check` is a read-only archive preflight.
+- `--fresh` is only for a new host with empty application/data directories and an archive containing recovery metadata and usable pinned image references. Legacy archives without those metadata require a compatible existing installation.
+- The upstream archive key `pasarguard_data/` is intentionally preserved as a format identifier for compatibility.
+- Archives contain secrets and may include private keys. Keep them root-only and maintain encrypted off-host copies.
 
-### Production native restore — disabled
+### Database-only exports and panel backup API
 
-Native production apply is intentionally fail-closed. `sudo manubis restore <archive.zip>` does not modify production and exits until destination-preservation rules, a verified pre-restore safety archive, and a tested rollback path are implemented. The current tests validate the existing v1 archive and synthetic v2 fixtures; a real manifest-v2 multi-database backup and disposable application-level restore test remain outstanding.
-
-Cross-panel migration is a separate operation: use `sudo manubis migrate <archive.zip> --apply` only when you intentionally want a migration. Native disaster recovery never silently dispatches to the migration engine.
-
-### Deployment identity protection
-
-Backup archives are not blindly treated as deployment packages. Runtime-specific deployment files such as `.env`, `docker-compose.yml`, repository/image configuration and host-specific secrets are not automatically imported as the new deployment identity.
-
-Canonical ManubisGuard runtime locations include:
-
-```text
-/var/lib/manubisguard
-/opt/manubisguard/backup/
-/var/lib/manubisguard/migration/
+```bash
+sudo manubis backup-db
 ```
 
-Legacy PasarGuard paths are treated as migration/reference evidence, not as canonical ManubisGuard runtime paths.
+Database-only CLI/API exports remain under `/opt/manubisguard/backup/database/`. They are not full-system archives and must not be passed to the standard restore command as though they were native system backups.
 
----
+### Separate cross-panel migration
+
+```bash
+sudo manubis migrate /path/to/source-archive.zip --apply
+```
+
+Use migration only when intentionally importing from another panel. Ordinary `manubis restore` uses the native backup/restore engine and never falls back to the migration executor.
+
+### Legacy custom full archives
+
+The earlier custom `manubisguard-full-*.zip` format under `/opt/manubisguard/backup/full/` is no longer the standard backup format. Existing archives are preserved, but they require explicit compatibility verification and must not be assumed compatible with the original native restore engine.
 
 ## 🗄️ PostgreSQL & TimescaleDB
 
@@ -782,15 +767,12 @@ ManubisGuard Panel بر پایه کدبیس **PasarGuard Panel** توسعه دا
 
 ### Backup / Restore / Migration
 
-- Full-system Backup و Database-only Backup
-- Backup History، ZIP Upload/Download، زمان‌بندی و Retention
-- بررسی Read-only آرشیو با `manubis restore --check`
-- تست Restore ایزوله با `manubis restore --stage-test` در فایل‌سیستم موقت و Database Container جداگانه
-- ثبت نسخه PostgreSQL/TimescaleDB و بررسی Checksumها
-- بررسی فایل‌های واقعی TLS Certificate/Private Key
-- فرمان مستقل `manubis migrate` برای Migration بین پنل‌ها
-- Production Native Restore تا زمان تکمیل حفظ تنظیمات مقصد، Safety Backup قابل‌تأیید و Rollback آزمایش‌شده غیرفعال است
-- محافظت از هویت Deployment
+- بکاپ و بازیابی استاندارد سیستم با موتور اصلی و جفت‌شدهٔ PasarGuard، سازگارشده برای ManubisGuard
+- مسیر اصلی آرشیوها: `/opt/manubisguard/backup/`
+- بکاپ دیتابیس‌تنها و API پنل جداگانه در `/opt/manubisguard/backup/database/`
+- بررسی صحت آرشیو و سازگاری نسخه دیتابیس با موتور اصلی
+- فرمان مستقل `manubis migrate` برای مهاجرت عمدی بین پنل‌ها؛ Restore معمولی هرگز به Migration هدایت نمی‌شود
+- تنظیمات AWG ذخیره‌شده در دیتابیس پنل داخل بکاپ دیتابیس قرار می‌گیرد؛ وضعیت اجرایی نودهای خارجی نیازمند بکاپ مستقل و تأییدشده است
 
 ### امنیت
 
@@ -1037,54 +1019,45 @@ Auto Select، Candidateهای SNI را در برابر Target فعلی Reality �
 
 ## 💾 Backup، Restore و Migration
 
-Backup و Restore با رویکرد Safety-first توسعه داده شده‌اند.
+بکاپ و بازیابی استاندارد سیستم از موتور اصلی و جفت‌شدهٔ PasarGuard استفاده می‌کند که برای نام‌ها و مسیرهای ManubisGuard سازگار شده است. آرشیو استاندارد سیستم از خروجی دیتابیس‌تنها و مهاجرت بین پنل‌ها جدا است.
 
-### Backup
-
-- Manual Backup
-- History
-- ZIP Download/Upload
-- Validation
-- Retention
-- Daily/Weekly/Monthly Schedule
-- Retention Count
-- Opt-in Scheduler
-- Telegram Notification
-- Encrypted Telegram Token
-- عدم افشای Secret در API/Logs
-
-### بررسی Native Restore و تست ایزوله
-
-فرمان‌های پشتیبانی‌شده در CLI میزبان:
+### بکاپ و بازیابی استاندارد سیستم
 
 ```bash
-sudo manubis restore --check /opt/manubisguard/backup/full/<archive.zip>
-sudo manubis restore --stage-test /opt/manubisguard/backup/full/<archive.zip>
+sudo manubis backup
+sudo manubis restore
+sudo manubis restore /path/to/backup.zip --check
+sudo manubis restore /path/to/backup.zip
+sudo manubis restore --fresh /path/to/backup.zip
+sudo manubis backup-service
 ```
 
-`--check` فقط‌خواندنی است. `--stage-test` فایل‌ها را در مسیر موقت بازسازی می‌کند و Database را داخل Container موقت، بدون شبکه و با Storage موقت آزمایش می‌کند. Endpoint مربوط به Staging در API پنل فعلاً غیرفعال است، چون Helper قبلی Database آزمایشی را روی PostgreSQL Production می‌ساخت.
+- آرشیوهای سیستم در مسیر `/opt/manubisguard/backup/` ذخیره می‌شوند.
+- آرشیو شامل تنظیمات برنامه، فایل‌های پایدار و خروجی سازگار دیتابیس به همراه بررسی‌های صحت و اطلاعات نسخه از موتور اصلی است.
+- `--check` فقط آرشیو را بررسی می‌کند و نباید سرویس‌ها را تغییر دهد.
+- `--fresh` فقط برای سرور جدید با مسیرهای برنامه/داده خالی و آرشیو دارای metadata بازیابی و image reference قابل استفاده است. آرشیوهای قدیمی فاقد این metadata به نصب سازگار موجود نیاز دارند.
+- کلید ساختاری `pasarguard_data/` داخل فرمت آرشیو برای سازگاری حفظ می‌شود.
+- آرشیوها ممکن است Secret و Private Key داشته باشند؛ دسترسی را محدود و نسخه خارج از سرور را رمزنگاری کنید.
 
-### Production Native Restore — غیرفعال
+### خروجی دیتابیس‌تنها و API پنل
 
-اجرای Restore بومی روی Production عمداً Fail-closed است. فرمان `sudo manubis restore <archive.zip>` تا زمان تکمیل حفظ تنظیمات مقصد، Safety Backup قابل‌تأیید و Rollback آزمایش‌شده هیچ تغییری ایجاد نمی‌کند. تست‌های فعلی روی آرشیو واقعی v1 و Fixtureهای ساختگی v2 انجام شده‌اند؛ ساخت Backup واقعی v2 چنددیتابیسی و تست کامل اپلیکیشن بازیابی‌شده هنوز باقی است.
-
-Migration بین پنل‌ها عملیات جداگانه‌ای است؛ فقط در صورت قصد واقعی برای Migration از `sudo manubis migrate <archive.zip> --apply` استفاده کنید. Native Restore به‌صورت خودکار به Migration منتقل نمی‌شود.
-
-### حفاظت از Deployment Identity
-
-فایل‌های Runtime مانند `.env`، `docker-compose.yml`، Repository/Image configuration و Secretهای Host به عنوان هویت جدید Deployment به صورت کورکورانه Import نمی‌شوند.
-
-مسیرهای اصلی ManubisGuard:
-
-```text
-/var/lib/manubisguard
-/opt/manubisguard/backup/
-/var/lib/manubisguard/migration/
+```bash
+sudo manubis backup-db
 ```
 
-مسیرهای Legacy مربوط به PasarGuard فقط در Migration/Reference استفاده می‌شوند و مسیر Canonical ManubisGuard نیستند.
+خروجی دیتابیس‌تنها و API پنل در `/opt/manubisguard/backup/database/` باقی می‌مانند. این فایل‌ها بکاپ کامل سیستم نیستند و نباید به‌عنوان آرشیو native سیستم به Restore داده شوند.
 
----
+### مهاجرت مستقل بین پنل‌ها
+
+```bash
+sudo manubis migrate /path/to/source-archive.zip --apply
+```
+
+از Migration فقط برای وارد کردن عمدی داده از پنل دیگر استفاده کنید. فرمان معمولی `manubis restore` از موتور بکاپ/بازیابی native استفاده می‌کند و هرگز به Migration منتقل نمی‌شود.
+
+### آرشیوهای سفارشی قدیمی
+
+فرمت سفارشی قبلی `manubisguard-full-*.zip` در مسیر `/opt/manubisguard/backup/full/` دیگر فرمت استاندارد بکاپ نیست. آرشیوهای موجود حذف نمی‌شوند، اما پیش از استفاده باید سازگاری آن‌ها جداگانه تأیید شود.
 
 ## 🗄️ PostgreSQL و TimescaleDB
 
@@ -1269,10 +1242,10 @@ curl -k https://your-domain.example/health
 - Telegram Token در صورت فعال بودن قابلیت مربوطه به صورت رمزنگاری‌شده نگهداری می‌شود.
 - Secretهای حساس در API Response بازگردانده نمی‌شوند.
 - مقدارهای حساس عمداً در Log ثبت نمی‌شوند.
-- پیش‌بررسی Native Restore غیرمخرب است و از اجرای Production جدا نگه داشته می‌شود.
-- Production Native Restore تا تکمیل حفظ مقصد، Safety Backup قابل‌تأیید و Rollback آزمایش‌شده غیرفعال است.
-- موفقیت تست ایزوله مجوز Overwrite کردن Production نیست.
-- فایل‌های Deployment داخل Backup کورکورانه Import نمی‌شوند.
+- پیش‌بررسی آرشیو Restore قبل از اعمال تغییرات
+- فرمان Restore بومی از Migration بین پنل‌ها جدا است.
+- آرشیوها ممکن است Secret و Private Key داشته باشند؛ دسترسی و نگهداری آن‌ها باید محدود باشد.
+- فایل‌های Deployment مقصد نباید بدون بررسی و تأیید کورکورانه جایگزین شوند.
 - RBAC در Workflowهای مدیریتی حفظ می‌شود.
 - Validation غیرمخرب از عملیات مخرب جدا شده است.
 
@@ -1288,7 +1261,7 @@ curl -k https://your-domain.example/health
 /var/lib/manubisguard/certs/
 ```
 
-مسیرهایی مانند `/var/lib/pasarguard` در Migration/Reference ممکن است دیده شوند، اما مسیر Canonical اجرای ManubisGuard نیستند.
+شناسه‌های ساختاری آرشیوهای قدیمی PasarGuard در صورت نیاز برای سازگاری حفظ می‌شوند؛ مسیرهای اجرای فعلی از مسیرهای ManubisGuard بالا استفاده می‌کنند.
 
 ---
 
