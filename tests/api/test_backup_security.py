@@ -342,3 +342,55 @@ def test_database_backup_archive_streams_and_filters_dump_lines(monkeypatch, tmp
     assert manifest["database_size"] == len(sql_dump)
     assert archive_size == archive_path.stat().st_size
     assert not list(tmp_path.glob(".backup-*.tmp"))
+
+
+def test_pg_dump_credentials_are_removed_from_url_and_escaped_for_pgpass(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    monkeypatch.setattr(
+        backup_service,
+        "database_settings",
+        SimpleNamespace(url="postgresql+asyncpg://backup-user:secret%3Avalue%5Cpass@db.example:5432/panel"),
+    )
+
+    assert backup_service._pg_dump_url() == "postgresql://backup-user@db.example:5432/panel"
+    assert backup_service._pgpass_line() == r"db.example:5432:panel:backup-user:secret\:value\\pass"
+
+
+def test_pg_dump_streams_output_and_cleans_temporary_pgpass(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", tmp_path)
+    monkeypatch.setattr(
+        backup_service,
+        "database_settings",
+        SimpleNamespace(url="postgresql+asyncpg://backup-user:secret%3Avalue@db.example:5432/panel"),
+    )
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["env"] = kwargs["env"]
+        captured["stdout_is_file"] = hasattr(kwargs["stdout"], "write")
+        pgpass_path = kwargs["env"]["PGPASSFILE"]
+        captured["pgpass_contents"] = Path(pgpass_path).read_text(encoding="utf-8")
+        captured["pgpass_mode"] = Path(pgpass_path).stat().st_mode & 0o777
+        kwargs["stdout"].write(b"SELECT 1;\\\\n")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(backup_service.subprocess, "run", fake_run)
+    payload = backup_service._pg_dump(target_pg_major=16)
+    try:
+        assert payload.read() == b"SELECT 1;\\\\n"
+    finally:
+        payload.close()
+
+    assert captured["stdout_is_file"]
+    assert "secret" not in captured["command"][-1]
+    assert captured["pgpass_contents"] == "db.example:5432:panel:backup-user:secret\\\\:value\\\\n"
+    assert captured["pgpass_mode"] == 0o600
+    assert not list(tmp_path.glob(".pgpass-*"))
