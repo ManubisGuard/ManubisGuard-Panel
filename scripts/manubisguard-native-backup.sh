@@ -58,6 +58,10 @@ cp -a "$CACHE_DIR/." "$work/"
 # 2) Schedule the installed public CLI (manubis), not APP_NAME (which must
 #    match the Docker Compose project name: manubisguard-panel).
 sed -i 's|local backup_dir="$APP_DIR/backup"|local backup_dir="${BACKUP_DIR:-$APP_DIR/backup}"|g' "$work/lib/pasarguard-backup.sh" "$work/lib/pasarguard-restore.sh"
+# Skip stale databases that PostgreSQL explicitly marks as non-connectable;
+# attempting to inspect one must not force the whole multi-database backup to
+# fall back to a single-database archive.
+sed -i "s|WHERE datistemplate = false AND datname <> 'postgres';|WHERE datistemplate = false AND datallowconn = true AND datname <> 'postgres';|" "$work/lib/pasarguard-backup.sh"
 sed -i 's#local script_path="/usr/local/bin/\$APP_NAME"#local script_path="/usr/local/bin/manubis"#g' "$work/lib/pasarguard-backup.sh"
 sed -i 's#script_path=$(which "\$APP_NAME" 2>/dev/null || echo "/usr/local/bin/\$APP_NAME")#script_path=$(command -v manubis 2>/dev/null || echo "/usr/local/bin/manubis")#g' "$work/lib/pasarguard-backup.sh"
 
