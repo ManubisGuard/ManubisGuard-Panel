@@ -68,7 +68,9 @@ mv "$work/lib/pasarguard-restore.sh" "$work/lib/manubisguard-restore.sh"
 sed -i 's#local script_path="/usr/local/bin/\$APP_NAME"#local script_path="/usr/local/bin/manubis"#g' "$work/lib/manubisguard-backup.sh"
 sed -i 's#script_path=$(which "\$APP_NAME" 2>/dev/null || echo "/usr/local/bin/\$APP_NAME")#script_path=$(command -v manubis 2>/dev/null || echo "/usr/local/bin/manubis")#g' "$work/lib/manubisguard-backup.sh"
 # Set all canonical paths explicitly; no installation/update command is exposed.
-export APP_NAME=manubisguard APP_DIR="$PROJECT_DIR" DATA_DIR="$DATA_DIR" BACKUP_DIR="$BACKUP_DIR"
+# The installer runs Compose from /opt/manubisguard-panel without -p, so the
+# real Compose project name is the directory basename, not the product slug.
+export APP_NAME=manubisguard-panel APP_DIR="$PROJECT_DIR" DATA_DIR="$DATA_DIR" BACKUP_DIR="$BACKUP_DIR"
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 case "$command_name" in
