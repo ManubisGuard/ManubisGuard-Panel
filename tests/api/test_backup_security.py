@@ -308,3 +308,37 @@ async def test_delete_backup_restores_archive_when_database_commit_fails(monkeyp
     assert db.rolled_back
     assert archive.read_bytes() == b"archive payload"
     assert not list(backup_root.glob(".deleting-*.tmp"))
+
+
+def test_database_backup_archive_streams_and_filters_dump_lines(monkeypatch, tmp_path):
+    import json
+    import tempfile
+    import zipfile
+
+    from app.services import backup as backup_service
+
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", tmp_path)
+    with tempfile.TemporaryFile(mode="w+b", dir=tmp_path) as payload:
+        payload.write(b"SET statement_timeout = 0;\\n")
+        payload.write(b"SET transaction_timeout = 0;\\n")
+        payload.write(b"SELECT 1;\\n")
+        payload.seek(0)
+
+        archive_path, archive_size, database_size = backup_service._write_archive(
+            payload,
+            "streamed.zip",
+            target_pg_major=16,
+            source_metadata={"product": "manubisguard"},
+        )
+
+    with zipfile.ZipFile(archive_path) as archive:
+        sql_dump = archive.read("db.sql")
+        manifest = json.loads(archive.read("manifest.json"))
+
+    assert b"SET statement_timeout = 0;" in sql_dump
+    assert b"SET transaction_timeout = 0;" not in sql_dump
+    assert b"SELECT 1;" in sql_dump
+    assert database_size == len(sql_dump)
+    assert manifest["database_size"] == len(sql_dump)
+    assert archive_size == archive_path.stat().st_size
+    assert not list(tmp_path.glob(".backup-*.tmp"))
