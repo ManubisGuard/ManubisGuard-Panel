@@ -152,6 +152,8 @@ async def test_upload_storage_uses_unique_paths_and_never_overwrites(monkeypatch
     )
 
     assert first[1] != second[1]
+    assert first[1].suffix == ".zip" and second[1].suffix == ".zip"
+    assert "same-name" not in first[1].name and "same-name" not in second[1].name
     assert first[1].read_bytes() == b"first"
     assert second[1].read_bytes() == b"second"
     assert first[1].stat().st_mode & 0o777 == 0o600
