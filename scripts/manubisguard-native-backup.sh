@@ -30,7 +30,10 @@ if [ ! -s "$CACHE_DIR/pasarguard.sh" ] || [ ! -s "$CACHE_DIR/lib/pasarguard-back
     curl --fail --silent --show-error --location --retry 2 --connect-timeout 10 --max-time 120 "$UPSTREAM_BASE/$file" -o "$tmp/$file" || die "could not fetch pinned upstream file: $file"
     [ -s "$tmp/$file" ] || die "empty upstream file: $file"
   done
-  bash -n "$tmp/pasarguard.sh" "$tmp"/lib/*.sh || die "upstream bundle failed shell syntax validation"
+  bash -n "$tmp/pasarguard.sh" || die "upstream CLI failed shell syntax validation"
+  for library in "$tmp"/lib/*.sh; do
+    bash -n "$library" || die "upstream library failed shell syntax validation: $(basename "$library")"
+  done
   install -d -m 0755 "$CACHE_DIR"
   rm -rf -- "$CACHE_DIR/lib"
   install -d -m 0755 "$CACHE_DIR/lib"
