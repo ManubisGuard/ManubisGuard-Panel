@@ -33,7 +33,7 @@ Commands:
   backup          – Create a full-system backup
   backup-db       – Create a database-only backup
   migrate         – Explicit cross-panel migration/apply
-  backup-service  – Configure automated database backups
+  backup-service  – Configure automated native backups
   restore         – Restore database from backup file
   edit            – Edit docker-compose.yml
   edit-env        – Edit environment file
