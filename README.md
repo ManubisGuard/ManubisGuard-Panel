@@ -393,7 +393,7 @@ Use migration only when intentionally importing from another panel. Ordinary `ma
 
 ### Legacy custom full archives
 
-The earlier custom `manubisguard-full-*.zip` format under `/opt/manubisguard/backup/full/` is no longer the standard backup format. Existing archives are preserved, but they require explicit compatibility verification and must not be assumed compatible with the original native restore engine.
+The custom full-host backup engine and production restore agent have been removed from the standard installation. Existing `manubisguard-full-*.zip` archives under `/opt/manubisguard/backup/full/` are preserved as historical files, but the original PasarGuard restore engine does not automatically support that custom format. Use the native `manubis restore` command for archives created by the original PasarGuard engine. Keep any encryption key needed to recover historical `.enc` archives until those archives are no longer needed.
 
 ## 🗄️ PostgreSQL & TimescaleDB
 
@@ -1061,7 +1061,7 @@ sudo manubis migrate /path/to/source-archive.zip --apply
 
 ### آرشیوهای سفارشی قدیمی
 
-فرمت سفارشی قبلی `manubisguard-full-*.zip` در مسیر `/opt/manubisguard/backup/full/` دیگر فرمت استاندارد بکاپ نیست. آرشیوهای موجود حذف نمی‌شوند، اما پیش از استفاده باید سازگاری آن‌ها جداگانه تأیید شود.
+موتور سفارشی بکاپ کامل و سرویس Restore Agent از نصب استاندارد حذف شده‌اند. آرشیوهای قدیمی `manubisguard-full-*.zip` در مسیر `/opt/manubisguard/backup/full/` حفظ می‌شوند، اما موتور اصلی PasarGuard لزوماً از این فرمت سفارشی پشتیبانی نمی‌کند. برای آرشیوهای ساخته‌شده با موتور اصلی از `manubis restore` استفاده کنید. کلید رمزگشایی فایل‌های قدیمی `.enc` را تا زمانی که به آن آرشیوها نیاز دارید نگه دارید.
 
 ## 🗄️ PostgreSQL و TimescaleDB
 
