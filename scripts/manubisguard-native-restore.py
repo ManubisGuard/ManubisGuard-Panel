@@ -247,7 +247,10 @@ def validate_archive(path: Path) -> int:
             for database_member in sorted(database_members):
                 if database_member not in names:
                     continue
-                with archive.open(database_member, "r") as database_stream:
+                with tempfile.TemporaryFile(mode="w+b") as database_stream:
+                    with archive.open(database_member, "r") as archive_stream:
+                        shutil.copyfileobj(archive_stream, database_stream, length=1024 * 1024)
+                    database_stream.seek(0)
                     db_ok, db_detail = check_database_dump(database_stream)
                 if not db_ok:
                     errors.append(f"database archive unreadable ({database_member}): " + db_detail)
