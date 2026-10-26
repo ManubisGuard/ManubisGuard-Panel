@@ -340,15 +340,28 @@ async def configure_backup_schedule(db: AsyncSession, **values):
 
 
 async def apply_backup_retention(db: AsyncSession, retention_count: int) -> int:
+    """Apply retention only to scheduler-owned backups, never manual or uploaded archives."""
     if retention_count < 1:
         return 0
-    backups = list((await db.execute(select(Backup).where(Backup.status != "telegram_configured").order_by(Backup.created_at.desc()))).scalars())
+
+    backups = list(
+        (
+            await db.execute(
+                select(Backup)
+                .where(Backup.status != "telegram_configured")
+                .order_by(Backup.created_at.desc())
+            )
+        ).scalars()
+    )
+    scheduled_backups = [
+        backup
+        for backup in backups
+        if str((backup.metadata_json or {}).get("note", "")).startswith("scheduled:")
+        and (backup.metadata_json or {}).get("telegram_delivery") != "failed"
+    ]
+
     deleted = 0
-    for backup in backups[retention_count:]:
-        if backup.status == "telegram_configured":
-            continue
-        if (backup.metadata_json or {}).get("telegram_delivery") == "failed":
-            continue
+    for backup in scheduled_backups[retention_count:]:
         await delete_backup(db, backup)
         deleted += 1
     return deleted
