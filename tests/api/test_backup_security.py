@@ -224,3 +224,50 @@ async def test_backup_retention_deletes_only_old_scheduled_backups(monkeypatch):
 
     assert count == 1
     assert deleted == [4]
+
+
+@pytest.mark.asyncio
+async def test_delete_backup_refuses_paths_outside_backup_root(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    outside = tmp_path / "important.txt"
+    outside.write_text("preserve", encoding="utf-8")
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", backup_root)
+
+    class FakeDB:
+        async def execute(self, _statement):
+            raise AssertionError("database row must not be deleted for an unsafe path")
+
+    with pytest.raises(ValueError, match="outside the configured backup directory"):
+        await backup_service.delete_backup(FakeDB(), SimpleNamespace(id=1, backup_path=str(outside)))
+
+    assert outside.read_text(encoding="utf-8") == "preserve"
+
+
+@pytest.mark.asyncio
+async def test_delete_backup_refuses_symlinked_paths(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    target = backup_root / "real.zip"
+    target.write_bytes(b"keep")
+    link = backup_root / "linked.zip"
+    link.symlink_to(target)
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", backup_root)
+
+    class FakeDB:
+        async def execute(self, _statement):
+            raise AssertionError("database row must not be deleted for a symlinked path")
+
+    with pytest.raises(ValueError, match="symlink"):
+        await backup_service.delete_backup(FakeDB(), SimpleNamespace(id=1, backup_path=str(link)))
+
+    assert target.read_bytes() == b"keep"
+    assert link.is_symlink()
