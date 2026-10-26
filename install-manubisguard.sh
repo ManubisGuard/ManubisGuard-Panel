@@ -273,8 +273,12 @@ prepare_env() {
   upsert_env UVICORN_HOST 0.0.0.0
   upsert_env UVICORN_PORT 8000
   upsert_env ROLE all-in-one
-  upsert_env SUDO_USERNAME admin
-  upsert_env SUDO_PASSWORD "$admin_password"
+  if [ "$UPDATE_MODE" = true ]; then
+    log "Preserving existing panel administrator credentials."
+  else
+    upsert_env SUDO_USERNAME admin
+    upsert_env SUDO_PASSWORD "$admin_password"
+  fi
   upsert_env MANUBISGUARD_COMPOSE_SERVICE manubisguard
   upsert_env MANUBISGUARD_DB_SERVICE timescaledb
   upsert_env MANUBISGUARD_DATA_DIR "$DATA_DIR"
