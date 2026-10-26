@@ -1482,7 +1482,8 @@ Conclusion: native preflight and isolated restore drill pass, but implementation
 - [x] Set the standard archive root to `/opt/manubisguard/backup/`; database-only exports remain in `/opt/manubisguard/backup/database/`; cross-panel migration remains separate.
 - [x] Preserved the upstream archive schema identifiers `pasarguard_data/` and `.pasarguard-fresh-restore` while adapting runtime names and paths.
 - [x] Added adapter contract checks to the existing ManubisGuard CI workflow.
-- [ ] Confirm the latest PR CI result; local shell syntax/end-to-end execution could not be run in this session because the execution container has no GitHub network access.
+- [x] Ran `bash -n` on the adapter source in a local isolated container; no syntax errors were reported.
+- [ ] Confirm the latest PR CI result; the execution container has no GitHub network access, so the actual pinned upstream bundle could not be fetched and transformed locally.
 - [ ] Run a disposable backup → `--check` → restore round-trip; test both current ManubisGuard archives and legacy PasarGuard archives where supported.
 - [x] Verified AWG core definitions/obfuscation settings are persisted by the panel and included in the database dump. The separate Node repository defaults generated configuration and TLS material to `/var/lib/pg-node/`; this is outside the panel backup and must be backed up per node/host separately.
 - [ ] Review PR diff and all checks before marking the change production-ready. No live host, container, service, or database has been touched.
