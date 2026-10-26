@@ -46,8 +46,8 @@ Commands:
   install-script  – Install/update manubis script
   install-node    – Install ManubisGuard node
   backup          – Manual backup launch
-  backup-service  – Configure automated database backups
-  restore         – Restore database from backup file
+  backup-service  – Configure automated native backups
+  restore         – Restore panel/system from backup archive
   edit            – Edit docker-compose.yml
   edit-env         – Edit environment file
   version-script  – Show script version and commit
