@@ -54,11 +54,11 @@ def _pgpass_line() -> str | None:
         unquote(parsed.username or "") or "*",
         unquote(parsed.password),
     )
-    if any("\\n" in field or "\\r" in field for field in fields):
+    if any("\n" in field or "\r" in field for field in fields):
         raise ValueError("Database URL contains a newline that cannot be represented in a pgpass entry")
 
     def escape(value: str) -> str:
-        return value.replace("\\\\", "\\\\\\\\").replace(":", "\\\\:")
+        return value.replace("\\", "\\\\").replace(":", "\\:")
 
     return ":".join(escape(field) for field in fields)
 
@@ -97,7 +97,7 @@ def _pg_dump(*, target_pg_major: int | None) -> BinaryIO:
                 delete=False,
             ) as handle:
                 pgpass_path = Path(handle.name)
-                handle.write(pgpass + "\\n")
+                handle.write(pgpass + "\n")
                 handle.flush()
                 os.fsync(handle.fileno())
             pgpass_path.chmod(0o600)
