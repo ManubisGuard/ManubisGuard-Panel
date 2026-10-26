@@ -216,8 +216,8 @@ async def delete_backup(db: AsyncSession, backup: Backup) -> None:
     resolved = path.resolve()
     if root not in resolved.parents:
         raise ValueError("Refusing to delete a backup outside the configured backup directory")
-    if path.is_symlink() and root not in path.absolute().parents:
-        raise ValueError("Refusing to delete a backup symlink outside the configured backup directory")
+    if path.is_symlink():
+        raise ValueError("Refusing to delete a backup symlink")
     if resolved.exists():
         resolved.unlink()
     await db.execute(delete(Backup).where(Backup.id == backup.id))
