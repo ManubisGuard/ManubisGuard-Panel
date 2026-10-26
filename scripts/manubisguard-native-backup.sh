@@ -41,7 +41,7 @@ if [ "$(cat "$CACHE_DIR/.upstream-commit" 2>/dev/null || true)" != "$UPSTREAM_CO
   install -d -m 0755 "$CACHE_DIR/lib"
   install -m 0644 "$tmp"/lib/*.sh "$CACHE_DIR/lib/"
   install -m 0755 "$tmp/pasarguard.sh" "$CACHE_DIR/pasarguard.sh"
-  printf '%s\\n' "$UPSTREAM_COMMIT" > "$CACHE_DIR/.upstream-commit"
+  printf '%s\n' "$UPSTREAM_COMMIT" > "$CACHE_DIR/.upstream-commit"
   chmod 0644 "$CACHE_DIR/.upstream-commit"
   rm -rf -- "$tmp"
   trap - EXIT
