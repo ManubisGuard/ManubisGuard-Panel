@@ -1,46 +1,46 @@
-# Native ManubisGuard Backup and Restore
+# Native PasarGuard Backup and Restore
 
 ## Architecture contract
 
-The standard system-level commands are backed by the paired PasarGuard backup/restore implementation, adapted for ManubisGuard. The CLI adapter is `scripts/manubisguard-native-backup.sh`; it pins upstream source to commit `21f64e42e0cc2f9a7c4f633642e9b8f6365ea5a7`, uses the upstream CLI and matching helper libraries together, and applies the ManubisGuard product names and paths in a temporary working copy.
+The standard system-level commands call the paired original PasarGuard backup/restore implementation pinned to commit `21f64e42e0cc2f9a7c4f633642e9b8f6365ea5a7`. The upstream CLI and its matching libraries remain intact. The adapter `scripts/manubisguard-native-backup.sh` makes only the compatibility changes needed by this installation: explicit ManubisGuard paths, an override for the archive destination, and the cron command path for the public `manubis` CLI. It does not rename upstream functions, libraries, archive members, or recovery markers.
 
-- Canonical system backup root: `/opt/manubisguard/backup/`
-- Application/configuration root: `/opt/manubisguard-panel/`
+- System backup/restore root: `/opt/manubisguard/backup/`
+- Application root: `/opt/manubisguard-panel/`
 - Persistent application data: `/var/lib/manubisguard/`
-- Database-only panel exports: `/opt/manubisguard/backup/database/`
+- Database-only exports: `/opt/manubisguard/backup/database/`
 - Cross-panel migration workspace: `/var/lib/manubisguard/migration/`
 
-The installer places the adapter at `/usr/local/bin/manubisguard-native-backup`, including for a standalone CLI bootstrap used during fresh recovery. It caches the pinned upstream bundle under `/usr/local/lib/manubisguard-native/`. On the first use, it requires HTTPS access to GitHub to fetch that exact commit. It checks that all files are present and pass `bash -n` before publishing the cache. Subsequent runs use the cached bundle. The upstream bundle is not used for install/update/uninstall commands.
+The upstream CLI/library bundle is pinned and cached under `/usr/local/lib/manubisguard-native/`. On first use, HTTPS access to GitHub is required to fetch that exact commit. The adapter verifies all downloaded files with `bash -n` before caching them, then copies the bundle to a temporary working directory and validates the minimally patched copy before running any backup/restore command. It does not expose upstream install/update/uninstall operations.
+
+`APP_NAME=manubisguard-panel` is intentional: the installer uses that Compose project name. `APP_DIR`, `DATA_DIR`, and `BACKUP_DIR` are explicitly set so the original engine targets this panel and the canonical archive directory without changing the archive format.
 
 ## Commands
 
 ```bash
 sudo manubis backup
 sudo manubis restore
-sudo manubis restore /path/to/backup.zip
 sudo manubis restore /path/to/backup.zip --check
+sudo manubis restore /path/to/backup.zip
 sudo manubis restore --fresh /path/to/backup.zip
 sudo manubis backup-service
 ```
 
-Restore without an archive path offers the upstream numbered archive selection from the canonical backup root. An explicit archive path is supported by the upstream restore CLI. Use `--fresh` only on a new host with empty application/data directories and an archive that contains recovery metadata plus pinned image references; legacy archives without this metadata require a compatible existing installation. The standard restore command is separate from `manubis migrate`; migration is still the explicit cross-panel workflow and retains its own staging and validation logic.
+Restore without a path offers the upstream interactive archive selection. `--fresh` is intended only for a new host with empty application/data directories and compatible recovery metadata/image information. Legacy archives without this metadata require a compatible existing installation. A normal restore is destructive and must be tested only in an isolated environment before production use.
 
-The internal archive key `pasarguard_data/` and fresh-restore marker are intentionally preserved for format compatibility; these are archive schema identifiers, not ManubisGuard runtime paths.
-
-## Archive coverage and limitations
-
-The upstream backup/restore implementation captures the panel configuration under `/opt/manubisguard-panel/`, persistent application data under `/var/lib/manubisguard/`, and the configured database using engine-aware dump routines rather than copying a live database data directory. Core definitions, AWG parameters and other panel records persisted in the database are covered by that database dump. The original archive format is retained; this adapter does not substitute the custom `manubisguard-full-*.zip` format.
-
-The installer retires the newer custom full-backup timer without deleting any existing archives. Automatic backups should then be configured through `sudo manubis backup-service` if scheduling is required; this uses the original backup-service/cron flow rather than silently retaining the custom timer. Panel-stored AWG/WireGuard core definitions and obfuscation parameters are covered by the database dump. The separate ManubisGuard Node service persists generated runtime configuration and TLS material under `/var/lib/pg-node/` by default; that node-side state, node API credentials, and host proxy/ACME files outside `/var/lib/manubisguard/` are **not** included by the panel backup and must be backed up on each relevant node/host separately. Do not add remote node paths to the panel archive or imply they are covered without a coordinated, tested node recovery design.
+The upstream archive keys, including `pasarguard_data/` and `.pasarguard-fresh-restore`, remain unchanged. These are compatibility identifiers inside the archive, not runtime paths.
 
 ## Separation of responsibilities
 
-- `manubis backup` / `manubis restore`: standard host/panel backup and recovery.
-- `manubis backup-db` and the panel's backup API: database-only exports.
-- `manubis migrate`: intentional import from another panel, using migration adapters and isolated staging.
+- `manubis backup` / `manubis restore`: standard host/panel backup and recovery using the paired original PasarGuard engine.
+- `manubis backup-db` and the panel backup API: database-only exports.
+- `manubis migrate`: intentional cross-panel import using its separate migration executor and staging logic.
 
-Do not pass a full native system backup to the migration command as a substitute for normal restore.
+Do not pass a full native system archive to the migration command as a substitute for normal restore. The installer disables the newer custom full-backup timer without deleting existing custom-format archives; those archives are not assumed to be compatible with the upstream engine.
+
+## Archive coverage and limitations
+
+Panel records persisted in the database, including AWG core definitions and obfuscation parameters, are covered by the database dump. The panel backup does not include remote Node runtime state, node API credentials, or external host files such as `/etc/letsencrypt` and Nginx configuration. The separate ManubisGuard Node service stores generated runtime configuration and TLS material under `/var/lib/pg-node/` by default; back up that state on each relevant node/host separately.
 
 ## Validation status
 
-The code path and documentation have been updated on the isolated recovery branch. The repository shell syntax/static check is wired into PR CI, but no CI result or end-to-end restore pass has yet been confirmed for this revision. Before enabling this branch in production, run CI, generate a backup on a disposable test host, run `--check`, and complete a restore round-trip in an isolated environment. Do not test destructive restore against the live server or database.
+The adapter and offline compatibility fixture are included in the PR checks. The GitHub Actions result for the current revision and a disposable end-to-end backup/check/restore round-trip remain unconfirmed. Do not merge or deploy until CI passes and the isolated round-trip validates both archive integrity and restored application/database behavior. No live server, service, container, or database is changed by this branch.
