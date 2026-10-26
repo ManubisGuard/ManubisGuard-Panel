@@ -212,8 +212,14 @@ async def list_backups(db: AsyncSession) -> tuple[list[Backup], int]:
 
 async def delete_backup(db: AsyncSession, backup: Backup) -> None:
     path = Path(backup.backup_path)
-    if path.exists():
-        path.unlink()
+    root = BACKUP_DIR.resolve()
+    resolved = path.resolve()
+    if root not in resolved.parents:
+        raise ValueError("Refusing to delete a backup outside the configured backup directory")
+    if path.is_symlink() and root not in path.absolute().parents:
+        raise ValueError("Refusing to delete a backup symlink outside the configured backup directory")
+    if resolved.exists():
+        resolved.unlink()
     await db.execute(delete(Backup).where(Backup.id == backup.id))
     await db.commit()
 
