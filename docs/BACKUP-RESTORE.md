@@ -62,25 +62,11 @@ bash scripts/restore-db.sh /opt/manubisguard/backup/database/<database>_<timesta
 
 The script restores the dump into a fresh temporary database, checks user-table and extension counts, and removes the test container on exit. It requires the TimescaleDB test image to already exist locally and does not attempt to pull an image.
 
-## 4. Native full-archive preflight and restore status
+## 4. Legacy custom full-archive tooling
 
-Run the read-only preflight against an archive stored under the canonical full-backup directory:
+The older `manubisguard-full-backup.py` and `manubisguard-native-restore.py` implementation used a separate `/opt/manubisguard/backup/full/` archive format. The installer no longer schedules or installs that custom full-host backup flow. Existing archives are preserved for forensic/reference purposes, but they are not the standard native archive format and must not be passed to `manubis restore` unless their compatibility has been explicitly verified.
 
-```bash
-sudo python3 /opt/manubisguard-panel/scripts/manubisguard-native-restore.py --check /opt/manubisguard/backup/full/<manubisguard-full-...zip>
-```
-
-Preflight checks ZIP integrity, manifest identity, database and filesystem checksums, PostgreSQL archive readability using a disposable offline container when needed, filesystem member/path/link safety, required TLS files and checksums, TLS key/certificate pairing, and available staging disk space. `--check` does not extract files, change the database, or restart services.
-
-Run a full staged restore drill using a temporary filesystem tree and a disposable PostgreSQL container with no network and tmpfs-only database storage:
-
-```bash
-sudo python3 /opt/manubisguard-panel/scripts/manubisguard-native-restore.py --stage-test /opt/manubisguard/backup/full/<manubisguard-full-...zip>
-```
-
-This verifies that the filesystem archive can be reconstructed without following archived symlinks and that the database dump can be restored and queried in isolation. For v2 archives, it imports PostgreSQL globals and restores each catalogued database into the disposable instance; it refuses the staging restore when the local test image PostgreSQL major or a required TimescaleDB extension version differs from the recorded source version. The temporary filesystem and test container are removed after the run.
-
-**Production native restore is intentionally fail-closed and is not yet enabled.** The future full-backup script now captures cluster globals and every connectable non-template database except the built-in `postgres` database. This change has been syntax-checked and tested with a synthetic multi-database archive, but the new live backup path has deliberately not been run against production yet. A real v2 backup and full v2 staged restore drill are still required before claiming multi-database recovery is verified. `manubis restore <archive>` must not fall back to the migration engine; the CLI will report that the native apply engine is not enabled until destination-preservation rules, a verified safety backup, and rollback are implemented and tested. Application API staging/production restore routes are also fail-closed because the previous staging helper used the configured production PostgreSQL cluster. Use `manubis migrate <archive> --apply` only when you intentionally want a cross-panel migration.
+The read-only validator may remain in the repository for reviewing historical archives. It is not the standard restore engine and is not wired to the ordinary `manubis restore` command.
 
 ## 5. Validate a database dump
 
