@@ -5,10 +5,10 @@ set -Eeuo pipefail
 # Upstream source is pinned to a reviewed commit; this command never changes
 # services or data except when the operator explicitly requests restore.
 readonly UPSTREAM_COMMIT="21f64e42e0cc2f9a7c4f633642e9b8f6365ea5a7"
-readonly PROJECT_DIR="${MANUBISGUARD_PROJECT_DIR:-/opt/manubisguard-panel}"
-readonly DATA_DIR="${MANUBISGUARD_DATA_DIR:-/var/lib/manubisguard}"
-readonly BACKUP_DIR="${MANUBISGUARD_BACKUP_DIR:-/opt/manubisguard/backup}"
-readonly CACHE_DIR="${MANUBISGUARD_NATIVE_LIB_DIR:-/usr/local/lib/manubisguard-native}"
+readonly PROJECT_DIR="/opt/manubisguard-panel"
+readonly DATA_DIR="/var/lib/manubisguard"
+readonly BACKUP_DIR="/opt/manubisguard/backup"
+readonly CACHE_DIR="/usr/local/lib/manubisguard-native"
 readonly UPSTREAM_BASE="https://raw.githubusercontent.com/PasarGuard/scripts/${UPSTREAM_COMMIT}"
 
 die() { printf '[manubisguard-backup] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -35,6 +35,8 @@ if [ ! -s "$CACHE_DIR/pasarguard.sh" ] || [ ! -s "$CACHE_DIR/lib/pasarguard-back
     bash -n "$library" || die "upstream library failed shell syntax validation: $(basename "$library")"
   done
   install -d -m 0755 "$CACHE_DIR"
+  [ ! -L "$CACHE_DIR" ] || die "refusing symlink cache directory"
+  [ ! -L "$CACHE_DIR/lib" ] || die "refusing symlink cache library directory"
   rm -rf -- "$CACHE_DIR/lib"
   install -d -m 0755 "$CACHE_DIR/lib"
   install -m 0644 "$tmp"/lib/*.sh "$CACHE_DIR/lib/"
