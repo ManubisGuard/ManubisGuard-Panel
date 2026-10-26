@@ -31,11 +31,11 @@ Commands:
   uninstall       – Uninstall ManubisGuard
   install-script  – Install/update manubis script
   install-node    – Install ManubisGuard node
-  backup          – Create a full-system backup
+  backup          – Create a standard native panel/system backup
   backup-db       – Create a database-only backup
   migrate         – Explicit cross-panel migration/apply
   backup-service  – Configure automated native backups
-  restore         – Restore database from backup file
+  restore         – Restore panel/system from backup archive
   edit            – Edit docker-compose.yml
   edit-env        – Edit environment file
   version-script  – Show script version and commit
