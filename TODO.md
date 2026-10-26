@@ -1,7 +1,7 @@
 # وضعیت پروژه — ManubisGuard
 
 ## Branch / قواعد
-- Branch فعال: feature/amnezia-wg
+- Branch فعال برای اصلاح بکاپ/ریستور: fix/restore-pasarguard-backup-architecture (مبنای مقایسه: feature/amnezia-wg)
 - main و workflowها در این مسیر دست‌نخورده هستند.
 - --apply فقط بعد از E2E، validation و rollback واقعی مجاز است.
 - هیچ نتیجه‌ای بدون اجرای واقعی PASS اعلام نمی‌شود.
