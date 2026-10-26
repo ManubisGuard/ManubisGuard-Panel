@@ -8,6 +8,7 @@ DATABASE_BACKUP_DIR="$BACKUP_DIR/database"
 FULL_BACKUP_DIR="$BACKUP_DIR/full"
 BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
 CLI_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/manubis"
+BACKUP_ADAPTER_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/scripts/manubisguard-native-backup.sh"
 
 show_help() {
   cat <<'HELP'
@@ -121,10 +122,15 @@ case "${1:-help}" in
     ;;
   install-script)
     tmp="$(mktemp)"
+    adapter_tmp="$(mktemp)"
+    trap 'rm -f -- "$tmp" "$adapter_tmp"' EXIT
     curl -fsSL "$CLI_URL" -o "$tmp"
-    install -m 0755 "$tmp" /usr/local/bin/manubis
-    rm -f "$tmp"
-    echo "manubis script installed."
+    curl -fsSL "$BACKUP_ADAPTER_URL" -o "$adapter_tmp"
+    install -o root -g root -m 0755 "$tmp" /usr/local/bin/manubis
+    install -o root -g root -m 0755 "$adapter_tmp" /usr/local/bin/manubisguard-native-backup
+    rm -f -- "$tmp" "$adapter_tmp"
+    trap - EXIT
+    echo "manubis CLI and native backup adapter installed."
     ;;
   install-node)
     need_project; shift
