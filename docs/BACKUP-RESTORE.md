@@ -2,22 +2,33 @@
 
 ## Scope and canonical storage
 
-The canonical host backup/restore root is **`/opt/manubisguard/backup/`**. The directory is root-owned and mode `0700`; archive files and key material must be restricted to root (`0600` where applicable). The database lives in the `timescaledb` Compose service and its live data directory `/var/lib/manubisguard/timescaledb` is never archived directly.
+The standard system-level backup and restore commands use the paired original PasarGuard backup/restore implementation, adapted for ManubisGuard. See [Native Backup Architecture](NATIVE-BACKUP-ARCHITECTURE.md) for the pinned source and current validation status.
 
-Backups are separated by type:
+- System backup/restore root: `/opt/manubisguard/backup/`
+- Application root: `/opt/manubisguard-panel/`
+- Persistent application data: `/var/lib/manubisguard/`
+- Database-only exports: `/opt/manubisguard/backup/database/`
+- Cross-panel migration staging: `/var/lib/manubisguard/migration/`
 
-- `/opt/manubisguard/backup/full/` — native full-system recovery archives.
-- `/opt/manubisguard/backup/database/` — database-only dumps and application-created DB ZIP archives.
+Do not use a database-only export as a full system backup. Cross-panel migration remains an explicit separate workflow.
 
-Do not treat a database-only dump as a complete panel backup, and do not pass a native full-system archive to the cross-panel migration command.
-
-## 1. Create a full-system backup
+## 1. Create a standard system backup
 
 ```bash
-manubis backup
+sudo manubis backup
 ```
 
-The full backup includes a custom-format dump for every connectable non-template database except the built-in `postgres` maintenance database, a `pg_dumpall --globals-only` SQL dump for roles/global settings, panel and host configuration/runtime files, and actual TLS certificate/private-key files referenced by active Nginx and panel TLS configuration. Each database dump is individually consistent, but PostgreSQL does not offer one atomic snapshot spanning multiple databases; cross-database transactional consistency requires coordinated maintenance. Manifest v2 records PostgreSQL server version and per-database TimescaleDB extension version, the database catalog and archive mapping, each running container’s immutable image ID and any repository digest, SHA-256 for every payload (including each database dump and `globals.sql`), and a per-member filesystem inventory (path, type, mode, ownership, size, link target, and SHA-256 for each regular file). The backup must fail if source DB version metadata cannot be collected, a configured certificate is missing, or archived bytes differ from recorded digests. The read-only validator checks every database archive with `pg_restore --list`, checks the globals dump is present and hashed, verifies each database catalog mapping and running-container image inventory, and checks the per-file inventory and all payload checksums. Image IDs are recorded, but pinned image pulls and application-container recreation are not yet part of the restore engine. Older v1 archives remain readable but do not contain the newer inventory/version guarantees. The archive contains secrets and private keys, so never upload it unencrypted or commit it to Git.
+The adapter uses a pinned upstream bundle. The first invocation needs HTTPS access to GitHub; later invocations use the local cached bundle. Archives can contain secrets and private keys, so keep them root-only and maintain a secure off-server copy.
+
+## 2. Restore a standard system backup
+
+```bash
+sudo manubis restore /path/to/backup.zip --check
+sudo manubis restore /path/to/backup.zip
+```
+
+Running `manubis restore` without a path selects an archive interactively. Restore can modify application files and database state; complete an isolated restore round-trip before using this branch on a production host.
+
 
 ## 2. Create a database-only backup
 
