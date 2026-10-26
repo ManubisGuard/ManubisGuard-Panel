@@ -58,7 +58,7 @@ export APP_NAME=manubisguard APP_DIR="$PROJECT_DIR" DATA_DIR="$DATA_DIR" BACKUP_
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 case "$command_name" in
-  backup) exec bash "$work/pasarguard.sh" backup "$@" ;;
-  restore) exec bash "$work/pasarguard.sh" restore "$@" ;;
-  backup-service) exec bash "$work/pasarguard.sh" backup-service "$@" ;;
+  backup) bash "$work/pasarguard.sh" backup "$@" ;;
+  restore) bash "$work/pasarguard.sh" restore "$@" ;;
+  backup-service) bash "$work/pasarguard.sh" backup-service "$@" ;;
 esac
