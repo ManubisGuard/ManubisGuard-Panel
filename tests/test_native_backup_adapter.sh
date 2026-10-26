@@ -22,6 +22,22 @@ grep -Fq '/usr/local/bin/manubisguard-native-backup" restore' "$CLI"
 grep -Fq 'manubisguard-migrate' "$CLI"
 grep -Fq '/usr/local/bin/manubisguard-native-backup' "$ROOT/install-manubisguard.sh"
 grep -Fq 'disable --now manubisguard-full-backup.timer' "$ROOT/install-manubisguard.sh"
+grep -Fq 'disable --now manubisguard-restore-agent.service' "$ROOT/install-manubisguard.sh"
+grep -Fq 'rm -f /usr/local/bin/manubisguard-restore-agent' "$ROOT/install-manubisguard.sh"
+if grep -Fq 'install_restore_agent' "$ROOT/install-manubisguard.sh"; then
+  echo "FAIL: installer still installs the custom restore agent" >&2
+  exit 1
+fi
+if grep -Fq 'restore-agent.key:/run/secrets' "$ROOT/docker-compose.yml"; then
+  echo "FAIL: Compose still mounts the obsolete restore-agent secret" >&2
+  exit 1
+fi
+for obsolete in scripts/manubisguard-restore-agent.py scripts/manubisguard-full-backup.py scripts/manubisguard-full-backup-deliver.py scripts/manubisguard-native-restore.py scripts/send-full-backup-telegram.py; do
+  if [ -e "$ROOT/$obsolete" ]; then
+    echo "FAIL: obsolete custom system backup component remains: $obsolete" >&2
+    exit 1
+  fi
+done
 
 # The adapter must not rename upstream libraries, CLI identifiers, or archive
 # schema keys: compatibility depends on using the original paired engine.
