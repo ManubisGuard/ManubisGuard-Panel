@@ -630,7 +630,7 @@ The current development line includes completed implementation work across:
 - API Keys
 - Backup and restore workflows
 - Backup scheduling and retention
-- Isolated native stage-test (host CLI; application API staging remains disabled)
+- Native system backup/restore through the paired upstream engine; cross-panel migration remains separate
 - Production native restore remains fail-closed; apply is not enabled
 - PostgreSQL / TimescaleDB migration bridge
 - Domain management foundation
