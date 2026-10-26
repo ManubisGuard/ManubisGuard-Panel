@@ -251,7 +251,14 @@ def main():
                     proc = run(['docker', 'compose', '-f', str(COMPOSE), 'exec', '-T', 'timescaledb', 'pg_dump', '-U', user, '-d', database_name, '-Fc', '--no-owner', '--no-acl'], stdout=handle)
                 if proc.returncode != 0 or target_dump.stat().st_size == 0:
                     raise RuntimeError(f'Database dump failed for {database_name!r}: ' + proc.stderr.decode(errors='replace')[-1500:])
-                check = run(['docker', 'run', '--rm', '-i', '--network', 'none', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m', '--entrypoint', 'pg_restore', 'timescale/timescaledb:latest-pg16', '--list'], input_data=target_dump.read_bytes(), stdout=subprocess.DEVNULL)
+                with target_dump.open('rb') as dump_handle:
+                    check = subprocess.run(
+                        ['docker', 'run', '--rm', '-i', '--network', 'none', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m', '--entrypoint', 'pg_restore', 'timescale/timescaledb:latest-pg16', '--list'],
+                        stdin=dump_handle,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                        check=False,
+                    )
                 if check.returncode != 0:
                     raise RuntimeError(f'Database archive validation failed for {database_name!r}: ' + check.stderr.decode(errors='replace')[-1000:])
                 member_name = 'database.dump' if database_name == dbname else f'databases/{index:04d}.dump'
@@ -358,8 +365,8 @@ def main():
                 'globals_dump': 'globals.sql',
                 'payload_sha256': payload_checksums,
                 'filesystem_members': filesystem_inventory,
-                'database_dump_sha256': hashlib.sha256(db_dump.read_bytes()).hexdigest(),
-                'filesystem_archive_sha256': hashlib.sha256(tar_path.read_bytes()).hexdigest(),
+                'database_dump_sha256': sha256_file(db_dump),
+                'filesystem_archive_sha256': sha256_file(tar_path),
                 'included_paths': included, 'paths_not_present': missing,
                 'excluded_paths': sorted(EXCLUDES),
                 'certificate_files': certificate_files,
