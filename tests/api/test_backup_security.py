@@ -273,3 +273,38 @@ async def test_delete_backup_refuses_symlinked_paths(monkeypatch, tmp_path):
 
     assert target.read_bytes() == b"keep"
     assert link.is_symlink()
+
+
+@pytest.mark.asyncio
+async def test_delete_backup_restores_archive_when_database_commit_fails(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    archive = backup_root / "keep.zip"
+    archive.write_bytes(b"archive payload")
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", backup_root)
+
+    class FakeDB:
+        rolled_back = False
+
+        async def execute(self, _statement):
+            return None
+
+        async def commit(self):
+            raise RuntimeError("simulated commit failure")
+
+        async def rollback(self):
+            self.rolled_back = True
+
+    db = FakeDB()
+    backup = SimpleNamespace(id=99, backup_path=str(archive))
+
+    with pytest.raises(RuntimeError, match="simulated commit failure"):
+        await backup_service.delete_backup(db, backup)
+
+    assert db.rolled_back
+    assert archive.read_bytes() == b"archive payload"
+    assert not list(backup_root.glob(".deleting-*.tmp"))
