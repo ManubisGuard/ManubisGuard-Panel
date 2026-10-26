@@ -22,7 +22,7 @@ command -v bash >/dev/null 2>&1 || die "bash is required"
 
 # Cache the upstream CLI and its matching libraries as a single pinned bundle.
 # Never execute a partially downloaded bundle.
-if [ ! -s "$CACHE_DIR/pasarguard.sh" ] || [ ! -s "$CACHE_DIR/lib/pasarguard-backup.sh" ] || [ ! -s "$CACHE_DIR/lib/pasarguard-restore.sh" ]; then
+if [ ! -s "$CACHE_DIR/pasarguard.sh" ] || [ ! -s "$CACHE_DIR/lib/common.sh" ] || [ ! -s "$CACHE_DIR/lib/system.sh" ] || [ ! -s "$CACHE_DIR/lib/docker.sh" ] || [ ! -s "$CACHE_DIR/lib/github.sh" ] || [ ! -s "$CACHE_DIR/lib/env.sh" ] || [ ! -s "$CACHE_DIR/lib/pasarguard-backup.sh" ] || [ ! -s "$CACHE_DIR/lib/pasarguard-restore.sh" ]; then
   tmp="$(mktemp -d "${CACHE_DIR}.download.XXXXXX")"
   trap 'rm -rf -- "$tmp"' EXIT
   mkdir -p "$tmp/lib"
