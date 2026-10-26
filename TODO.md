@@ -25,11 +25,11 @@
 - [x] Canonical ManubisGuard backup directory is `/opt/manubisguard/backup/`.
 - [x] Canonical ManubisGuard migration workspace is `/var/lib/manubisguard/migration/`.
 - [x] `/root/backup_*.zip` files are manual test artifacts only; they are NOT the canonical backup location.
-- [x] Legacy `/opt/pasarguard/backup/` is source/reference structure only and must not be recreated as the ManubisGuard runtime path.
+- [x] The ManubisGuard runtime backup root is `/opt/manubisguard/backup/`; it intentionally preserves the original PasarGuard backup/restore layout under the ManubisGuard name.
 - [x] Legacy `/var/lib/pasarguard/migration/` must never be used by the ManubisGuard migration runtime.
 - [x] Previous migration failure was caused by staging the backup under `/var/lib/pasarguard/migration/` while the Panel container only mounted `/var/lib/manubisguard`.
 - [x] Future sessions must verify these canonical paths before changing migration/backup code.
-- [x] Do not invent or introduce alternate backup paths without first checking this section and the current installer contract.
+- [x] Standard system backup/restore uses `/opt/manubisguard/backup/`; database-only panel exports stay under `/opt/manubisguard/backup/database`; cross-panel migration staging remains `/var/lib/manubisguard/migration/`.
 
 - [x] Detection و Preflight architecture.
 - [x] Source-compatible Timescale runtime selection.
@@ -1472,3 +1472,12 @@ Conclusion: native preflight and isolated restore drill pass, but implementation
 - [x] Push is for installing and validating the available commands on a separate test server. It is not a production-ready native restore release: `manubis restore --check` and `--stage-test` are available; production `manubis restore <archive>` remains fail-closed with no changes.
 - [ ] GitHub Actions image publication has not yet been confirmed; the local Docker build succeeded. Do not assume the GHCR tag is updated until the publish workflow completes. The installer builds the selected branch from source locally.
 - [x] No installation, deployment, container recreation/restart, or restore was run on the current live panel host after the push.
+
+
+## Native Backup/Restore Architecture Recovery — 2026-10-26
+- [x] Created isolated branch `fix/restore-pasarguard-backup-architecture`; PR #6 remains untouched and unmerged.
+- [x] Restored the command path for `manubis backup`, `manubis restore`, and `manubis backup-service` to a pinned upstream PasarGuard CLI/library bundle with ManubisGuard branding and explicit canonical paths.
+- [x] Standard archive root is `/opt/manubisguard/backup/`; database-only panel archive path and migration workspace remain separate.
+- [ ] Run shell syntax checks and CI against the adapter; validate backup/check/restore round-trip using disposable containers and synthetic data.
+- [ ] Confirm AWG persistent-state paths and add them to the standard archive only after verifying the actual repository/runtime layout.
+- [ ] Audit upstream source changes and compatibility before marking this recovery complete. No live host, container, service, or database has been touched.
