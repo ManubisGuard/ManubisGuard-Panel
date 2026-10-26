@@ -15,6 +15,7 @@ SSL_CERTFILE=""
 SSL_KEYFILE=""
 SERVER_IP=""
 OVERRIDE=false
+UPDATE_MODE=false
 MIN_FREE_MB="${MANUBISGUARD_MIN_FREE_MB:-6144}"
 PANEL_IMAGE="ghcr.io/manubisguard/manubisguard-panel:feature-amnezia-wg"
 BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
@@ -85,6 +86,7 @@ parse_args() {
       --ssl-key=*) SSL_KEYFILE="${1#*=}"; shift ;;
       --yes|-y) ASSUME_YES=true; shift ;;
       --override) OVERRIDE=true; shift ;;
+      --update) UPDATE_MODE=true; ASSUME_YES=true; OVERRIDE=true; shift ;;
       -h|--help) usage; exit 0 ;;
       *) die "unknown option: $1" ;;
     esac
@@ -271,7 +273,9 @@ prepare_env() {
   upsert_env MANUBISGUARD_COMPOSE_SERVICE manubisguard
   upsert_env MANUBISGUARD_DB_SERVICE timescaledb
   upsert_env MANUBISGUARD_DATA_DIR "$DATA_DIR"
-  if [ "$SSL_MODE" = "none" ]; then
+  if [ "$UPDATE_MODE" = true ]; then
+    log "Preserving existing SSL/TLS environment and certificate files during update."
+  elif [ "$SSL_MODE" = "none" ]; then
     upsert_env PASARGUARD_SSL_ENABLED False
     upsert_env PASARGUARD_SSL_MODE none
     upsert_env UVICORN_SSL_CERTFILE ""
@@ -366,18 +370,23 @@ show_result() {
 
 main() {
   parse_args "$@"
+  if [ "$UPDATE_MODE" = true ]; then
+    [ -d "$INSTALL_DIR/.git" ] || die "--update requires an existing ManubisGuard checkout."
+    [ -s "$ENV_FILE" ] || die "--update refused: existing .env is missing; refusing to create a fresh configuration."
+    if grep -Eq "^[[:space:]]*SQLALCHEMY_DATABASE_URL[[:space:]]*=[[:space:]]*sqlite" "$ENV_FILE"; then DATABASE=sqlite; else DATABASE=timescaledb; fi
+  fi
   ensure_base_tools
   ensure_disk_space
 
-  if [ -d "$INSTALL_DIR/.git" ] && [ "$OVERRIDE" = false ] && [ "$ASSUME_YES" != true ]; then
+  if [ "$UPDATE_MODE" != true ] && [ -d "$INSTALL_DIR/.git" ] && [ "$OVERRIDE" = false ] && [ "$ASSUME_YES" != true ]; then
     if git -C "$INSTALL_DIR" status --porcelain 2>/dev/null | grep -q .; then
       die "Existing checkout has local changes; use --override to replace them."
     fi
   fi
 
-  configure_ssl_choice
+  if [ "$UPDATE_MODE" != true ]; then configure_ssl_choice; fi
   prepare_source
-  prepare_ssl
+  if [ "$UPDATE_MODE" != true ]; then prepare_ssl; fi
   prepare_env
   validate_compose
   start_stack
