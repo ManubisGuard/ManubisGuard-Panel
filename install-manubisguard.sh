@@ -205,6 +205,14 @@ prepare_source() {
   mkdir -p "$(dirname "$INSTALL_DIR")"
 
   if [ -d "$INSTALL_DIR/.git" ]; then
+    if [ "$UPDATE_MODE" = true ]; then
+      # Never discard tracked local edits during an in-place update. The later
+      # checkout/reset intentionally aligns with the canonical Git branch, so
+      # refuse before fetching or changing the working tree if code was edited.
+      if ! git -C "$INSTALL_DIR" diff --quiet || ! git -C "$INSTALL_DIR" diff --cached --quiet; then
+        die "In-place update refused: tracked local changes exist in $INSTALL_DIR; back up/review them before updating."
+      fi
+    fi
     log "Updating source from $BRANCH..."
     git -C "$INSTALL_DIR" remote set-url origin "$REPO" >/dev/null 2>&1 || true
     git -C "$INSTALL_DIR" fetch --depth 1 origin "$BRANCH"
