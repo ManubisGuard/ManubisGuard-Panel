@@ -19,10 +19,13 @@ sudo manubis backup
 sudo manubis restore
 sudo manubis restore /path/to/backup.zip
 sudo manubis restore /path/to/backup.zip --check
+sudo manubis restore --fresh /path/to/backup.zip
 sudo manubis backup-service
 ```
 
-Restore without an archive path offers the upstream numbered archive selection from the canonical backup root. An explicit archive path is supported by the upstream restore CLI. The standard restore command is separate from `manubis migrate`; migration is still the explicit cross-panel workflow and retains its own staging and validation logic.
+Restore without an archive path offers the upstream numbered archive selection from the canonical backup root. An explicit archive path is supported by the upstream restore CLI. Use `--fresh` only on a new host with empty application/data directories and an archive that contains recovery metadata plus pinned image references; legacy archives without this metadata require a compatible existing installation. The standard restore command is separate from `manubis migrate`; migration is still the explicit cross-panel workflow and retains its own staging and validation logic.
+
+The internal archive key `pasarguard_data/` and fresh-restore marker are intentionally preserved for format compatibility; these are archive schema identifiers, not ManubisGuard runtime paths.
 
 ## Archive coverage and limitations
 
