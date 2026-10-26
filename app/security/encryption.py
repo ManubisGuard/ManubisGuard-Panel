@@ -10,7 +10,7 @@ class EncryptionConfigurationError(RuntimeError):
     """Raised when the backup encryption key is missing or invalid."""
 
 
-KEY_PATH = Path("/var/lib/manubisguard/backup-telegram.key")
+KEY_PATH = Path("/var/lib/pasarguard/backup-telegram.key")
 
 
 def _fernet() -> Fernet:

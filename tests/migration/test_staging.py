@@ -126,3 +126,16 @@ def test_archive_deployment_files_are_ignored_when_finding_database(tmp_path: Pa
     assert candidate == sql
     assert detection.is_pasarguard is True
     assert not (tmp_path / ".env").exists()
+
+
+def test_staging_zip_extraction_rejects_extreme_compression_ratio(tmp_path: Path, monkeypatch):
+    import zipfile
+    import app.migration.staging as staging
+
+    archive = tmp_path / "ratio.zip"
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("db.sql", "A" * 8192)
+    monkeypatch.setattr(staging, "MAX_ARCHIVE_COMPRESSION_RATIO", 2)
+
+    with pytest.raises(MigrationSafetyError, match="compression ratio"):
+        _safe_extract_zip(archive, tmp_path / "out")

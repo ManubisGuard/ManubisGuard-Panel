@@ -4,18 +4,18 @@
 
 Standard system-level backup and restore use the paired original PasarGuard backup/restore engine, pinned to a reviewed upstream commit and minimally adapted for this installation. The upstream CLI, helper library names, archive members, and recovery markers are preserved.
 
-- System backup/restore root: `/opt/manubisguard/backup/`
-- Application root: `/opt/manubisguard-panel/`
-- Persistent application data: `/var/lib/manubisguard/`
-- Database-only exports: `/opt/manubisguard/backup/database/`
-- Cross-panel migration staging: `/var/lib/manubisguard/migration/`
+- System backup/restore root: `/opt/pasarguard/backup/`
+- Application root: `/opt/pasarguard/`
+- Persistent application data: `/var/lib/pasarguard/`
+- Database-only exports: `/opt/pasarguard/backup/database/`
+- Cross-panel migration staging: `/var/lib/pasarguard/migration/`
 
 Do not use a database-only export as a full system backup. Cross-panel migration remains an explicit separate workflow.
 
 ## 1. Create a standard system backup
 
 ```bash
-sudo manubis backup
+sudo pasarguard backup
 ```
 
 The adapter downloads the pinned upstream CLI/library bundle on first use and caches it locally. Archives can contain secrets and private keys, so keep them root-only and maintain a secure off-server copy.
@@ -23,11 +23,11 @@ The adapter downloads the pinned upstream CLI/library bundle on first use and ca
 ## 2. Restore a standard system backup
 
 ```bash
-sudo manubis restore /path/to/backup.zip --check
-sudo manubis restore /path/to/backup.zip
+sudo pasarguard restore /path/to/backup.zip --check
+sudo pasarguard restore /path/to/backup.zip
 ```
 
-Running `manubis restore` without a path selects an archive interactively. Restore can modify application files and database state; run a complete restore round-trip only in an isolated environment before approving production use. Use `--fresh` only on a new host with empty application/data directories and compatible recovery metadata.
+Running `pasarguard restore` without a path selects an archive interactively. Restore can modify application files and database state; run a complete restore round-trip only in an isolated environment before approving production use. Use `--fresh` only on a new host with empty application/data directories and compatible recovery metadata.
 
 ## 3. Create a database-only backup
 
@@ -35,7 +35,7 @@ Running `manubis restore` without a path selects an archive interactively. Resto
 manubis backup-db
 ```
 
-This writes a PostgreSQL custom-format `.dump` file and SHA-256 sidecar under `/opt/manubisguard/backup/database/`, and validates the dump catalog with `pg_restore --list` before reporting success.
+This writes a PostgreSQL custom-format `.dump` file and SHA-256 sidecar under `/opt/pasarguard/backup/database/`, and validates the dump catalog with `pg_restore --list` before reporting success.
 
 For another destination:
 
@@ -46,7 +46,7 @@ bash scripts/backup-db.sh /path/to/restricted-backup-directory
 ## 4. Verify a database dump
 
 ```bash
-bash scripts/verify-backup.sh /opt/manubisguard/backup/database/<database>_<timestamp>.dump
+bash scripts/verify-backup.sh /opt/pasarguard/backup/database/<database>_<timestamp>.dump
 ```
 
 A successful verification checks the checksum when the sidecar exists and confirms that PostgreSQL can read the archive catalog.
@@ -56,7 +56,7 @@ A successful verification checks the checksum when the sidecar exists and confir
 **Never use the production database as the restore target.** The isolated restore drill uses a disposable TimescaleDB container with `--network none` and tmpfs-only storage; it must not connect to the live database or mount its data directory.
 
 ```bash
-bash scripts/restore-db.sh /opt/manubisguard/backup/database/<database>_<timestamp>.dump manubisguard_restore
+bash scripts/restore-db.sh /opt/pasarguard/backup/database/<database>_<timestamp>.dump manubisguard_restore
 ```
 
 The script restores the dump into a fresh temporary database, checks user-table and extension counts, and removes the test container on exit. It requires the TimescaleDB test image to already exist locally and does not attempt to pull an image.
@@ -78,4 +78,4 @@ A database restore is not production-ready until the restored database can be us
 
 ## Retention and off-host storage
 
-Do not treat `/opt/manubisguard/backup/` on the same VPS as the disaster-recovery copy. Production policy should include encrypted off-host storage, retention limits, periodic restore drills, and failure monitoring. The panel archive may include `.env`, credentials, and TLS private keys under `/var/lib/manubisguard/`. It does not automatically include external `/etc/letsencrypt/`, Nginx, or remote-node `/var/lib/pg-node/` state. Back up those locations separately when required. Never send the encryption key alongside an off-host archive.
+Do not treat `/opt/pasarguard/backup/` on the same VPS as the disaster-recovery copy. Production policy should include encrypted off-host storage, retention limits, periodic restore drills, and failure monitoring. The panel archive may include `.env`, credentials, and TLS private keys under `/var/lib/pasarguard/`. It does not automatically include external `/etc/letsencrypt/`, Nginx, or remote-node `/var/lib/pg-node/` state. Back up those locations separately when required. Never send the encryption key alongside an off-host archive.

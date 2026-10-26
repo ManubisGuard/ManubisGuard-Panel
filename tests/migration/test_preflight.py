@@ -103,3 +103,67 @@ def test_preflight_warns_when_pasarguard_manifest_is_absent(monkeypatch, tmp_pat
     assert result.ok is True
     assert result.pasarguard_manifest is None
     assert any("manifest.tsv was not found" in warning for warning in result.warnings)
+
+
+def test_preflight_blocks_truncated_plain_pg_dump(tmp_path: Path):
+    backup = tmp_path / "truncated.sql"
+    backup.write_text(
+        "-- PostgreSQL database dump\n"
+        "-- PasarGuard backup\n"
+        "CREATE TABLE alembic_version (version_num varchar(32));\n"
+        "CREATE TABLE core_configs (id integer);\n"
+        "CREATE TABLE nodes (id integer);\n",
+        encoding="utf-8",
+    )
+
+    result = preflight_backup(backup)
+
+    assert not result.ok
+    assert any("completion marker" in error.lower() for error in result.blocking_errors)
+
+
+def test_preflight_accepts_complete_plain_pg_dump(tmp_path: Path):
+    backup = tmp_path / "complete.sql"
+    backup.write_text(
+        "-- PostgreSQL database dump\n"
+        "-- PasarGuard backup\n"
+        "CREATE TABLE alembic_version (version_num varchar(32));\n"
+        "CREATE TABLE core_configs (id integer);\n"
+        "CREATE TABLE nodes (id integer);\n"
+        "-- PostgreSQL database dump complete\n",
+        encoding="utf-8",
+    )
+
+    result = preflight_backup(backup)
+
+    assert result.ok
+
+
+def test_preflight_returns_blocking_error_for_malformed_zip(tmp_path: Path):
+    backup = tmp_path / "broken.zip"
+    backup.write_bytes(b"not a zip archive")
+
+    result = preflight_backup(backup)
+
+    assert not result.ok
+    assert result.detection.confidence == "low"
+    assert any("corrupt or unreadable" in error.lower() for error in result.blocking_errors)
+
+
+def test_preflight_blocks_truncated_gzip_pg_dump(tmp_path: Path):
+    import gzip
+
+    backup = tmp_path / "truncated.sql.gz"
+    with gzip.open(backup, "wt", encoding="utf-8") as stream:
+        stream.write(
+            "-- PostgreSQL database dump\n"
+            "-- PasarGuard backup\n"
+            "CREATE TABLE alembic_version (version_num varchar(32));\n"
+            "CREATE TABLE core_configs (id integer);\n"
+            "CREATE TABLE nodes (id integer);\n"
+        )
+
+    result = preflight_backup(backup)
+
+    assert not result.ok
+    assert any("completion marker" in error.lower() for error in result.blocking_errors)

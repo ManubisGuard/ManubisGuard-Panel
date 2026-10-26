@@ -175,3 +175,31 @@ def test_globals_only_dump_is_not_a_database_candidate(tmp_path: Path):
     assert result.source_product == "unknown"
     assert result.confidence == "low"
     assert "globals-only" in result.evidence[0]
+
+
+def test_zip_expansion_ratio_is_blocked_before_crc_scan(tmp_path: Path, monkeypatch):
+    import zipfile
+    import app.migration.detector as detector
+
+    backup = tmp_path / "ratio.zip"
+    with zipfile.ZipFile(backup, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("db_backup.sql", "A" * 8192)
+    monkeypatch.setattr(detector, "MAX_ARCHIVE_COMPRESSION_RATIO", 2)
+
+    errors = detector.validate_archive_integrity(backup)
+
+    assert any("compression ratio" in error.lower() for error in errors)
+
+
+def test_zip_entry_size_limit_is_blocked_from_metadata(tmp_path: Path, monkeypatch):
+    import zipfile
+    import app.migration.detector as detector
+
+    backup = tmp_path / "oversized.zip"
+    with zipfile.ZipFile(backup, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("db_backup.sql", "X" * 64)
+    monkeypatch.setattr(detector, "MAX_ARCHIVE_ENTRY_BYTES", 32)
+
+    errors = detector.validate_archive_integrity(backup)
+
+    assert any("entry exceeds" in error.lower() for error in errors)

@@ -15,7 +15,7 @@ from config import certificate_settings
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_CERTIFICATE_DIR = Path("/var/lib/manubisguard/certs")
+DEFAULT_CERTIFICATE_DIR = Path("/var/lib/pasarguard/certs")
 
 
 class CertificateArtifactStore:

@@ -7,14 +7,14 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-OUTPUT_DIR="${1:-${BACKUP_DIR:-/opt/manubisguard/backup/database}}"
+OUTPUT_DIR="${1:-${BACKUP_DIR:-/opt/pasarguard/backup/database}}"
 mkdir -p "$OUTPUT_DIR"
 chmod 700 "$OUTPUT_DIR"
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 DB_SERVICE="${DB_SERVICE:-timescaledb}"
-DB_NAME="${POSTGRES_DB:-manubisguard}"
-DB_USER="${POSTGRES_USER:-manubisguard}"
+DB_NAME="${POSTGRES_DB:-pasarguard}"
+DB_USER="${POSTGRES_USER:-pasarguard}"
 
 if [[ ! -f .env ]]; then
   echo "ERROR: .env not found in $ROOT_DIR" >&2

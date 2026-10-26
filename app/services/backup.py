@@ -20,8 +20,9 @@ from app.migration.timescale import filter_postgresql_compatibility_line
 from app.models.backup import BackupCheckResponse
 from config import database_settings
 
-BACKUP_DIR = Path("/opt/manubisguard/backup/database")
+BACKUP_DIR = Path("/opt/pasarguard/backup/database")
 MAX_BACKUP_SIZE = 10 * 1024 * 1024 * 1024
+PG_DUMP_COMPLETE_MARKER = b"-- PostgreSQL database dump complete"
 
 
 def _database_name() -> str:
@@ -39,7 +40,7 @@ def _source_metadata(
     timescaledb_version: str | None = None,
 ) -> dict[str, str | int]:
     return {
-        "product": "manubisguard",
+        "product": "pasarguard",
         "database": _database_name(),
         "created_at": dt.now(UTC).isoformat(),
         "postgresql": postgresql_version or os.getenv("POSTGRES_VERSION", "unknown"),
@@ -80,7 +81,13 @@ def _pg_dump(*, target_pg_major: int | None) -> bytes:
         filtered.extend(raw_line)
     if not filtered:
         raise RuntimeError("pg_dump produced an empty compatible backup")
-    return bytes(filtered)
+    payload = bytes(filtered)
+    # pg_dump writes this trailer only after the logical dump has completed.
+    # Do not package a truncated dump as a successful backup even if the process
+    # returned zero (e.g. interrupted output or an unexpected wrapper behavior).
+    if not payload.rstrip().endswith(PG_DUMP_COMPLETE_MARKER):
+        raise RuntimeError("pg_dump output is incomplete: PostgreSQL dump completion marker is missing")
+    return payload
 
 
 def _write_archive(
@@ -113,7 +120,7 @@ def _write_archive(
 
 
 async def create_backup(db: AsyncSession, *, created_by: int | None, note: str | None = None) -> Backup:
-    filename = f"manubisguard-db-{dt.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}.zip"
+    filename = f"pasarguard-db-{dt.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}.zip"
     backup = Backup(
         filename=filename,
         size=0,

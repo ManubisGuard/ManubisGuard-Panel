@@ -12,8 +12,8 @@ set -Eeuo pipefail
 # dump is created immediately before the final database rename.
 
 SCRIPT_NAME="manubisguard-migrate"
-COMPOSE_FILE="${MANUBISGUARD_COMPOSE_FILE:-/opt/manubisguard-panel/docker-compose.yml}"
-DATA_DIR="${MANUBISGUARD_DATA_DIR:-/var/lib/manubisguard}"
+COMPOSE_FILE="${MANUBISGUARD_COMPOSE_FILE:-/opt/pasarguard/docker-compose.yml}"
+DATA_DIR="${MANUBISGUARD_DATA_DIR:-/var/lib/pasarguard}"
 MIGRATION_ROOT="$DATA_DIR/migration"
 ID="$(LC_ALL=C tr -dc 'a-f0-9' </dev/urandom | head -c 12 || true)"
 WORKDIR="$MIGRATION_ROOT/$ID"
@@ -62,7 +62,7 @@ CUTOVER_URL=""
 PREVIOUS_DB=""
 FAILED_DB=""
 COMPOSE_SHA256=""
-CURRENT_ENV="/opt/manubisguard-panel/.env"
+CURRENT_ENV="/opt/pasarguard/.env"
 ENV_CANDIDATE=""
 ENV_PREVIOUS=""
 ENV_IMPORTED=false
