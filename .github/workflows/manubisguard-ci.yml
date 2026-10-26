@@ -34,5 +34,8 @@ jobs:
       - name: Migration shell syntax
         run: bash -n scripts/manubisguard-migrate.sh
 
+      - name: Native backup/restore architecture checks
+        run: bash tests/test_native_backup_adapter.sh
+
       - name: Migration and compatibility tests
         run: uv run pytest -q tests/migration tests/compatibility
