@@ -1,7 +1,7 @@
 # وضعیت پروژه — ManubisGuard
 
 ## Branch / قواعد
-- Branch فعال: feature/amnezia-wg
+- Branch فعال برای اصلاح بکاپ/ریستور: fix/restore-pasarguard-backup-architecture (مبنای مقایسه: feature/amnezia-wg)
 - main و workflowها در این مسیر دست‌نخورده هستند.
 - --apply فقط بعد از E2E، validation و rollback واقعی مجاز است.
 - هیچ نتیجه‌ای بدون اجرای واقعی PASS اعلام نمی‌شود.
@@ -25,11 +25,11 @@
 - [x] Canonical ManubisGuard backup directory is `/opt/manubisguard/backup/`.
 - [x] Canonical ManubisGuard migration workspace is `/var/lib/manubisguard/migration/`.
 - [x] `/root/backup_*.zip` files are manual test artifacts only; they are NOT the canonical backup location.
-- [x] Legacy `/opt/pasarguard/backup/` is source/reference structure only and must not be recreated as the ManubisGuard runtime path.
+- [x] The ManubisGuard runtime backup root is `/opt/manubisguard/backup/`; it intentionally preserves the original PasarGuard backup/restore layout under the ManubisGuard name.
 - [x] Legacy `/var/lib/pasarguard/migration/` must never be used by the ManubisGuard migration runtime.
 - [x] Previous migration failure was caused by staging the backup under `/var/lib/pasarguard/migration/` while the Panel container only mounted `/var/lib/manubisguard`.
 - [x] Future sessions must verify these canonical paths before changing migration/backup code.
-- [x] Do not invent or introduce alternate backup paths without first checking this section and the current installer contract.
+- [x] Standard system backup/restore uses `/opt/manubisguard/backup/`; database-only panel exports stay under `/opt/manubisguard/backup/database`; cross-panel migration staging remains `/var/lib/manubisguard/migration/`.
 
 - [x] Detection و Preflight architecture.
 - [x] Source-compatible Timescale runtime selection.
@@ -1472,3 +1472,29 @@ Conclusion: native preflight and isolated restore drill pass, but implementation
 - [x] Push is for installing and validating the available commands on a separate test server. It is not a production-ready native restore release: `manubis restore --check` and `--stage-test` are available; production `manubis restore <archive>` remains fail-closed with no changes.
 - [ ] GitHub Actions image publication has not yet been confirmed; the local Docker build succeeded. Do not assume the GHCR tag is updated until the publish workflow completes. The installer builds the selected branch from source locally.
 - [x] No installation, deployment, container recreation/restart, or restore was run on the current live panel host after the push.
+
+
+## Native Backup/Restore Architecture Recovery — 2026-10-26
+**Decision update:** This section supersedes the custom full-host archive architecture proposed in the 2026-10-25 section above. The explicit requirement is to restore the original paired PasarGuard backup/restore flow, change branding and runtime paths for ManubisGuard, and keep cross-panel migration separate. Historical notes below remain as a record of the earlier investigation, not the current architecture target.
+
+- [x] Created isolated branch `fix/restore-pasarguard-backup-architecture`; PR #6 remains untouched and unmerged.
+- [x] Routed `manubis backup`, `manubis restore`, and `manubis backup-service` through a pinned upstream PasarGuard CLI/library bundle adapted for ManubisGuard.
+- [x] Set the standard archive root to `/opt/manubisguard/backup/`; database-only exports remain in `/opt/manubisguard/backup/database/`; cross-panel migration remains separate.
+- [x] Preserved the upstream archive schema identifiers `pasarguard_data/` and `.pasarguard-fresh-restore` while adapting runtime names and paths.
+- [x] Added adapter contract checks to the existing ManubisGuard CI workflow.
+- [x] Ran `bash -n` on the adapter source in a local isolated container; no syntax errors were reported.
+- [x] Ran the offline transformation fixture (`tests/test_native_backup_transform.sh`) locally; shell syntax, archive schema-key preservation, renamed loader paths, and scheduled CLI path assertions passed.
+- [ ] Confirm the latest PR CI result; the execution container has no GitHub network access, so the actual pinned upstream bundle could not be fetched and transformed locally.
+- [ ] Run a disposable backup → `--check` → restore round-trip; test both current ManubisGuard archives and legacy PasarGuard archives where supported.
+- [x] Verified AWG core definitions/obfuscation settings are persisted by the panel and included in the database dump. The separate Node repository defaults generated configuration and TLS material to `/var/lib/pg-node/`; this is outside the panel backup and must be backed up per node/host separately.
+- [ ] Review PR diff and all checks before marking the change production-ready. No live host, container, service, or database has been touched.
+
+
+## 2026-10-26 — Decision: restore original PasarGuard system backup/restore path
+
+- [x] Keep the upstream PasarGuard backup/restore CLI and paired libraries as the system-level engine; adapt only required runtime paths and the scheduled public CLI path.
+- [x] Keep database-only exports and cross-panel migration separate from system backup/restore.
+- [x] Remove the custom full-host archive generator, custom restore validator, restore-agent server, and custom full-backup Telegram delivery runner from the active code path.
+- [x] Installer now retires the old full-backup timer and restore-agent service, removes obsolete helper executables/key, and preserves historical archives. Historical encrypted archives may still need their encryption key; do not delete that key automatically.
+- [x] Remove the obsolete restore-agent secret mount from Compose. AWG implementation, subscription behavior, per-admin hostnames, and UI source files were not modified by this cleanup.
+- [ ] Run the static CI checks and a disposable original-format backup/check/restore round-trip before merging. No live server or database has been changed.

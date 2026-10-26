@@ -15,6 +15,7 @@ SSL_CERTFILE=""
 SSL_KEYFILE=""
 SERVER_IP=""
 OVERRIDE=false
+UPDATE_MODE=false
 MIN_FREE_MB="${MANUBISGUARD_MIN_FREE_MB:-6144}"
 PANEL_IMAGE="ghcr.io/manubisguard/manubisguard-panel:feature-amnezia-wg"
 BOOTSTRAP_URL="https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh"
@@ -46,8 +47,8 @@ Commands:
   install-script  – Install/update manubis script
   install-node    – Install ManubisGuard node
   backup          – Manual backup launch
-  backup-service  – Configure automated database backups
-  restore         – Restore database from backup file
+  backup-service  – Configure automated native backups
+  restore         – Restore panel/system from backup archive
   edit            – Edit docker-compose.yml
   edit-env         – Edit environment file
   version-script  – Show script version and commit
@@ -85,6 +86,7 @@ parse_args() {
       --ssl-key=*) SSL_KEYFILE="${1#*=}"; shift ;;
       --yes|-y) ASSUME_YES=true; shift ;;
       --override) OVERRIDE=true; shift ;;
+      --update) UPDATE_MODE=true; ASSUME_YES=true; OVERRIDE=true; shift ;;
       -h|--help) usage; exit 0 ;;
       *) die "unknown option: $1" ;;
     esac
@@ -203,6 +205,14 @@ prepare_source() {
   mkdir -p "$(dirname "$INSTALL_DIR")"
 
   if [ -d "$INSTALL_DIR/.git" ]; then
+    if [ "$UPDATE_MODE" = true ]; then
+      # Never discard tracked local edits during an in-place update. The later
+      # checkout/reset intentionally aligns with the canonical Git branch, so
+      # refuse before fetching or changing the working tree if code was edited.
+      if ! git -C "$INSTALL_DIR" diff --quiet || ! git -C "$INSTALL_DIR" diff --cached --quiet; then
+        die "In-place update refused: tracked local changes exist in $INSTALL_DIR; back up/review them before updating."
+      fi
+    fi
     log "Updating source from $BRANCH..."
     git -C "$INSTALL_DIR" remote set-url origin "$REPO" >/dev/null 2>&1 || true
     git -C "$INSTALL_DIR" fetch --depth 1 origin "$BRANCH"
@@ -246,17 +256,19 @@ upsert_env() {
 prepare_env() {
   mkdir -p "$DATA_DIR" "$BACKUP_DIR" /etc/manubisguard
   chmod 700 "$DATA_DIR" "$BACKUP_DIR" /etc/manubisguard
-  touch /etc/manubisguard/restore-agent.key
-  chmod 600 /etc/manubisguard/restore-agent.key
   ensure_secret "$DATA_DIR/.postgres_password" 32
   ensure_secret "$DATA_DIR/.admin_password" 18
-  ensure_secret /etc/manubisguard/restore-agent.key 32
 
   local db_password admin_password
   db_password="$(cat "$DATA_DIR/.postgres_password")"
   admin_password="$(cat "$DATA_DIR/.admin_password")"
 
-  if [ "$DATABASE" = "timescaledb" ]; then
+  if [ "$UPDATE_MODE" = true ]; then
+    # Existing DB URL, role, and password are runtime state. Never rewrite
+    # them during an in-place update; that could lock the app out of its DB.
+    log "Preserving existing database URL, credentials, and persistent data."
+    if [ "$DATABASE" = "timescaledb" ]; then mkdir -p "$DATA_DIR/timescaledb" "$DATA_DIR/migration"; fi
+  elif [ "$DATABASE" = "timescaledb" ]; then
     upsert_env POSTGRES_DB manubisguard
     upsert_env POSTGRES_USER manubisguard
     upsert_env POSTGRES_PASSWORD "$db_password"
@@ -269,12 +281,18 @@ prepare_env() {
   upsert_env UVICORN_HOST 0.0.0.0
   upsert_env UVICORN_PORT 8000
   upsert_env ROLE all-in-one
-  upsert_env SUDO_USERNAME admin
-  upsert_env SUDO_PASSWORD "$admin_password"
+  if [ "$UPDATE_MODE" = true ]; then
+    log "Preserving existing panel administrator credentials."
+  else
+    upsert_env SUDO_USERNAME admin
+    upsert_env SUDO_PASSWORD "$admin_password"
+  fi
   upsert_env MANUBISGUARD_COMPOSE_SERVICE manubisguard
   upsert_env MANUBISGUARD_DB_SERVICE timescaledb
   upsert_env MANUBISGUARD_DATA_DIR "$DATA_DIR"
-  if [ "$SSL_MODE" = "none" ]; then
+  if [ "$UPDATE_MODE" = true ]; then
+    log "Preserving existing SSL/TLS environment and certificate files during update."
+  elif [ "$SSL_MODE" = "none" ]; then
     upsert_env PASARGUARD_SSL_ENABLED False
     upsert_env PASARGUARD_SSL_MODE none
     upsert_env UVICORN_SSL_CERTFILE ""
@@ -288,26 +306,6 @@ prepare_env() {
   fi
 }
 
-install_restore_agent() {
-  install -m 0755 "$INSTALL_DIR/scripts/manubisguard-restore-agent.py" /usr/local/bin/manubisguard-restore-agent
-  cat > /etc/systemd/system/manubisguard-restore-agent.service <<EOF
-[Unit]
-Description=ManubisGuard production restore agent
-After=network.target docker.service
-
-[Service]
-ExecStart=/usr/bin/python3 /usr/local/bin/manubisguard-restore-agent
-Restart=on-failure
-RestartSec=2
-User=root
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  systemctl daemon-reload
-  systemctl enable --now manubisguard-restore-agent.service
-}
-
 validate_compose() {
   cd "$INSTALL_DIR"
   docker compose -f docker-compose.yml config -q
@@ -315,8 +313,12 @@ validate_compose() {
 
 start_stack() {
   cd "$INSTALL_DIR"
-  log "Pulling database image..."
-  docker compose -f docker-compose.yml pull timescaledb
+  if [ "$UPDATE_MODE" = true ]; then
+    log "In-place update: keeping the currently installed database image unchanged."
+  else
+    log "Pulling database image..."
+    docker compose -f docker-compose.yml pull timescaledb
+  fi
   log "Building latest Panel source from $BRANCH..."
   docker build --pull -t "$PANEL_IMAGE" "$INSTALL_DIR"
   log "Starting ManubisGuard + TimescaleDB..."
@@ -351,25 +353,21 @@ install_helper() {
   install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-migrate.sh" /usr/local/bin/manubisguard-migrate
   command -v unzip >/dev/null 2>&1 || die "unzip is required for backup restore operations."
 
-  # Keep the full-host backup workflow versioned with the project. The key is
-  # generated locally and must never be committed or sent alongside archives.
-  install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-full-backup.py" /usr/local/sbin/manubisguard-full-backup.py
-  install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-native-restore.py" /usr/local/sbin/manubisguard-native-restore.py
-  install -o root -g root -m 0700 "$INSTALL_DIR/scripts/manubisguard-full-backup-deliver.py" /usr/local/sbin/manubisguard-full-backup-deliver.py
-  install -d -o root -g root -m 0700 /etc/manubisguard
-  if [ ! -s /etc/manubisguard/full-backup.key ]; then
-    openssl rand -hex 32 > /etc/manubisguard/full-backup.key
-    chmod 0600 /etc/manubisguard/full-backup.key
-  fi
-  if [ ! -s /etc/manubisguard/full-backup.conf ]; then
-    printf 'INTERVAL_MINUTES=30\nRETENTION_COUNT=3\n' > /etc/manubisguard/full-backup.conf
-    chmod 0600 /etc/manubisguard/full-backup.conf
-  fi
-  install -o root -g root -m 0644 "$INSTALL_DIR/deploy/systemd/manubisguard-full-backup.service" /etc/systemd/system/manubisguard-full-backup.service
-  install -o root -g root -m 0644 "$INSTALL_DIR/deploy/systemd/manubisguard-full-backup.timer" /etc/systemd/system/manubisguard-full-backup.timer
+  # Install the native backup/restore adapter outside the panel directory so
+  # an explicit --fresh restore can recover a host without an existing checkout.
+  install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-native-backup.sh" /usr/local/bin/manubisguard-native-backup
+
+  # Retire the custom host-backup/restore-agent stack. Keep old archives and
+  # encryption keys intact; only disable obsolete executables and service units.
+  systemctl disable --now manubisguard-full-backup.timer 2>/dev/null || true
+  systemctl stop manubisguard-full-backup.service 2>/dev/null || true
+  systemctl disable --now manubisguard-restore-agent.service 2>/dev/null || true
+  rm -f /etc/systemd/system/manubisguard-full-backup.service /etc/systemd/system/manubisguard-full-backup.timer
+  rm -f /etc/systemd/system/manubisguard-restore-agent.service
+  rm -f /usr/local/sbin/manubisguard-full-backup.py /usr/local/sbin/manubisguard-full-backup-deliver.py /usr/local/sbin/manubisguard-native-restore.py
+  rm -f /usr/local/bin/manubisguard-restore-agent /usr/local/bin/manubisguard
+  rm -f /etc/manubisguard/restore-agent.key
   systemctl daemon-reload
-  systemctl enable --now manubisguard-full-backup.timer
-  rm -f /usr/local/bin/manubisguard
 }
 show_result() {
   cd "$INSTALL_DIR"
@@ -393,20 +391,24 @@ show_result() {
 
 main() {
   parse_args "$@"
+  if [ "$UPDATE_MODE" = true ]; then
+    [ -d "$INSTALL_DIR/.git" ] || die "--update requires an existing ManubisGuard checkout."
+    [ -s "$ENV_FILE" ] || die "--update refused: existing .env is missing; refusing to create a fresh configuration."
+    if grep -Eq "^[[:space:]]*SQLALCHEMY_DATABASE_URL[[:space:]]*=[[:space:]]*sqlite" "$ENV_FILE"; then DATABASE=sqlite; else DATABASE=timescaledb; fi
+  fi
   ensure_base_tools
   ensure_disk_space
 
-  if [ -d "$INSTALL_DIR/.git" ] && [ "$OVERRIDE" = false ] && [ "$ASSUME_YES" != true ]; then
+  if [ "$UPDATE_MODE" != true ] && [ -d "$INSTALL_DIR/.git" ] && [ "$OVERRIDE" = false ] && [ "$ASSUME_YES" != true ]; then
     if git -C "$INSTALL_DIR" status --porcelain 2>/dev/null | grep -q .; then
       die "Existing checkout has local changes; use --override to replace them."
     fi
   fi
 
-  configure_ssl_choice
+  if [ "$UPDATE_MODE" != true ]; then configure_ssl_choice; fi
   prepare_source
-  prepare_ssl
+  if [ "$UPDATE_MODE" != true ]; then prepare_ssl; fi
   prepare_env
-  install_restore_agent
   validate_compose
   start_stack
   verify_stack
