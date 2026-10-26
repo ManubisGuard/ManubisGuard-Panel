@@ -2,7 +2,7 @@
 تاریخ آخرین ثبت: 2026-10-26
 مخزن: `/opt/manubisguard-panel`
 شاخه: `feature/amnezia-wg`
-HEAD مبنا: `4312e72bfff2d080ae5aed77ab29b586c677eb19`
+HEAD در زمان آخرین بازبینی: `7333b5a84895a922d230b9e9ce4e607012edae16`
 وضعیت: کار در حال انجام، آماده انتشار نیست.
 
 ## هدف و خط قرمزها
@@ -109,3 +109,11 @@ HEAD مبنا: `4312e72bfff2d080ae5aed77ab29b586c677eb19`
 - وضعیت نهایی Git فقط AI_HANDOFF_PROMPT_2026-10-25.md را به‌صورت untracked نشان می‌دهد؛ این فایل محلی عمداً commit یا push نشده است.
 - نتیجهٔ پذیرش این مرحله: Native AWG round-trip در محیط ایزوله PASS؛ 94 تست متمرکز PASS؛ Ruff PASS؛ API restore تولید و staging همچنان fail-closed. Full pytest هنوز اجرا/تأیید نشده و ادعای قبولی کامل آن وجود ندارد.
 - هیچ Restore، Restart، Deploy یا تغییر داده‌ای در سرویس‌های تولید انجام نشد؛ پروژهٔ آزمایشی حذف و سلامت کانتینرهای تولید پس از پاک‌سازی تأیید شد.
+
+### مرحله J: تثبیت مبنای Git و تصحیح وضعیت مستندات (2026-10-26)
+- هویت محیط بررسی‌شده: hostname `8017638839-32c511`، مسیر `/opt/manubisguard-panel`، شاخه `feature/amnezia-wg`.
+- HEAD محلی و `origin/feature/amnezia-wg` برابر `7333b5a84895a922d230b9e9ce4e607012edae16` بودند؛ `git rev-list --left-right --count HEAD...origin/feature/amnezia-wg` نتیجهٔ `0 0` داد.
+- هیچ تغییر tracked یا staged پیش از این اصلاح مستندات وجود نداشت. تنها مورد محلی untracked برابر `AI_HANDOFF_PROMPT_2026-10-25.md` است؛ محتوا خوانده نشده، تغییر نکرده و وارد Git نخواهد شد.
+- `git diff --check` و `git diff --cached --check` قبل از اصلاح پاک بودند.
+- در `docs/NATIVE-BACKUP-ARCHITECTURE.md` وضعیت قدیمی مبنی بر «round-trip هنوز تأیید نشده» اصلاح شد. اکنون مستندات نتیجهٔ AWG round-trip و 94 تست متمرکز را ذکر می‌کند و صریحاً می‌گوید Full pytest و GitHub Actions برای آخرین revision هنوز تأیید نشده‌اند.
+- نتیجه: مرحلهٔ ۱ از نظر تطبیق Git، وضعیت کاری و مرجع مستندات تثبیت شد؛ هیچ سرویس یا دیتابیسی تغییر نکرد.

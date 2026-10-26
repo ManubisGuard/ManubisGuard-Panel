@@ -41,6 +41,10 @@ Do not pass a full native system archive to the migration command as a substitut
 
 Panel records persisted in the database, including AWG core definitions and obfuscation parameters, are covered by the database dump. The panel backup does not include remote Node runtime state, node API credentials, or external host files such as `/etc/letsencrypt` and Nginx configuration. The separate ManubisGuard Node service stores generated runtime configuration and TLS material under `/var/lib/pg-node/` by default; back up that state on each relevant node/host separately.
 
-## Validation status
+## Validation status (updated 2026-10-26)
 
-The adapter and offline compatibility fixture are included in the PR checks. The GitHub Actions result for the current revision and a disposable end-to-end backup/check/restore round-trip remain unconfirmed. Do not merge or deploy until CI passes and the isolated round-trip validates both archive integrity and restored application/database behavior. No live server, service, container, or database is changed by this branch.
+- The native adapter and offline compatibility fixture have passed their focused shell checks.
+- A disposable end-to-end native backup, `restore --check`, and two real restores were completed. A synthetic AWG Core fixture was verified after restore, deliberately mutated, then restored again; `type=amneziawg`, the `Jc/Jmin/Jmax/S1/S2/H1-H4` fields, and the Node-to-Core relationship all matched the original fixture. See `docs/backup-restore-progress.md` and the isolated logs under `/opt/manubisguard-work/awg-native-roundtrip-20261026/`.
+- The focused Python suite (`tests/test_backup_restore_fail_closed.py`, `tests/test_native_backup_architecture.py`, `tests/migration`, and `tests/compatibility`) passed: 94 tests. Ruff and shell syntax checks also passed.
+- The full pytest suite and the GitHub Actions result for the latest revision are still unconfirmed. Do not enable production API restore or deploy until full-suite/CI gates and the remaining recovery-safety requirements pass. Production restore endpoints remain fail-closed.
+- Tests used disposable environments only; no production restore, restart, or deploy was performed.
