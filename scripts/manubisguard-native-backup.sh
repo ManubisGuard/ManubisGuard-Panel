@@ -67,6 +67,12 @@ mv "$work/lib/pasarguard-restore.sh" "$work/lib/manubisguard-restore.sh"
 # The public CLI is named "manubis", not "$APP_NAME".
 sed -i 's#local script_path="/usr/local/bin/\$APP_NAME"#local script_path="/usr/local/bin/manubis"#g' "$work/lib/manubisguard-backup.sh"
 sed -i 's#script_path=$(which "\$APP_NAME" 2>/dev/null || echo "/usr/local/bin/\$APP_NAME")#script_path=$(command -v manubis 2>/dev/null || echo "/usr/local/bin/manubis")#g' "$work/lib/manubisguard-backup.sh"
+# Validate the transformed bundle too; upstream syntax alone does not prove the
+# branding and archive-schema substitutions remain syntactically valid.
+bash -n "$work/pasarguard.sh" || die "transformed CLI failed shell syntax validation"
+for library in "$work"/lib/*.sh; do
+  bash -n "$library" || die "transformed library failed shell syntax validation: $(basename "$library")"
+done
 # Set all canonical paths explicitly; no installation/update command is exposed.
 # The installer runs Compose from /opt/manubisguard-panel without -p, so the
 # real Compose project name is the directory basename, not the product slug.
