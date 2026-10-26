@@ -61,39 +61,7 @@ install_from_installer() {
 
 restore_command() {
   need_project
-  if [ "${1:-}" = "--check" ] || [ "${1:-}" = "--stage-test" ]; then
-    [ "$#" -eq 2 ] || { echo "Usage: manubis restore --check|--stage-test /opt/manubisguard/backup/full/<archive.zip>" >&2; exit 2; }
-    [ -x /usr/local/sbin/manubisguard-native-restore.py ] || { echo "Native restore validator/test runner is not installed; no changes made." >&2; exit 3; }
-    exec /usr/local/sbin/manubisguard-native-restore.py "$1" "$2"
-  fi
-  if [ "$#" -eq 1 ]; then
-    [ -x /usr/local/sbin/manubisguard-native-restore.py ] || { echo "Native full restore engine is not installed yet; no changes made. Use 'manubis migrate <archive.zip> --apply' only for an intentional cross-panel migration." >&2; exit 3; }
-    exec /usr/local/sbin/manubisguard-native-restore.py --apply "$1"
-  fi
-  [ "$#" -eq 0 ] || { echo "Usage: manubis restore [--check] [/opt/manubisguard/backup/full/<archive.zip>]" >&2; exit 2; }
-  local -a backups=()
-  local item choice selected
-  mkdir -p "$FULL_BACKUP_DIR"
-  while IFS= read -r -d '' item; do backups+=("$item"); done < <(
-    find "$FULL_BACKUP_DIR" -maxdepth 1 -type f -name 'manubisguard-full-*.zip' -print0 2>/dev/null | sort -z -V
-  )
-  if [ "${#backups[@]}" -eq 0 ]; then
-    echo "No native full backups found in $FULL_BACKUP_DIR" >&2
-    exit 1
-  fi
-  echo "Available native ManubisGuard full backups:"
-  local i=1
-  for item in "${backups[@]}"; do
-    printf '  %d) %s (%s)\n' "$i" "$(basename "$item")" "$(du -h "$item" | cut -f1)"
-    i=$((i + 1))
-  done
-  printf 'Select backup [1-%d]: ' "${#backups[@]}"
-  read -r choice
-  [[ "$choice" =~ ^[0-9]+$ ]] || { echo "Invalid backup selection." >&2; exit 2; }
-  (( choice >= 1 && choice <= ${#backups[@]} )) || { echo "Invalid backup selection." >&2; exit 2; }
-  selected="${backups[$((choice - 1))]}"
-  [ -x /usr/local/sbin/manubisguard-native-restore.py ] || { echo "Native full restore engine is not installed yet; selected archive: $selected; no changes made. Use 'manubis migrate <archive.zip> --apply' only for an intentional cross-panel migration." >&2; exit 3; }
-  exec /usr/local/sbin/manubisguard-native-restore.py --apply "$selected"
+  exec bash "$PROJECT_DIR/scripts/manubisguard-native-backup.sh" restore "$@"
 }
 
 migrate_command() {
@@ -166,10 +134,7 @@ case "${1:-help}" in
   backup)
     need_project
     [ "$#" -eq 1 ] || { echo "Usage: manubis backup" >&2; exit 2; }
-    if [ -x /usr/local/sbin/manubisguard-full-backup.py ]; then
-      exec /usr/local/sbin/manubisguard-full-backup.py
-    fi
-    exec python3 "$PROJECT_DIR/scripts/manubisguard-full-backup.py"
+    exec bash "$PROJECT_DIR/scripts/manubisguard-native-backup.sh" backup
     ;;
   backup-db)
     need_project; cd "$PROJECT_DIR"
@@ -179,33 +144,8 @@ case "${1:-help}" in
     ;;
   backup-service)
     need_project
-    printf 'Backup interval (minutes: 5/15/30/60/120/1440) [30]: '
-    read -r interval
-    interval="${interval:-30}"
-    case "$interval" in 5|15|30|60|120|1440) ;; *) echo "Unsupported interval. Use 5, 15, 30, 60, 120 or 1440." >&2; exit 2 ;; esac
-    printf 'Telegram Bot Token (leave empty to disable Telegram): '
-    read -r -s telegram_token
-    printf '\n'
-    telegram_chat_id=""
-    if [ -n "$telegram_token" ]; then
-      printf 'Telegram Chat ID: '
-      read -r telegram_chat_id
-      [ -n "$telegram_chat_id" ] || { echo "Telegram Chat ID is required when Telegram is enabled." >&2; exit 2; }
-    fi
-    printf 'Retention count [7]: '
-    read -r retention
-    retention="${retention:-7}"
-    [[ "$retention" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid retention count." >&2; exit 2; }
-    payload=$(python3 - "$interval" "$retention" "$telegram_token" "$telegram_chat_id" <<'PY'
-import json, sys
-interval=int(sys.argv[1]); retention=int(sys.argv[2]); token=sys.argv[3]; chat=sys.argv[4]
-print(json.dumps({"frequency":"interval","interval_minutes":interval,"retention_count":retention,"telegram_bot_token":token,"telegram_chat_id":chat}))
-PY
-)
-    printf '%s\n' "$payload" | docker compose -f "$PROJECT_DIR/docker-compose.yml" exec -T manubisguard python -m app.backup_cli
-    echo "Schedule: every ${interval} minute(s)"
-    echo "Retention: ${retention}"
-    echo "Telegram: $([ -n "$telegram_token" ] && echo enabled || echo disabled)"
+    shift
+    exec bash "$PROJECT_DIR/scripts/manubisguard-native-backup.sh" backup-service "$@"
     ;;
   restore)
     shift
