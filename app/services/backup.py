@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import tempfile
+import uuid
 import zipfile
 from datetime import UTC, datetime as dt
 from pathlib import Path
@@ -213,15 +214,32 @@ async def list_backups(db: AsyncSession) -> tuple[list[Backup], int]:
 async def delete_backup(db: AsyncSession, backup: Backup) -> None:
     path = Path(backup.backup_path)
     root = BACKUP_DIR.resolve()
+    if path.is_symlink():
+        raise ValueError("Refusing to delete a backup symlink")
     resolved = path.resolve()
     if root not in resolved.parents:
         raise ValueError("Refusing to delete a backup outside the configured backup directory")
-    if path.is_symlink():
-        raise ValueError("Refusing to delete a backup symlink")
+
+    # Quarantine the archive before the DB transaction. If the DB delete/commit
+    # fails, restore the original path so the row never points at a missing file.
+    quarantine: Path | None = None
     if resolved.exists():
-        resolved.unlink()
-    await db.execute(delete(Backup).where(Backup.id == backup.id))
-    await db.commit()
+        quarantine = root / f".deleting-{uuid.uuid4().hex}.tmp"
+        os.replace(resolved, quarantine)
+
+    try:
+        await db.execute(delete(Backup).where(Backup.id == backup.id))
+        await db.commit()
+    except Exception:
+        try:
+            await db.rollback()
+        finally:
+            if quarantine is not None and quarantine.exists() and not resolved.exists():
+                os.replace(quarantine, resolved)
+        raise
+
+    if quarantine is not None:
+        quarantine.unlink(missing_ok=True)
 
 
 async def configure_telegram(db: AsyncSession, *, created_by: int | None, token: str, chat_id: str) -> Backup:
