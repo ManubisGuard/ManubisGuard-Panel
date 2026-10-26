@@ -255,7 +255,12 @@ prepare_env() {
   db_password="$(cat "$DATA_DIR/.postgres_password")"
   admin_password="$(cat "$DATA_DIR/.admin_password")"
 
-  if [ "$DATABASE" = "timescaledb" ]; then
+  if [ "$UPDATE_MODE" = true ]; then
+    # Existing DB URL, role, and password are runtime state. Never rewrite
+    # them during an in-place update; that could lock the app out of its DB.
+    log "Preserving existing database URL, credentials, and persistent data."
+    if [ "$DATABASE" = "timescaledb" ]; then mkdir -p "$DATA_DIR/timescaledb" "$DATA_DIR/migration"; fi
+  elif [ "$DATABASE" = "timescaledb" ]; then
     upsert_env POSTGRES_DB manubisguard
     upsert_env POSTGRES_USER manubisguard
     upsert_env POSTGRES_PASSWORD "$db_password"
