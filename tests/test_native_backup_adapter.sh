@@ -20,5 +20,6 @@ if grep -Fq 'manubisguard-native-restore.py --apply' "$CLI"; then
   exit 1
 fi
 
-bash -n "$CLI" "$ADAPTER"
+bash -n "$CLI"
+bash -n "$ADAPTER"
 echo "native backup adapter static checks: PASS"
