@@ -301,8 +301,12 @@ validate_compose() {
 
 start_stack() {
   cd "$INSTALL_DIR"
-  log "Pulling database image..."
-  docker compose -f docker-compose.yml pull timescaledb
+  if [ "$UPDATE_MODE" = true ]; then
+    log "In-place update: keeping the currently installed database image unchanged."
+  else
+    log "Pulling database image..."
+    docker compose -f docker-compose.yml pull timescaledb
+  fi
   log "Building latest Panel source from $BRANCH..."
   docker build --pull -t "$PANEL_IMAGE" "$INSTALL_DIR"
   log "Starting ManubisGuard + TimescaleDB..."
