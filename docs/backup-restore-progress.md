@@ -129,3 +129,12 @@ HEAD در زمان آخرین بازبینی: `ed72211f5e5264e895c06eb587033fc3d
 - محدودیت مهم: fixture یکپارچهٔ مرحله K فقط جدول‌های core_configs و nodes را مستقیماً در round-trip آزمایش کرد. پوشش users.proxy_settings، hosts/inbounds و wireguard_subnets از dump کامل دیتابیس استنباط می‌شود، اما هنوز با fixture روابط واقعی به‌صورت end-to-end آزموده نشده؛ این یک گیت تکمیلی پیش از ادعای پذیرش کامل AWG است.
 - گام بعد: افزودن fixture چندجدولی برای peer/host/subnet و سپس ممیزی مسیرهای safety backup و rollback پیش از هرگونه فعال‌سازی Restore API تولید.
 - لاگ خلاصه: /opt/manubisguard-work/awg-native-roundtrip-20261026/stage2-awg-coverage.log؛ لاگ‌های اجرای فرمان در همان پوشه با پیشوند stage2- موجودند.
+
+
+### مرحله L: ممیزی ایمنی Restore Native (2026-10-26)
+- ممیزی سورس Native نشان داد که PostgreSQL/TimescaleDB در مسیر multi-db پیش از import، هر دیتابیس مقصد را terminate/drop/recreate می‌کند؛ مسیر single TimescaleDB نیز مقصد را drop/recreate می‌کند و مسیر PostgreSQL عادی ممکن است با dump دارای clean/drop، اشیای قبلی را پیش از پایان import حذف کند.
+- مسیر SQLite از snapshot پیش از جایگزینی استفاده می‌کند، اما معادل آن برای PostgreSQL/TimescaleDB در مسیر بررسی‌شده وجود ندارد. کپی‌های APP_DIR و DATA_DIR پیش از جایگزینی فایل‌ها گرفته می‌شوند، ولی پس از import دیتابیس؛ بنابراین از خود دیتابیس قبل از DROP محافظت نمی‌کنند. در مسیر خطا، کد فعلی سرویس اپلیکیشن را دوباره start می‌کند و rollback دیتابیس خودکار ندارد.
+- یک قفل صریح سراسری برای جلوگیری از دو Restore هم‌زمان در تابع مرورشده پیدا نشد؛ باید پیش از فعال‌سازی production API بررسی/پیاده‌سازی شود.
+- گزارش تفصیلی در docs/RESTORE-SAFETY-AUDIT.md نوشته شد: گیت‌های فعلی، شکاف‌های blocking و طراحی اصلاحی مرحلهٔ بعد را ثبت می‌کند.
+- تصمیم ایمنی: API staging و production با HTTP 503 غیرفعال می‌مانند. این مرحله فقط audit و مستندسازی بود؛ هیچ عملیات Restore/Restart/Deploy تولیدی انجام نشد.
+- گام بعدی عملی: پیاده‌سازی snapshot دیتابیس قبل از هر تغییر، checksum/manifest validation، rollback دیتابیس و فایل‌ها با عدم restart در صورت شکست rollback، و قفل Restore؛ سپس اجرای سناریوی موفق و fault-injection فقط در محیط آزمایشی.
