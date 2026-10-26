@@ -395,3 +395,61 @@ def test_pg_dump_streams_output_and_cleans_temporary_pgpass(monkeypatch, tmp_pat
     assert captured["pgpass_contents"] == "db.example:5432:panel:backup-user:secret\\:value\n"
     assert captured["pgpass_mode"] == 0o600
     assert not list(tmp_path.glob(".pgpass-*"))
+
+
+def test_full_backup_hashing_reads_large_files_in_chunks(tmp_path):
+    import hashlib
+    import importlib.util
+    import zipfile
+
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "manubisguard-full-backup.py"
+    spec = importlib.util.spec_from_file_location("manubisguard_full_backup_test", script_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+
+    payload = (b"backup-payload-" * 200_000) + b"end"
+    file_path = tmp_path / "payload.bin"
+    file_path.write_bytes(payload)
+    assert module.sha256_file(file_path) == hashlib.sha256(payload).hexdigest()
+
+    with file_path.open("rb") as stream:
+        assert module.sha256_stream(stream, chunk_size=4096) == hashlib.sha256(payload).hexdigest()
+
+
+def test_native_restore_hashes_zip_members_and_checks_dump_as_stream(monkeypatch, tmp_path):
+    import hashlib
+    import importlib.util
+    import zipfile
+    from types import SimpleNamespace
+
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "manubisguard-native-restore.py"
+    spec = importlib.util.spec_from_file_location("manubisguard_native_restore_test", script_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+
+    payload = (b"custom-pg-dump-" * 150_000) + b"end"
+    archive_path = tmp_path / "fixture.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("database.dump", payload)
+
+    with zipfile.ZipFile(archive_path) as archive:
+        assert module.sha256_zip_member(archive, "database.dump") == hashlib.sha256(payload).hexdigest()
+        with archive.open("database.dump") as stream:
+            captured = {}
+
+            def fake_run(command, **kwargs):
+                captured["stdin_is_stream"] = kwargs.get("stdin") is stream
+                captured["input_present"] = "input" in kwargs
+                captured["bytes_read"] = len(kwargs["stdin"].read())
+                return SimpleNamespace(returncode=0, stderr=b"")
+
+            monkeypatch.setattr(module.shutil, "which", lambda _name: "/usr/bin/pg_restore")
+            monkeypatch.setattr(module.subprocess, "run", fake_run)
+            ok, detail = module.check_database_dump(stream)
+
+    assert ok, detail
+    assert captured["stdin_is_stream"]
+    assert not captured["input_present"]
+    assert captured["bytes_read"] == len(payload)
