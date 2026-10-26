@@ -128,3 +128,99 @@ def test_backup_interval_due_rules(last_run_minutes, interval_minutes, expected)
     last_run_at = None if last_run_minutes is None else now - timedelta(minutes=last_run_minutes)
     schedule = SimpleNamespace(enabled=True, frequency="interval", interval_minutes=interval_minutes, hour=2, minute=0, weekday=None, day_of_month=None, last_run_at=last_run_at)
     assert _is_due(now, schedule) is expected
+
+
+@pytest.mark.asyncio
+async def test_upload_storage_uses_unique_paths_and_never_overwrites(monkeypatch, tmp_path):
+    from app.routers import admin_backup
+
+    monkeypatch.setattr(admin_backup, "UPLOAD_DIR", tmp_path)
+
+    class FakeUpload:
+        filename = "same-name.zip"
+
+        def __init__(self, payload):
+            self.payload = payload
+
+        async def read(self, _size):
+            payload, self.payload = self.payload, b""
+            return payload
+
+    first, second = await asyncio.gather(
+        admin_backup._store_uploaded_archive(FakeUpload(b"first"), 7),
+        admin_backup._store_uploaded_archive(FakeUpload(b"second"), 7),
+    )
+
+    assert first[1] != second[1]
+    assert first[1].read_bytes() == b"first"
+    assert second[1].read_bytes() == b"second"
+    assert first[1].stat().st_mode & 0o777 == 0o600
+    assert second[1].stat().st_mode & 0o777 == 0o600
+    assert not list(tmp_path.glob(".upload-*.tmp"))
+
+
+@pytest.mark.asyncio
+async def test_upload_storage_removes_only_temporary_file_on_size_limit(monkeypatch, tmp_path):
+    from fastapi import HTTPException
+
+    from app.routers import admin_backup
+
+    monkeypatch.setattr(admin_backup, "UPLOAD_DIR", tmp_path)
+    monkeypatch.setattr(admin_backup, "MAX_UPLOAD_SIZE", 3)
+
+    class FakeUpload:
+        filename = "oversize.zip"
+
+        def __init__(self):
+            self.chunks = [b"1234", b""]
+
+        async def read(self, _size):
+            return self.chunks.pop(0)
+
+    with pytest.raises(HTTPException) as exc:
+        await admin_backup._store_uploaded_archive(FakeUpload(), 7)
+
+    assert exc.value.status_code == 413
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_backup_retention_deletes_only_old_scheduled_backups(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import backup as backup_service
+
+    backups = [
+        SimpleNamespace(id=1, status="created", metadata_json={"note": "scheduled:daily"}),
+        SimpleNamespace(id=2, status="uploaded", metadata_json={"upload": True}),
+        SimpleNamespace(id=3, status="created", metadata_json={"note": "manual request"}),
+        SimpleNamespace(id=4, status="created", metadata_json={"note": "scheduled:daily"}),
+        SimpleNamespace(id=5, status="created", metadata_json={"note": "scheduled:daily", "telegram_delivery": "failed"}),
+    ]
+
+    class FakeScalars:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def __iter__(self):
+            return iter(self.rows)
+
+    class FakeResult:
+        def scalars(self):
+            return FakeScalars(backups)
+
+    class FakeDB:
+        async def execute(self, _statement):
+            return FakeResult()
+
+    deleted = []
+
+    async def fake_delete(_db, backup):
+        deleted.append(backup.id)
+
+    monkeypatch.setattr(backup_service, "delete_backup", fake_delete)
+
+    count = await backup_service.apply_backup_retention(FakeDB(), 1)
+
+    assert count == 1
+    assert deleted == [4]
