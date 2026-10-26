@@ -60,7 +60,7 @@ install_from_installer() {
 }
 
 restore_command() {
-  exec bash "$PROJECT_DIR/scripts/manubisguard-native-backup.sh" restore "$@"
+  exec bash "/usr/local/bin/manubisguard-native-backup" restore "$@"
 }
 
 migrate_command() {
@@ -133,7 +133,7 @@ case "${1:-help}" in
   backup)
     need_project
     [ "$#" -eq 1 ] || { echo "Usage: manubis backup" >&2; exit 2; }
-    exec bash "$PROJECT_DIR/scripts/manubisguard-native-backup.sh" backup
+    exec bash "/usr/local/bin/manubisguard-native-backup" backup
     ;;
   backup-db)
     need_project; cd "$PROJECT_DIR"
@@ -144,7 +144,7 @@ case "${1:-help}" in
   backup-service)
     need_project
     shift
-    exec bash "$PROJECT_DIR/scripts/manubisguard-native-backup.sh" backup-service "$@"
+    exec bash "/usr/local/bin/manubisguard-native-backup" backup-service "$@"
     ;;
   restore)
     shift
