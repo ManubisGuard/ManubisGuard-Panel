@@ -2,7 +2,7 @@
 تاریخ آخرین ثبت: 2026-10-26
 مخزن: `/opt/manubisguard-panel`
 شاخه: `feature/amnezia-wg`
-HEAD در زمان آخرین بازبینی: `7333b5a84895a922d230b9e9ce4e607012edae16`
+HEAD در زمان آخرین بازبینی: `ed72211f5e5264e895c06eb587033fc3d5b233e5`
 وضعیت: کار در حال انجام، آماده انتشار نیست.
 
 ## هدف و خط قرمزها
@@ -117,3 +117,15 @@ HEAD در زمان آخرین بازبینی: `7333b5a84895a922d230b9e9ce4e60701
 - `git diff --check` و `git diff --cached --check` قبل از اصلاح پاک بودند.
 - در `docs/NATIVE-BACKUP-ARCHITECTURE.md` وضعیت قدیمی مبنی بر «round-trip هنوز تأیید نشده» اصلاح شد. اکنون مستندات نتیجهٔ AWG round-trip و 94 تست متمرکز را ذکر می‌کند و صریحاً می‌گوید Full pytest و GitHub Actions برای آخرین revision هنوز تأیید نشده‌اند.
 - نتیجه: مرحلهٔ ۱ از نظر تطبیق Git، وضعیت کاری و مرجع مستندات تثبیت شد؛ هیچ سرویس یا دیتابیسی تغییر نکرد.
+
+### مرحله K: ممیزی پوشش AWG و تست کل فیلدهای canonical (2026-10-26)
+- فایل مستند جدید docs/AWG-BACKUP-COVERAGE.md ماتریس پوشش را ثبت می‌کند: core_configs.type/config، اتصال Node/Core، users.proxy_settings، تنظیمات hosts/inbounds، wireguard_subnets، فایل‌های پنل و مواردی که بیرون از آرشیو Native قرار دارند.
+- بازبینی کد ثابت کرد AWG Core و رکوردهای panel-side Node در دیتابیس پنل ذخیره می‌شوند و Node API key / server_ca در رکورد پنل قرار دارند؛ بنابراین آرشیو محرمانه محسوب می‌شود. بند مستندات معماری که این credentials را خارج از آرشیو می‌دانست اصلاح شد. runtime و secretهای local روی Node، /var/lib/pg-node، باینری‌ها/پکیج‌های میزبان و Nginx/TLS خارجی داخل آرشیو پنل نیستند.
+- tests/test_core_persistence.py گسترش یافت تا از AWG_OBFUSCATION_FIELDS به‌عنوان منبع واحد و کل 16 فیلد (jc, jmin, jmax, s1-s4, h1-h4, i1-i5) استفاده کند؛ تست create/modify/reload همهٔ این فیلدها را بررسی می‌کند.
+- در محیط کاملاً آزمایشی manubisguard-awg-roundtrip آرشیو تازه ساخته شد: /opt/manubisguard-work/awg-native-roundtrip-20261026/stage2-backups/backup_20261026193255.zip. restore --check پاس شد؛ سپس دیتابیس آزمایشی عمداً تغییر کرد و Restore واقعی با مقصد و کانتینر صریح اجرا شد.
+- کوئری نهایی با ON_ERROR_STOP=1 همهٔ 16 فیلد lowercase را دقیقاً با مقادیر fixture مقایسه کرد؛ type=amneziawg و ارتباط nodes.id=88 به core_configs.id=77 درست بود و مقادیر دستکاری‌شده باقی نماند. نشانگرها: NATIVE_AWG_16_FIELD_ROUNDTRIP=PASS، NODE_CORE_RELATIONSHIP_ROUNDTRIP=PASS و DESTINATION_MUTATION_REMOVED=PASS.
+- تست‌های tests/test_core_persistence.py، tests/test_amneziawg.py و tests/test_amneziawg_subscription_render.py: 16 passed in 12.28s؛ Ruff روی app/core/amneziawg.py و tests/test_core_persistence.py نیز PASS شد.
+- کانتینر و شبکهٔ آزمایشی حذف شدند. snapshot پیش و پس از cleanup برای manubisguard-panel-manubisguard-1 و manubisguard-panel-timescaledb-1 یکسان بود: هر دو running/healthy با restart_count=0.
+- محدودیت مهم: fixture یکپارچهٔ مرحله K فقط جدول‌های core_configs و nodes را مستقیماً در round-trip آزمایش کرد. پوشش users.proxy_settings، hosts/inbounds و wireguard_subnets از dump کامل دیتابیس استنباط می‌شود، اما هنوز با fixture روابط واقعی به‌صورت end-to-end آزموده نشده؛ این یک گیت تکمیلی پیش از ادعای پذیرش کامل AWG است.
+- گام بعد: افزودن fixture چندجدولی برای peer/host/subnet و سپس ممیزی مسیرهای safety backup و rollback پیش از هرگونه فعال‌سازی Restore API تولید.
+- لاگ خلاصه: /opt/manubisguard-work/awg-native-roundtrip-20261026/stage2-awg-coverage.log؛ لاگ‌های اجرای فرمان در همان پوشه با پیشوند stage2- موجودند.

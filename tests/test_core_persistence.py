@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.amneziawg import AmneziaWGConfig
+from app.core.amneziawg import AWG_OBFUSCATION_FIELDS, AmneziaWGConfig
 from app.db.crud.core import create_core_config, modify_core_config
 from app.db.models import CoreConfig, CoreType
 from app.models.core import CoreCreate
@@ -36,6 +36,23 @@ def _configs() -> tuple[dict, dict]:
         "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         "listen_port": 51820,
         "address": ["10.0.0.1/24"],
+        # The full AWG 2.x obfuscation schema must survive create/modify/reload.
+        "jc": 4,
+        "jmin": 40,
+        "jmax": 70,
+        "s1": 0,
+        "s2": 0,
+        "s3": 15,
+        "s4": 6,
+        "h1": "12345",
+        "h2": "22345",
+        "h3": "32345",
+        "h4": "42345",
+        "i1": "<r 16>",
+        "i2": "<r 32>",
+        "i3": "<r 64>",
+        "i4": "<r 128>",
+        "i5": "<r 256>",
     }
     validated_config = dict(AmneziaWGConfig(raw_config))
     return raw_config, validated_config
@@ -50,7 +67,7 @@ async def test_create_core_persists_validated_config():
 
     assert db.added.config == validated_config
     assert db.added.config != raw_config
-    assert all(key in db.added.config for key in ("jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4"))
+    assert all(key in db.added.config for key in AWG_OBFUSCATION_FIELDS)
 
 
 @pytest.mark.asyncio
@@ -72,7 +89,7 @@ async def test_modify_core_persists_validated_config():
     )
 
     assert old.config == validated_config
-    assert all(key in old.config for key in ("jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4"))
+    assert all(key in old.config for key in AWG_OBFUSCATION_FIELDS)
 
 
 def test_awg_reload_is_deterministic_from_persisted_config():
@@ -81,4 +98,4 @@ def test_awg_reload_is_deterministic_from_persisted_config():
     after = dict(AmneziaWGConfig(dict(persisted_config)))
 
     assert after == before
-    assert all(after[key] == before[key] for key in ("jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4"))
+    assert all(after[key] == before[key] for key in AWG_OBFUSCATION_FIELDS)
