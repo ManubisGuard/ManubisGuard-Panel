@@ -101,7 +101,7 @@ case "${1:-help}" in
     install_from_installer install "$@"
     ;;
   update)
-    install_from_installer install --yes --override
+    install_from_installer install --update
     ;;
   uninstall)
     need_project
