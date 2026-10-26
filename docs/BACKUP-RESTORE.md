@@ -63,7 +63,7 @@ The script restores the dump into a fresh temporary database, checks user-table 
 
 ## Historical custom full archives
 
-The former `manubisguard-full-*.zip` archive format is separate from the original PasarGuard archive format. The installer disables the custom full-backup timer but preserves existing archives. Do not pass a custom full archive to the original restore engine unless compatibility has been explicitly established. The read-only validator may remain available for reviewing historical archives; it is not the standard restore engine.
+The former `manubisguard-full-*.zip` archive format is separate from the original PasarGuard archive format. The installer disables the custom full-backup timer and restore-agent service, removes their obsolete executables, and preserves existing archives and encryption keys. The custom validator/restore helper has been removed. Do not pass a custom full archive to the original restore engine; use the native engine only for compatible original-format archives.
 
 ## Application-level restore test
 
