@@ -27,6 +27,7 @@ grep -Fq -- '--update) UPDATE_MODE=true; ASSUME_YES=true; OVERRIDE=true; shift ;
 grep -Fq '[ "$UPDATE_MODE" != true ]; then prepare_ssl' "$ROOT/install-manubisguard.sh"
 grep -Fq 'Preserving existing SSL/TLS environment and certificate files during update.' "$ROOT/install-manubisguard.sh"
 grep -Fq 'Preserving existing database URL, credentials, and persistent data.' "$ROOT/install-manubisguard.sh"
+grep -Fq 'In-place update: keeping the currently installed database image unchanged.' "$ROOT/install-manubisguard.sh"
 grep -Fq '--update requires an existing ManubisGuard checkout.' "$ROOT/install-manubisguard.sh"
 grep -Fq 'install_from_installer install --update' "$CLI"
 grep -Fq 'rm -f /usr/local/bin/manubisguard-restore-agent' "$ROOT/install-manubisguard.sh"
