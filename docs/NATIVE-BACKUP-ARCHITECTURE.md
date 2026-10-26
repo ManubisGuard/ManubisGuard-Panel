@@ -10,7 +10,7 @@ The standard system-level commands are backed by the paired PasarGuard backup/re
 - Database-only panel exports: `/opt/manubisguard/backup/database/`
 - Cross-panel migration workspace: `/var/lib/manubisguard/migration/`
 
-The adapter caches the pinned upstream bundle under `/usr/local/lib/manubisguard-native/`. On the first use, it requires HTTPS access to GitHub to fetch that exact commit. It checks that all files are present and pass `bash -n` before publishing the cache. Subsequent runs use the cached bundle. The upstream bundle is not used for install/update/uninstall commands.
+The installer places the adapter at `/usr/local/bin/manubisguard-native-backup`, including for a standalone CLI bootstrap used during fresh recovery. It caches the pinned upstream bundle under `/usr/local/lib/manubisguard-native/`. On the first use, it requires HTTPS access to GitHub to fetch that exact commit. It checks that all files are present and pass `bash -n` before publishing the cache. Subsequent runs use the cached bundle. The upstream bundle is not used for install/update/uninstall commands.
 
 ## Commands
 
@@ -28,7 +28,7 @@ Restore without an archive path offers the upstream numbered archive selection f
 
 The upstream backup/restore implementation captures the panel configuration, persistent application data, and database using engine-aware backup routines rather than copying a live database data directory. It includes validation and compatibility checks from the pinned upstream implementation. The original archive format is retained; this adapter does not substitute the custom `manubisguard-full-*.zip` format.
 
-AmneziaWG/WireGuard-specific runtime state must only be added after its actual configured storage locations, secrets, service definitions, and restore ordering have been verified. The current adapter does not claim that AWG keys or external node state are included unless they are already within the configured application/data roots. A separate, tested extension is required for any state stored elsewhere.
+AmneziaWG/WireGuard-specific runtime state must only be added after its actual configured storage locations, secrets, service definitions, and restore ordering have been verified. The installer retires the newer custom full-backup timer without deleting any existing archives. The current adapter does not claim that remote-node runtime state is included; panel-stored AWG/WireGuard configuration remains covered by the database backup, while external node state requires a separately verified backup plan. A separate, tested extension is required for any state stored elsewhere.
 
 ## Separation of responsibilities
 
