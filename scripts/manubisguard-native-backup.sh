@@ -56,6 +56,10 @@ sed -i 's/local backup_dir="$APP_DIR\/backup"/local backup_dir="${BACKUP_DIR:-$A
 # Rename only user-facing/product path strings; retain upstream compatibility
 # logic and environment variable semantics.
 find "$work" -type f -print0 | xargs -0 sed -i 's/pasarguard/manubisguard/g; s/PasarGuard/ManubisGuard/g'
+# Preserve the upstream archive format: legacy and new archives both store the
+# persistent data tree under "pasarguard_data". This is an archive schema key,
+# not a runtime brand/path, so it must not be renamed.
+sed -i 's/manubisguard_data/pasarguard_data/g; s/\.manubisguard-fresh-restore/.pasarguard-fresh-restore/g' "$work/lib/pasarguard-backup.sh" "$work/lib/pasarguard-restore.sh"
 # The main script's library names are part of the original CLI contract.
 # Rename the transformed library filenames to match the transformed loader.
 mv "$work/lib/pasarguard-backup.sh" "$work/lib/manubisguard-backup.sh"
