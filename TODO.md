@@ -1475,9 +1475,14 @@ Conclusion: native preflight and isolated restore drill pass, but implementation
 
 
 ## Native Backup/Restore Architecture Recovery — 2026-10-26
+**Decision update:** This section supersedes the custom full-host archive architecture proposed in the 2026-10-25 section above. The explicit requirement is to restore the original paired PasarGuard backup/restore flow, change branding and runtime paths for ManubisGuard, and keep cross-panel migration separate. Historical notes below remain as a record of the earlier investigation, not the current architecture target.
+
 - [x] Created isolated branch `fix/restore-pasarguard-backup-architecture`; PR #6 remains untouched and unmerged.
-- [x] Restored the command path for `manubis backup`, `manubis restore`, and `manubis backup-service` to a pinned upstream PasarGuard CLI/library bundle with ManubisGuard branding and explicit canonical paths.
-- [x] Standard archive root is `/opt/manubisguard/backup/`; database-only panel archive path and migration workspace remain separate.
-- [ ] Run shell syntax checks and CI against the adapter; validate backup/check/restore round-trip using disposable containers and synthetic data.
-- [ ] Confirm AWG persistent-state paths and add them to the standard archive only after verifying the actual repository/runtime layout.
-- [ ] Audit upstream source changes and compatibility before marking this recovery complete. No live host, container, service, or database has been touched.
+- [x] Routed `manubis backup`, `manubis restore`, and `manubis backup-service` through a pinned upstream PasarGuard CLI/library bundle adapted for ManubisGuard.
+- [x] Set the standard archive root to `/opt/manubisguard/backup/`; database-only exports remain in `/opt/manubisguard/backup/database/`; cross-panel migration remains separate.
+- [x] Preserved the upstream archive schema identifiers `pasarguard_data/` and `.pasarguard-fresh-restore` while adapting runtime names and paths.
+- [x] Added adapter contract checks to the existing ManubisGuard CI workflow.
+- [ ] Confirm the latest PR CI result; local shell syntax/end-to-end execution could not be run in this session because the execution container has no GitHub network access.
+- [ ] Run a disposable backup → `--check` → restore round-trip; test both current ManubisGuard archives and legacy PasarGuard archives where supported.
+- [ ] Inventory the exact external AWG/node persistent-state paths; do not claim remote-node runtime state is covered by the panel backup until verified.
+- [ ] Review PR diff and all checks before marking the change production-ready. No live host, container, service, or database has been touched.
