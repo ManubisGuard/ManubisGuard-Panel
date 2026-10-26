@@ -29,7 +29,7 @@ grep -Fq 'Preserving existing SSL/TLS environment and certificate files during u
 grep -Fq 'Preserving existing database URL, credentials, and persistent data.' "$ROOT/install-manubisguard.sh"
 grep -Fq 'Preserving existing panel administrator credentials.' "$ROOT/install-manubisguard.sh"
 grep -Fq 'In-place update: keeping the currently installed database image unchanged.' "$ROOT/install-manubisguard.sh"
-grep -Fq '--update requires an existing ManubisGuard checkout.' "$ROOT/install-manubisguard.sh"
+grep -Fq -- '--update requires an existing ManubisGuard checkout.' "$ROOT/install-manubisguard.sh"
 grep -Fq 'In-place update refused: tracked local changes exist' "$ROOT/install-manubisguard.sh"
 grep -Fq 'git -C "$INSTALL_DIR" diff --quiet' "$ROOT/install-manubisguard.sh"
 grep -Fq 'git -C "$INSTALL_DIR" diff --cached --quiet' "$ROOT/install-manubisguard.sh"
