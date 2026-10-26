@@ -246,11 +246,8 @@ upsert_env() {
 prepare_env() {
   mkdir -p "$DATA_DIR" "$BACKUP_DIR" /etc/manubisguard
   chmod 700 "$DATA_DIR" "$BACKUP_DIR" /etc/manubisguard
-  touch /etc/manubisguard/restore-agent.key
-  chmod 600 /etc/manubisguard/restore-agent.key
   ensure_secret "$DATA_DIR/.postgres_password" 32
   ensure_secret "$DATA_DIR/.admin_password" 18
-  ensure_secret /etc/manubisguard/restore-agent.key 32
 
   local db_password admin_password
   db_password="$(cat "$DATA_DIR/.postgres_password")"
@@ -286,26 +283,6 @@ prepare_env() {
     upsert_env UVICORN_SSL_KEYFILE "$DATA_DIR/certs/privkey.pem"
     if [ "$SSL_MODE" = "ip" ]; then upsert_env UVICORN_SSL_CA_TYPE private; else upsert_env UVICORN_SSL_CA_TYPE public; fi
   fi
-}
-
-install_restore_agent() {
-  install -m 0755 "$INSTALL_DIR/scripts/manubisguard-restore-agent.py" /usr/local/bin/manubisguard-restore-agent
-  cat > /etc/systemd/system/manubisguard-restore-agent.service <<EOF
-[Unit]
-Description=ManubisGuard production restore agent
-After=network.target docker.service
-
-[Service]
-ExecStart=/usr/bin/python3 /usr/local/bin/manubisguard-restore-agent
-Restart=on-failure
-RestartSec=2
-User=root
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  systemctl daemon-reload
-  systemctl enable --now manubisguard-restore-agent.service
 }
 
 validate_compose() {
@@ -355,14 +332,17 @@ install_helper() {
   # an explicit --fresh restore can recover a host without an existing checkout.
   install -o root -g root -m 0755 "$INSTALL_DIR/scripts/manubisguard-native-backup.sh" /usr/local/bin/manubisguard-native-backup
 
-  # Retire the newer custom full-host archive timer. Preserve existing archives;
-  # standard system backups now use the original paired backup/restore format.
+  # Retire the custom host-backup/restore-agent stack. Keep old archives and
+  # encryption keys intact; only disable obsolete executables and service units.
   systemctl disable --now manubisguard-full-backup.timer 2>/dev/null || true
   systemctl stop manubisguard-full-backup.service 2>/dev/null || true
+  systemctl disable --now manubisguard-restore-agent.service 2>/dev/null || true
   rm -f /etc/systemd/system/manubisguard-full-backup.service /etc/systemd/system/manubisguard-full-backup.timer
-  rm -f /usr/local/sbin/manubisguard-full-backup.py /usr/local/sbin/manubisguard-full-backup-deliver.py
+  rm -f /etc/systemd/system/manubisguard-restore-agent.service
+  rm -f /usr/local/sbin/manubisguard-full-backup.py /usr/local/sbin/manubisguard-full-backup-deliver.py /usr/local/sbin/manubisguard-native-restore.py
+  rm -f /usr/local/bin/manubisguard-restore-agent /usr/local/bin/manubisguard
+  rm -f /etc/manubisguard/restore-agent.key
   systemctl daemon-reload
-  rm -f /usr/local/bin/manubisguard
 }
 show_result() {
   cd "$INSTALL_DIR"
@@ -399,7 +379,6 @@ main() {
   prepare_source
   prepare_ssl
   prepare_env
-  install_restore_agent
   validate_compose
   start_stack
   verify_stack
