@@ -400,7 +400,7 @@ def test_pg_dump_streams_output_and_cleans_temporary_pgpass(monkeypatch, tmp_pat
 def test_full_backup_hashing_reads_large_files_in_chunks(tmp_path):
     import hashlib
     import importlib.util
-    import zipfile
+    from pathlib import Path
 
     script_path = Path(__file__).resolve().parents[2] / "scripts" / "manubisguard-full-backup.py"
     spec = importlib.util.spec_from_file_location("manubisguard_full_backup_test", script_path)
@@ -420,6 +420,7 @@ def test_full_backup_hashing_reads_large_files_in_chunks(tmp_path):
 def test_native_restore_hashes_zip_members_and_checks_dump_as_stream(monkeypatch, tmp_path):
     import hashlib
     import importlib.util
+    from pathlib import Path
     import zipfile
     from types import SimpleNamespace
 
