@@ -421,6 +421,7 @@ def test_native_restore_hashes_zip_members_and_checks_dump_as_stream(monkeypatch
     import hashlib
     import importlib.util
     from pathlib import Path
+    import tempfile
     import zipfile
     from types import SimpleNamespace
 
@@ -437,7 +438,11 @@ def test_native_restore_hashes_zip_members_and_checks_dump_as_stream(monkeypatch
 
     with zipfile.ZipFile(archive_path) as archive:
         assert module.sha256_zip_member(archive, "database.dump") == hashlib.sha256(payload).hexdigest()
-        with archive.open("database.dump") as stream:
+        with archive.open("database.dump") as archive_stream, tempfile.TemporaryFile(mode="w+b") as stream:
+            import shutil
+
+            shutil.copyfileobj(archive_stream, stream, length=4096)
+            stream.seek(0)
             captured = {}
 
             def fake_run(command, **kwargs):
