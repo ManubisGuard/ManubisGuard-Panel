@@ -4,6 +4,7 @@ set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 CLI="$ROOT/manubis"
 ADAPTER="$ROOT/scripts/manubisguard-native-backup.sh"
+API_ROUTER="$ROOT/app/routers/admin_backup.py"
 
 test -s "$CLI"
 test -s "$ADAPTER"
@@ -18,6 +19,17 @@ grep -Fq "datallowconn = true AND datname <> 'postgres'" "$ADAPTER"
 grep -Fq 'local script_path="/usr/local/bin/manubis"' "$ADAPTER"
 grep -Fq 'command -v manubis' "$ADAPTER"
 grep -Fq 'restore) bash "$work/pasarguard.sh" restore "$@" ;;' "$ADAPTER"
+# Production restore stays fail-closed in the API; only the native CLI owns restore.
+grep -Fq '@router.post("/restore/production/{backup_id}"' "$API_ROUTER"
+grep -Fq 'Native production restore is disabled until destination preservation' "$API_ROUTER"
+if grep -Eq 'restore_agent|manubisguard_restore_agent_key|urlopen' "$API_ROUTER"; then
+  echo "FAIL: production restore API still depends on the retired restore agent" >&2
+  exit 1
+fi
+if grep -Fq 'scripts/manubisguard-native-restore.py' "$API_ROUTER"; then
+  echo "FAIL: API still points to the removed custom restore helper" >&2
+  exit 1
+fi
 grep -Fq 'backup) bash "$work/pasarguard.sh" backup "$@" ;;' "$ADAPTER"
 grep -Fq '/usr/local/bin/manubisguard-native-backup" backup' "$CLI"
 grep -Fq '/usr/local/bin/manubisguard-native-backup" restore' "$CLI"
