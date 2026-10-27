@@ -1,4 +1,4 @@
-# PasarGuard Panel
+# PasarGuard Pro
 
 <p align="center">
   <strong>Open-source network infrastructure, under your control.</strong>
@@ -8,7 +8,7 @@
   <a href="#english">🇬🇧 English</a> · <a href="#فارسی">🇮🇷 فارسی</a>
 </p>
 
-> **Fork / upstream:** PasarGuard Panel is maintained as a feature-enhanced fork of [PasarGuard/panel](https://github.com/PasarGuard/panel), with PasarGuard-specific architecture, UI, AmneziaWG support, migration/restore tooling, Domain & SSL management, and operational features built on top of the upstream-compatible foundation.
+> **Fork / upstream:** PasarGuard Pro is maintained as a feature-enhanced fork of [PasarGuard/panel](https://github.com/PasarGuard/panel), with PasarGuard-specific architecture, UI, AmneziaWG support, migration/restore tooling, Domain & SSL management, and operational features built on top of the upstream-compatible foundation.
 
 > **Current development branch:** `feature/amnezia-wg`
 
@@ -18,18 +18,18 @@
 
 # 🇬🇧 English
 
-## What is PasarGuard Panel?
+## What is PasarGuard Pro?
 
-**PasarGuard Panel** is an open-source, self-hosted control plane for modern network infrastructure. It provides a unified web interface for managing users, Nodes, Cores, Hosts, Groups, subscriptions, networking protocols, domains, TLS certificates, backups, restores, migrations, API access and operational settings.
+**PasarGuard Pro** is an open-source, self-hosted control plane for modern network infrastructure. It provides a unified web interface for managing users, Nodes, Cores, Hosts, Groups, subscriptions, networking protocols, domains, TLS certificates, backups, restores, migrations, API access and operational settings.
 
 The project follows a **Panel + Node** architecture and is designed to manage infrastructure rather than only individual protocol configurations.
 
-This feature-enhanced PasarGuard build is based on the upstream **PasarGuard Panel** codebase and preserves upstream-compatible operational concepts where required while extending the platform with PasarGuard features and branding.
+PasarGuard Pro is based on the upstream **PasarGuard Panel** codebase and preserves upstream-compatible operational concepts where required while extending the platform with PasarGuard features and branding.
 
 ### Upstream project
 
 - **Upstream Panel:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
-- **PasarGuard Panel:** [PasarGuard/PasarGuard-Panel](https://github.com/ManubisGuard/PasarGuard-Panel)
+- **PasarGuard Pro (this project):** [GitHub repository](https://github.com/ManubisGuard/PasarGuard-Panel)
 - **Matching Node:** [PasarGuard/PasarGuard-Node](https://github.com/ManubisGuard/PasarGuard-Node)
 
 ---
@@ -452,20 +452,20 @@ Restore is a state-changing operation. `--check` is the read-only preflight, not
 The current Panel CLI entrypoint is:
 
 ```text
-/code/manubisguard-cli.py
+/usr/bin/pasarguard-cli
 ```
 
 Generate a temporary admin key with:
 
 ```bash
-docker compose exec pasarguard python /code/manubisguard-cli.py generate-temp-key
+docker compose exec pasarguard pasarguard-cli generate-temp-key
 ```
 
 Never commit or publish generated keys.
 
 ---
 
-## 🚀 Installation
+## 🚀 Install PasarGuard Pro
 
 ### One-command installer
 
@@ -474,7 +474,7 @@ The installer is included in the repository.
 A source-based installation can be started with:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-pasarguard.sh)" @ install --database timescaledb
+curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-pasarguard.sh | sudo bash -s -- install --database timescaledb
 ```
 
 The installer prepares the runtime, persistent directories, secrets, database, migrations and health checks according to the selected installation options.
@@ -516,7 +516,7 @@ Install the matching Node from:
 Example:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh)" @ install
+curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh | sudo bash -s -- install
 ```
 
 The Node installer provides the interactive configuration for service port, API key, TLS/certificate mode and transport.
@@ -685,9 +685,9 @@ Before opening a PR, review the repository's current contribution guidance and `
 
 # 🇮🇷 فارسی
 
-## PasarGuard Panel چیست؟
+## PasarGuard Pro چیست؟
 
-**PasarGuard Panel** یک Control Plane متن‌باز و Self-hosted برای مدیریت زیرساخت‌های مدرن شبکه است.
+**PasarGuard Pro** یک Control Plane متن‌باز و Self-hosted برای مدیریت زیرساخت‌های مدرن شبکه است.
 
 این پنل مدیریت مواردی مانند کاربران، Nodeها، Coreها، Hostها، Groupها، Subscriptionها، پروتکل‌های شبکه، Domain، SSL/TLS، Backup، Restore، Migration، API و تنظیمات عملیاتی را در یک رابط یکپارچه فراهم می‌کند.
 
@@ -695,10 +695,10 @@ Before opening a PR, review the repository's current contribution guidance and `
 
 ### این پروژه Fork کدام پنل است؟
 
-PasarGuard Panel بر پایه کدبیس **PasarGuard Panel** توسعه داده شده است.
+PasarGuard Pro بر پایه کدبیس بالادستی **PasarGuard Panel** توسعه داده شده است.
 
 - **Upstream Panel:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
-- **PasarGuard Panel:** [PasarGuard/PasarGuard-Panel](https://github.com/ManubisGuard/PasarGuard-Panel)
+- **PasarGuard Pro (this project):** [GitHub repository](https://github.com/ManubisGuard/PasarGuard-Panel)
 - **Matching Node:** [PasarGuard/PasarGuard-Node](https://github.com/ManubisGuard/PasarGuard-Node)
 
 در کنار حفظ بخش‌های لازم از سازگاری Upstream، قابلیت‌ها و معماری‌های اختصاصی PasarGuard روی این پایه توسعه داده شده‌اند.
@@ -1118,20 +1118,20 @@ Restore عملیاتی تغییردهنده است. `--check` فقط پیش‌ب
 Entrypoint فعلی CLI پنل:
 
 ```text
-/code/manubisguard-cli.py
+/usr/bin/pasarguard-cli
 ```
 
 ساخت Temporary Key:
 
 ```bash
-docker compose exec pasarguard python /code/manubisguard-cli.py generate-temp-key
+docker compose exec pasarguard pasarguard-cli generate-temp-key
 ```
 
 Keyهای تولیدشده را Commit یا منتشر نکنید.
 
 ---
 
-## 🚀 نصب
+## 🚀 نصب PasarGuard Pro
 
 ### نصب یک‌دستوری
 
@@ -1140,7 +1140,7 @@ Installer داخل Repository قرار دارد.
 نمونه نصب Source-based:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-pasarguard.sh)" @ install --database timescaledb
+curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-pasarguard.sh | sudo bash -s -- install --database timescaledb
 ```
 
 Installer بر اساس Optionهای انتخاب‌شده Runtime، Directoryهای دائمی، Secretها، Database، Migration و Health Check را آماده می‌کند.
@@ -1175,7 +1175,7 @@ Node هماهنگ با Panel:
 نمونه نصب:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh)" @ install
+curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Node/feature/amnezia-wg/install-manubisguard-node.sh | sudo bash -s -- install
 ```
 
 Node Installer تنظیماتی مانند Port، API Key، TLS/Certificate و Transport را دریافت می‌کند.
