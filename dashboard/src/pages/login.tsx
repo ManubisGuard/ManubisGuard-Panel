@@ -532,7 +532,7 @@ export const Login: FC = () => {
           <div className="px-login-card-footer"><span>Pasarguard Pro</span><i /> <span>Protected access</span><span className="px-version-label">v1.0.0</span></div>
         </section>
       </div>
-      <footer className="px-login-footer"><span>Developed by Manubis</span></footer>
+      <footer className="px-login-footer"><span>Developed by Manubis Team</span></footer>
     </main>
   )
 }
