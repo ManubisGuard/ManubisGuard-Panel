@@ -1,5 +1,4 @@
 import zipfile
-
 from pathlib import Path
 
 from app.migration.compatibility import TimescaleCompatibility
@@ -84,7 +83,7 @@ def test_resolved_timescale_version_must_match_live_version():
 
 
 def test_migration_allows_older_source_timescale_bridge(monkeypatch):
-    import app.migration.runner as runner
+    from app.migration import runner
 
     analysis = type("A", (), {
         "uses_timescaledb": True,

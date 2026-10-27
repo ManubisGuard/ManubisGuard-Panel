@@ -214,7 +214,7 @@ prepare_source() {
     fi
     log "Updating source from $BRANCH..."
     git -C "$INSTALL_DIR" remote set-url origin "$REPO" >/dev/null 2>&1 || true
-    git -C "$INSTALL_DIR" fetch --depth 1 origin "$BRANCH"
+    git -C "$INSTALL_DIR" fetch --depth 1 origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
     git -C "$INSTALL_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
     git -C "$INSTALL_DIR" reset --hard "origin/$BRANCH"
     return 0

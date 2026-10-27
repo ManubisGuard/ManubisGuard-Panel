@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
-from typing import Coroutine
 
 
 def run_sync_in_worker[T](func, *args, **kwargs) -> T:

@@ -4,7 +4,7 @@ import pytest
 
 
 def test_pg_dump_rejects_success_exit_without_completion_marker(monkeypatch):
-    import app.services.backup as backup
+    from app.services import backup
 
     class Result:
         returncode = 0
@@ -22,7 +22,7 @@ def test_pg_dump_rejects_success_exit_without_completion_marker(monkeypatch):
 
 
 def test_pg_dump_accepts_complete_dump_after_compatibility_filter(monkeypatch):
-    import app.services.backup as backup
+    from app.services import backup
 
     class Result:
         returncode = 0

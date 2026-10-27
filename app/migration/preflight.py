@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import gzip
 import tarfile
 import zipfile
 import zlib
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from app.migration.detector import (

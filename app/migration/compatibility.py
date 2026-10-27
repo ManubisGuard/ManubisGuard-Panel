@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-
 TIMESCALE_FIRST_RELID = (2, 29, 0)
 TIMESCALE_LAST_SCHEMA_NAME = "2.28.3"
 
@@ -17,7 +16,7 @@ _TS_VERSION_PATTERNS = (
 
 _TS_MISSING_COLUMN = re.compile(
     r'column\s+"([^"]+)"\s+of relation\s+"([^"]+)"\s+does not exist',
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -59,7 +58,7 @@ def detect_catalog_era(sql_text: str) -> str | None:
     for match in re.finditer(
         r"COPY\s+(?:_timescaledb_catalog\.)?chunk\s*\(([^)]+)\)",
         sql_text,
-        re.I,
+        re.IGNORECASE,
     ):
         columns = {x.strip().strip('"').lower() for x in match.group(1).split(",")}
         if {"schema_name", "table_name"} & columns:
@@ -83,7 +82,7 @@ def detect_catalog_floor(sql_text: str) -> str | None:
     if re.search(
         r"COPY\s+(?:_timescaledb_catalog\.)?continuous_agg\s*\([^)]*\bschema_change_timestamp\b",
         sql_text,
-        re.I,
+        re.IGNORECASE,
     ):
         floor = max_version(floor, "2.28.0")
     return floor
@@ -92,7 +91,7 @@ def detect_catalog_floor(sql_text: str) -> str | None:
 def collect_versions(sql_text: str) -> tuple[str, ...]:
     found: list[str] = []
     for pattern in _TS_VERSION_PATTERNS:
-        found.extend(re.findall(pattern, sql_text or "", re.I))
+        found.extend(re.findall(pattern, sql_text or "", re.IGNORECASE))
     return tuple(dict.fromkeys(v.strip() for v in found if v.strip()))
 
 

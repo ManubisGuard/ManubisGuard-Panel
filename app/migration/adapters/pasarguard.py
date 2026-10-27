@@ -17,7 +17,6 @@ from app.migration.schema import (
 )
 from app.migration.staging import MigrationSafetyError
 
-
 LEGACY_SNAPSHOT_NODE_CERTIFICATE = "_manubisguard_legacy_node_certificate"
 
 

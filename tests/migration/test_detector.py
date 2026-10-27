@@ -179,7 +179,8 @@ def test_globals_only_dump_is_not_a_database_candidate(tmp_path: Path):
 
 def test_zip_expansion_ratio_is_blocked_before_crc_scan(tmp_path: Path, monkeypatch):
     import zipfile
-    import app.migration.detector as detector
+
+    from app.migration import detector
 
     backup = tmp_path / "ratio.zip"
     with zipfile.ZipFile(backup, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -193,7 +194,8 @@ def test_zip_expansion_ratio_is_blocked_before_crc_scan(tmp_path: Path, monkeypa
 
 def test_zip_entry_size_limit_is_blocked_from_metadata(tmp_path: Path, monkeypatch):
     import zipfile
-    import app.migration.detector as detector
+
+    from app.migration import detector
 
     backup = tmp_path / "oversized.zip"
     with zipfile.ZipFile(backup, "w", compression=zipfile.ZIP_STORED) as archive:

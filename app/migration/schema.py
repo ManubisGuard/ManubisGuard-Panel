@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 # Tables which are part of the durable account/configuration graph. High-volume
 # telemetry is deliberately separated because it should not block a migration

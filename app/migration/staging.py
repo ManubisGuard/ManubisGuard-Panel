@@ -19,18 +19,18 @@ from sqlalchemy.engine import URL, make_url
 
 from app.migration.async_utils import run_async, run_sync_in_worker
 from app.migration.detector import (
+    MAX_ARCHIVE_COMPRESSION_RATIO,
+    MAX_ARCHIVE_ENTRY_BYTES,
+    MAX_ARCHIVE_FILES,
+    MAX_ARCHIVE_TOTAL_BYTES as MAX_ARCHIVE_BYTES,
     BackupDetection,
     detect_backup,
     inspect_pg_dump_custom,
-    MAX_ARCHIVE_TOTAL_BYTES as MAX_ARCHIVE_BYTES,
-    MAX_ARCHIVE_ENTRY_BYTES,
-    MAX_ARCHIVE_FILES,
-    MAX_ARCHIVE_COMPRESSION_RATIO,
 )
+from app.migration.restore_safety import prepare_postgresql_sql_stream
 from app.migration.timescale import (
     TIMESCALEDB_CATALOG_SEED_CLEAR_SQL,
 )
-from app.migration.restore_safety import prepare_postgresql_sql_stream
 
 
 class MigrationSafetyError(RuntimeError):

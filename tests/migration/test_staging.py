@@ -130,7 +130,8 @@ def test_archive_deployment_files_are_ignored_when_finding_database(tmp_path: Pa
 
 def test_staging_zip_extraction_rejects_extreme_compression_ratio(tmp_path: Path, monkeypatch):
     import zipfile
-    import app.migration.staging as staging
+
+    from app.migration import staging
 
     archive = tmp_path / "ratio.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:

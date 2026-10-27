@@ -1,8 +1,7 @@
+import importlib.util
 from pathlib import Path
 
 import pytest
-import importlib.util
-
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "manubisguard-restore-env.py"

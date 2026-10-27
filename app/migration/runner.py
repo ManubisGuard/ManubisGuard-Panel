@@ -17,13 +17,12 @@ from app.migration.staging import (
     MigrationSafetyError,
     StagingDatabase,
     inspect_backup_source,
-    restore_backup_into_staging,
     read_timescaledb_version,
+    restore_backup_into_staging,
     upgrade_staging_database,
 )
 from app.migration.timescale import choose_timescale_version
 from app.migration.validator import ValidationResult, validate_migrated_database
-
 
 DURABLE_COUNT_TABLES = (
     "admins",

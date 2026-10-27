@@ -5,8 +5,8 @@ from app.migration.timescale import (
     TIMESCALE_FIRST_RELID,
     build_restore_spec,
     choose_timescale_version,
-    filter_timescaledb_ddl_line,
     filter_postgresql_compatibility_line,
+    filter_timescaledb_ddl_line,
 )
 
 

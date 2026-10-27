@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import MetaData, Table, insert, select, text
@@ -62,7 +62,7 @@ def _normalize_value(value: Any, column) -> Any:
     if isinstance(typ, LargeBinary) and isinstance(value, str):
         return value.encode("utf-8")
     if isinstance(typ, DateTime) and isinstance(value, datetime) and value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
+        return value.replace(tzinfo=UTC)
     if isinstance(typ, Date) and isinstance(value, datetime):
         return value.date()
     return value
