@@ -26,7 +26,7 @@ export const Language: React.FC = () => {
     return (
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="icon" className="h-8 w-8">
+          <Button variant="outline" size="icon" className="h-8 w-8" aria-label={t('language.title', { defaultValue: 'Language' })}>
             <LanguagesIcon className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
@@ -55,7 +55,7 @@ export const Language: React.FC = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon">
+        <Button variant="outline" size="icon" aria-label={t('language.title', { defaultValue: 'Language' })}>
           <LanguagesIcon className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

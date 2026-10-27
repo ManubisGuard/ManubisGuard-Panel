@@ -18,6 +18,12 @@ export default defineConfig({
     outDir: 'build',
     assetsDir: 'statics',
     emptyOutDir: false,
+    modulePreload: {
+      // Recharts is only needed by chart widgets. Do not prefetch its shared chunk
+      // from the HTML shell; Vite still preloads it when a chart's lazy import runs.
+      resolveDependencies: (filename, dependencies, { hostType }) =>
+        hostType === 'html' ? dependencies.filter(dependency => !dependency.includes('recharts-')) : dependencies,
+    },
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -162,7 +168,14 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Monaco is loaded lazily in editor dialogs, so its largest chunks
         // should stay network-fetched instead of bloating the app shell precache.
-        globIgnores: ['statics/editor.api*.js', 'statics/ts.worker*.js'],
+        globIgnores: [
+          'statics/editor.api*.js',
+          'statics/*.worker-*.js',
+          'statics/worker-json-*.js',
+          'statics/monaco-editor-*.js',
+          'statics/mobile-code-ace-editor-*.js',
+          'statics/editor-*.css',
+        ],
         cleanupOutdatedCaches: false,
         skipWaiting: false,
         clientsClaim: false,

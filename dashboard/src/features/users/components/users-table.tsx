@@ -1,6 +1,5 @@
 import { setupColumns } from '@/features/users/components/columns'
 import { ActionButtonsModalHost } from '@/features/users/components/action-buttons'
-import SetOwnerModal from '@/features/users/dialogs/set-owner-modal'
 import ApplyTemplateModal from '@/features/templates/dialogs/apply-template-modal'
 import { DataTable } from '@/features/users/components/data-table'
 import { Filters } from '@/features/users/components/filters'
@@ -32,12 +31,11 @@ import { bytesToFormGigabytes, gbToBytes } from '@/utils/formatByte'
 import { normalizeDatePickerValueForEditForm } from '@/utils/userEditDateUtils'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { endOfDay, startOfDay } from 'date-fns'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Layers, Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
-import UserModal from '../dialogs/user-modal'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/features/users/dialogs/advance-search-modal'
 import type { AdvanceSearchFormValue } from '@/features/users/forms/advance-search-form'
@@ -46,6 +44,9 @@ import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-a
 import { Card, CardContent } from '@/components/ui/card'
 import { removeUsersFromUsersCache } from '@/utils/usersCache'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
+
+const SetOwnerModal = lazy(() => import('@/features/users/dialogs/set-owner-modal'))
+const UserModal = lazy(() => import('../dialogs/user-modal'))
 
 // Helper function to get URL search params from hash
 const getSearchParams = (): URLSearchParams => {
@@ -1258,7 +1259,7 @@ const UsersTable = memo(() => {
         onItemsPerPageChange={handleItemsPerPageChange}
       />
       {canUpdateUsers && selectedUser && (
-        <UserModal
+        <Suspense fallback={null}><UserModal
           isDialogOpen={isEditModalOpen}
           onOpenChange={handleEditModalClose}
           form={userForm}
@@ -1266,7 +1267,7 @@ const UsersTable = memo(() => {
           editingUserId={selectedUser.id || undefined}
           editingUserData={selectedUser}
           onSuccessCallback={handleEditSuccess}
-        />
+        /></Suspense>
       )}
       <AdvanceSearchModal
         isDialogOpen={isAdvanceSearchOpen}
@@ -1328,8 +1329,8 @@ const UsersTable = memo(() => {
         onConfirm={handleBulkEnableUsers}
         isPending={enableUsersMutation.isPending}
       />
-      {canUpdateAllUsers && (
-        <SetOwnerModal
+      {canUpdateAllUsers && isBulkSetOwnerModalOpen && (
+        <Suspense fallback={null}><SetOwnerModal
           open={isBulkSetOwnerModalOpen}
           onClose={() => setIsBulkSetOwnerModalOpen(false)}
           userIds={selectedUserIds}
@@ -1338,7 +1339,7 @@ const UsersTable = memo(() => {
             invalidateUsers()
             clearSelection()
           }}
-        />
+        /></Suspense>
       )}
       {canUpdateUsers && (
         <ApplyTemplateModal
