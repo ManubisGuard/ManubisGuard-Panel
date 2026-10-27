@@ -57,8 +57,9 @@ class AmneziaWGConfig(WireGuardConfig):
 
     The transport remains WireGuard-compatible at the key/address/peer level,
     while AWG-specific obfuscation parameters are validated and preserved in
-    the core config. Runtime node support is intentionally added separately so
-    existing WG nodes are not changed implicitly.
+    the core config. The node runtime must explicitly select the AmneziaWG
+    kernel backend; the panel rejects older node runtimes rather than silently
+    falling back to plain WireGuard.
     """
 
     def _validate(self):

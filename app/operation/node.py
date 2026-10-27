@@ -357,6 +357,40 @@ class NodeOperation(BaseOperation):
             return None
 
         old_status = db_node.status
+        if core.type == CoreType.amneziawg:
+            version_text = ""
+            try:
+                info = await pg_node.info()
+                version_text = (getattr(info, "node_version", "") or "").lstrip("v")
+            except Exception as exc:
+                logger.debug(f"Could not read node info before AmneziaWG startup: {exc}")
+
+            # Info can be absent while no core is running. Fall back to the
+            # node bridge's cached version rather than treating an empty info
+            # response as proof that the runtime is too old.
+            if not version_text:
+                try:
+                    version_text = (await pg_node.node_version() or "").lstrip("v")
+                except Exception as exc:
+                    logger.debug(f"Could not read cached node version before AmneziaWG startup: {exc}")
+
+            try:
+                version_parts = version_text.split(".")[:3]
+                node_version = tuple(int(part.split("+")[0].split("-")[0]) for part in version_parts)
+            except (TypeError, ValueError):
+                node_version = (0, 0, 0)
+            if len(node_version) != 3 or node_version < (0, 6, 0):
+                return {
+                    "node_id": db_node.id,
+                    "status": NodeStatus.error,
+                    "message": "AmneziaWG requires node runtime v0.6.0 or newer; this node reports "
+                    + (version_text or "unknown")
+                    + ". Update the node image before connecting this core.",
+                    "xray_version": "",
+                    "node_version": version_text or "unknown",
+                    "old_status": old_status,
+                }
+
         if not force_start and not additive:
             try:
                 if await pg_node.get_health() == Health.HEALTHY:
