@@ -556,6 +556,6 @@ Runtime پشتیبانی‌شده از PostgreSQL و TimescaleDB استفاده 
 ## لینک‌های پروژه
 
 - **پنل PasarGuard Pro:** [ManubisGuard/ManubisGuard-Panel](https://github.com/ManubisGuard/ManubisGuard-Panel)
-- **PasarGuard Node:** [ManubisGuard/ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
+- **PasarGuard Pro Node:** [ManubisGuard/ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
 - **سورس بالادستی پنل:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
 - **گزارش باگ:** [Issues](https://github.com/ManubisGuard/ManubisGuard-Panel/issues)
