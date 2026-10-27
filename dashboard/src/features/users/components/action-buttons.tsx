@@ -8,20 +8,20 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Cat, Check, Copy, EllipsisVertical, Fingerprint, GlobeLock, Hash, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
 import { Code } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { FC, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CopyButton } from '@/components/common/copy-button'
 import { bytesToFormGigabytes } from '@/utils/formatByte'
 import { normalizeDatePickerValueForEditForm } from '@/utils/userEditDateUtils'
-import SubscriptionModal from '@/features/subscriptions/dialogs/subscription-modal'
-import SetOwnerModal from '@/features/users/dialogs/set-owner-modal'
-import UsageModal from '@/features/users/dialogs/usage-modal'
-import UserModal from '@/features/users/dialogs/user-modal'
-import { UserHwidsModal } from '@/features/users/dialogs/user-hwids-modal'
-import { UserSubscriptionClientsModal } from '@/features/users/dialogs/user-subscription-clients-modal'
-import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
+const SubscriptionModal = lazy(() => import('@/features/subscriptions/dialogs/subscription-modal'))
+const SetOwnerModal = lazy(() => import('@/features/users/dialogs/set-owner-modal'))
+const UsageModal = lazy(() => import('@/features/users/dialogs/usage-modal'))
+const UserModal = lazy(() => import('@/features/users/dialogs/user-modal'))
+const UserHwidsModal = lazy(() => import('@/features/users/dialogs/user-hwids-modal').then(module => ({ default: module.UserHwidsModal })))
+const UserSubscriptionClientsModal = lazy(() => import('@/features/users/dialogs/user-subscription-clients-modal').then(module => ({ default: module.UserSubscriptionClientsModal })))
+const UserAllIPsModal = lazy(() => import('@/features/users/dialogs/user-all-ips-modal'))
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { invalidateUserMetricsQueries, removeUserFromUsersCache, upsertUserInUsersCache } from '@/utils/usersCache'
@@ -831,7 +831,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       {isModalHost && (
         <div className="contents" onClick={e => e.stopPropagation()}>
           {/* Subscription Modal */}
-          {subscribeUrl && <SubscriptionModal open={showSubscriptionModal} subscribeUrl={subscribeUrl} userId={user.id} username={user.username} onCloseModal={onCloseSubscriptionModal} />}
+          {subscribeUrl && showSubscriptionModal && <Suspense fallback={null}><SubscriptionModal open subscribeUrl={subscribeUrl} userId={user.id} username={user.username} onCloseModal={onCloseSubscriptionModal} /></Suspense>}
 
           {/* Active Next Plan Confirm Dialog */}
           <AlertDialog open={isActiveNextPlanModalOpen} onOpenChange={setIsActiveNextPlanModalOpen}>
@@ -897,10 +897,10 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
             </AlertDialogContent>
           </AlertDialog>
 
-          <UsageModal open={isUsageModalOpen} onClose={() => setUsageModalOpen(false)} userId={user.id} />
+          {isUsageModalOpen && <Suspense fallback={null}><UsageModal open onClose={() => setUsageModalOpen(false)} userId={user.id} /></Suspense>}
 
-          {canUpdateAllUsers && (
-            <SetOwnerModal
+          {canUpdateAllUsers && isSetOwnerModalOpen && (
+            <Suspense fallback={null}><SetOwnerModal
               open={isSetOwnerModalOpen}
               onClose={() => setSetOwnerModalOpen(false)}
               userId={user.id}
@@ -911,15 +911,15 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                   updateUserInCache(updatedUser)
                 }
               }}
-            />
+            /></Suspense>
           )}
 
-          {/* UserSubscriptionClientsModal */}
-          <UserSubscriptionClientsModal isOpen={isSubscriptionClientsModalOpen} onOpenChange={setSubscriptionClientsModalOpen} userId={user.id} username={user.username} />
+          {/* Load advanced user dialogs only when the matching action is opened. */}
+          {isSubscriptionClientsModalOpen && <Suspense fallback={null}><UserSubscriptionClientsModal isOpen onOpenChange={setSubscriptionClientsModalOpen} userId={user.id} username={user.username} /></Suspense>}
 
-          <UserHwidsModal isOpen={isHwidsModalOpen} onOpenChange={setHwidsModalOpen} userId={user.id} username={user.username} />
+          {isHwidsModalOpen && <Suspense fallback={null}><UserHwidsModal isOpen onOpenChange={setHwidsModalOpen} userId={user.id} username={user.username} /></Suspense>}
 
-          {canReadAllUsers && <UserAllIPsModal isOpen={isUserAllIPsModalOpen} onOpenChange={setUserAllIPsModalOpen} userId={user.id} username={user.username} />}
+          {canReadAllUsers && isUserAllIPsModalOpen && <Suspense fallback={null}><UserAllIPsModal isOpen onOpenChange={setUserAllIPsModalOpen} userId={user.id} username={user.username} /></Suspense>}
         </div>
       )}
 
