@@ -18,7 +18,7 @@
   <a href="#فارسی">🇮🇷 فارسی</a>
 </p>
 
-> **Project lineage:** PasarGuard Pro is a feature-enhanced fork based on the upstream [PasarGuard Panel](https://github.com/PasarGuard/panel). The repository is hosted under the ManubisGuard GitHub organization; the product and interface branding is **PasarGuard Pro**.
+> **Project lineage:** PasarGuard Pro is a feature-enhanced fork based on the upstream panel project ([source repository](https://github.com/PasarGuard/panel)). The repository is hosted under the ManubisGuard GitHub organization; the product and interface branding is **PasarGuard Pro**.
 >
 > **Development branch for current AmneziaWG work:** `feature/amnezia-wg`. Review the target branch and its documentation before deploying.
 
@@ -161,7 +161,7 @@ Install the Node on its own Linux host, then add it to the Panel using the Node'
 
 Node installation guide:
 
-[PasarGuard Node README](https://github.com/ManubisGuard/ManubisGuard-Node#english)
+[PasarGuard Pro Node README](https://github.com/ManubisGuard/ManubisGuard-Node#english)
 
 The Node installer prints the public TLS certificate at the end of setup for copy/paste into the Panel. It does not print the TLS private key. Never publish the Node API key or private key.
 
@@ -227,7 +227,7 @@ sudo pasarguard migrate /path/to/source-archive.zip --apply
 
 Use migration only when intentionally importing from another panel. Verify the source archive and destination compatibility before applying it. Do not use a production migration as a substitute for testing the native restore process.
 
-Legacy custom archives may use a different format from native PasarGuard archives. Verify the format and recovery requirements before attempting restoration.
+Legacy custom archives may use a different format from native PasarGuard Pro archives. Verify the format and recovery requirements before attempting restoration.
 
 ## CLI and temporary admin key
 
@@ -287,8 +287,8 @@ Run the relevant checks for the files changed. Kernel-dependent AWG integration 
 ## Project links
 
 - **PasarGuard Pro Panel:** [ManubisGuard/ManubisGuard-Panel](https://github.com/ManubisGuard/ManubisGuard-Panel)
-- **PasarGuard Node:** [ManubisGuard/ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
-- **Upstream Panel:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
+- **PasarGuard Pro Node:** [ManubisGuard/ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
+- **Upstream panel source:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
 - **Issues:** [Report a bug](https://github.com/ManubisGuard/ManubisGuard-Panel/issues)
 
 ---
@@ -430,7 +430,7 @@ Node را روی Host لینوکسی جداگانه نصب کنید، سپس ب�
 
 راهنمای Node:
 
-[راهنمای PasarGuard Node](https://github.com/ManubisGuard/ManubisGuard-Node#فارسی)
+[راهنمای PasarGuard Pro Node](https://github.com/ManubisGuard/ManubisGuard-Node#فارسی)
 
 Installer نود در پایان Certificate عمومی TLS را برای کپی در پنل نمایش می‌دهد و Private Key را چاپ نمی‌کند. API Key نود و Private Key را منتشر نکنید.
 
@@ -496,7 +496,7 @@ sudo pasarguard migrate /path/to/source-archive.zip --apply
 
 از Migration فقط برای وارد کردن عمدی داده از پنل دیگر استفاده کنید. پیش از اعمال، آرشیو مبدأ و سازگاری مقصد را بررسی کنید. Migration در Production جایگزین تست فرایند Native Restore نیست.
 
-آرشیوهای سفارشی قدیمی ممکن است با فرمت Native PasarGuard متفاوت باشند. پیش از بازیابی، فرمت و پیش‌نیازهای Recovery را مشخص کنید.
+آرشیوهای سفارشی قدیمی ممکن است با فرمت Native PasarGuard Pro متفاوت باشند. پیش از بازیابی، فرمت و پیش‌نیازهای Recovery را مشخص کنید.
 
 ## CLI و Temporary Admin Key
 
@@ -557,5 +557,5 @@ Runtime پشتیبانی‌شده از PostgreSQL و TimescaleDB استفاده 
 
 - **پنل PasarGuard Pro:** [ManubisGuard/ManubisGuard-Panel](https://github.com/ManubisGuard/ManubisGuard-Panel)
 - **PasarGuard Node:** [ManubisGuard/ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
-- **پروژه اصلی Panel:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
+- **سورس بالادستی پنل:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
 - **گزارش باگ:** [Issues](https://github.com/ManubisGuard/ManubisGuard-Panel/issues)
