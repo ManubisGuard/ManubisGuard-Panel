@@ -52,8 +52,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY cli_wrapper.sh /usr/bin/manubisguard-cli
-RUN chmod +x /usr/bin/manubisguard-cli
+COPY cli_wrapper.sh /usr/bin/pasarguard-cli
+RUN chmod +x /usr/bin/pasarguard-cli
 
 COPY tui_wrapper.sh /usr/bin/manubis-tui
 RUN chmod +x /usr/bin/manubis-tui
