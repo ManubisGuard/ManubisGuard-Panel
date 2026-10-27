@@ -6,7 +6,7 @@ const FooterContent = () => {
     <p className="text-muted-foreground inline-block flex-grow text-center text-xs">
       Developed by &nbsp;
       <a className="text-primary hover:underline" href={REPO_URL}>
-        ManubisGuard
+        Pasarguard Pro
       </a>{' '}
       Team
     </p>

@@ -9,6 +9,7 @@ import stat
 import subprocess
 import tarfile
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,15 @@ PASARGUARD_MARKERS = (
     "pasarguard_backup",
     "pasarguard-backup",
 )
+
+# Archive limits follow the conservative limits used by the PGClockMG reference
+# while remaining compatible with large native PasarGuard database dumps. Keep
+# preflight and extraction limits aligned so an accepted backup is not rejected
+# later solely because the two layers disagree.
+MAX_ARCHIVE_FILES = 20_000
+MAX_ARCHIVE_ENTRY_BYTES = 8 * 1024 * 1024 * 1024
+MAX_ARCHIVE_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
+MAX_ARCHIVE_COMPRESSION_RATIO = 200
 
 KNOWN_TABLES = {
     "admins",
@@ -274,15 +284,26 @@ def _safe_archive_member(name: str) -> str | None:
 
 
 def validate_archive_integrity(path: str | Path) -> tuple[str, ...]:
-    """Validate archive paths, file types, duplicates, and ZIP CRCs before restore."""
+    """Validate archive paths, file types, size limits, and CRCs before restore.
+
+    Metadata limits are checked before reading member payloads. This prevents a
+    compressed archive bomb from forcing a full decompression pass just to learn
+    that the archive was already unsafe.
+    """
     archive_path = Path(path).expanduser().resolve()
     errors: list[str] = []
 
     if archive_path.suffix.lower() == ".zip":
         try:
             with zipfile.ZipFile(archive_path) as archive:
+                infos = archive.infolist()
+                if len(infos) > MAX_ARCHIVE_FILES:
+                    return (f"Archive contains too many entries: {len(infos)} > {MAX_ARCHIVE_FILES}.",)
                 seen: dict[str, str] = {}
-                for info in archive.infolist():
+                total_uncompressed = 0
+                total_compressed = 0
+                file_count = 0
+                for info in infos:
                     name = _safe_archive_member(info.filename)
                     if name is None:
                         errors.append(f"Archive contains unsafe path: {info.filename!r}")
@@ -299,18 +320,45 @@ def validate_archive_integrity(path: str | Path) -> tuple[str, ...]:
                         continue
                     if mode not in {0, stat.S_IFREG}:
                         errors.append(f"Archive contains a link/special file: {info.filename!r}")
-                bad_name = archive.testzip()
-                if bad_name is not None:
-                    errors.append(f"Archive CRC validation failed for: {bad_name!r}")
-        except zipfile.BadZipFile as exc:
-            errors.append(f"Invalid ZIP archive: {exc}")
+                        continue
+                    file_count += 1
+                    if file_count > MAX_ARCHIVE_FILES:
+                        errors.append(f"Archive contains too many files: > {MAX_ARCHIVE_FILES}.")
+                        break
+                    if info.file_size > MAX_ARCHIVE_ENTRY_BYTES:
+                        errors.append(
+                            f"Archive entry exceeds the safe uncompressed size limit: {info.filename!r}"
+                        )
+                    total_uncompressed += info.file_size
+                    total_compressed += info.compress_size
+                    if total_uncompressed > MAX_ARCHIVE_TOTAL_BYTES:
+                        errors.append("Archive expands beyond the safe total uncompressed size limit.")
+                        break
+
+                if total_uncompressed and total_uncompressed > max(total_compressed, 1) * MAX_ARCHIVE_COMPRESSION_RATIO:
+                    errors.append(
+                        f"Archive compression ratio exceeds the safe limit ({MAX_ARCHIVE_COMPRESSION_RATIO}:1)."
+                    )
+
+                # Do not decompress any payload if metadata already proves the
+                # archive unsafe. Otherwise CRC validation streams every member.
+                if not errors:
+                    bad_name = archive.testzip()
+                    if bad_name is not None:
+                        errors.append(f"Archive CRC validation failed for: {bad_name!r}")
+        except (OSError, EOFError, RuntimeError, zipfile.BadZipFile, zlib.error) as exc:
+            errors.append(f"Invalid ZIP archive or CRC stream: {exc}")
         return tuple(dict.fromkeys(errors))
 
     if archive_path.suffix.lower() in {".tar", ".tgz"} or archive_path.name.lower().endswith(".tar.gz"):
         try:
             with tarfile.open(archive_path, "r:*") as archive:
+                members = archive.getmembers()
+                if len(members) > MAX_ARCHIVE_FILES:
+                    return (f"Archive contains too many entries: {len(members)} > {MAX_ARCHIVE_FILES}.",)
                 seen: dict[str, str] = {}
-                for info in archive.getmembers():
+                total_uncompressed = 0
+                for info in members:
                     name = _safe_archive_member(info.name)
                     if name is None:
                         errors.append(f"Archive contains unsafe path: {info.name!r}")
@@ -319,18 +367,49 @@ def validate_archive_integrity(path: str | Path) -> tuple[str, ...]:
                         errors.append(
                             f"Archive contains duplicate normalized path: {name!r} ({seen[name]!r}, {info.name!r})"
                         )
+                        continue
                     seen[name] = info.name
                     if not (info.isfile() or info.isdir()):
                         errors.append(f"Archive contains a link or special file: {info.name!r}")
-                    if info.isfile():
+                        continue
+                    if not info.isfile():
+                        continue
+                    if info.size > MAX_ARCHIVE_ENTRY_BYTES:
+                        errors.append(
+                            f"Archive entry exceeds the safe uncompressed size limit: {info.name!r}"
+                        )
+                    total_uncompressed += info.size
+                    if total_uncompressed > MAX_ARCHIVE_TOTAL_BYTES:
+                        errors.append("Archive expands beyond the safe total uncompressed size limit.")
+                        break
+
+                compressed_size = max(archive_path.stat().st_size, 1)
+                if total_uncompressed and total_uncompressed > compressed_size * MAX_ARCHIVE_COMPRESSION_RATIO:
+                    errors.append(
+                        f"Archive compression ratio exceeds the safe limit ({MAX_ARCHIVE_COMPRESSION_RATIO}:1)."
+                    )
+
+                if not errors:
+                    for info in members:
+                        if not info.isfile():
+                            continue
                         try:
                             extracted = archive.extractfile(info)
                             if extracted is not None:
-                                while extracted.read(1024 * 1024):
-                                    pass
-                        except (OSError, tarfile.TarError) as exc:
+                                read_bytes = 0
+                                while True:
+                                    chunk = extracted.read(1024 * 1024)
+                                    if not chunk:
+                                        break
+                                    read_bytes += len(chunk)
+                                    if read_bytes > MAX_ARCHIVE_ENTRY_BYTES:
+                                        errors.append(
+                                            f"Archive entry expanded beyond its safe limit: {info.name!r}"
+                                        )
+                                        break
+                        except (OSError, EOFError, RuntimeError, tarfile.TarError) as exc:
                             errors.append(f"Archive integrity validation failed for {info.name!r}: {exc}")
-        except (OSError, tarfile.TarError) as exc:
+        except (OSError, EOFError, RuntimeError, tarfile.TarError) as exc:
             errors.append(f"Invalid TAR archive: {exc}")
         return tuple(dict.fromkeys(errors))
 

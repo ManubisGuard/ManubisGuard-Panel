@@ -3,28 +3,28 @@ services:
     image: timescale/timescaledb:latest-pg16
     restart: always
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-manubisguard}
-      POSTGRES_USER: ${POSTGRES_USER:-manubisguard}
+      POSTGRES_DB: ${POSTGRES_DB:-pasarguard}
+      POSTGRES_USER: ${POSTGRES_USER:-pasarguard}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - /var/lib/manubisguard/timescaledb:/var/lib/postgresql/data
+      - /var/lib/pasarguard/timescaledb:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-manubisguard} -d ${POSTGRES_DB:-manubisguard}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pasarguard} -d ${POSTGRES_DB:-pasarguard}"]
       interval: 5s
       timeout: 5s
       retries: 30
 
-  manubisguard:
+  pasarguard:
     image: ghcr.io/manubisguard/manubisguard-panel:feature-amnezia-wg
     restart: always
     init: true
     env_file: .env
     network_mode: host
     volumes:
-      - /var/lib/manubisguard:/var/lib/manubisguard
-      - /opt/manubisguard/backup:/opt/manubisguard/backup
+      - /var/lib/pasarguard:/var/lib/pasarguard
+      - /opt/pasarguard/backup:/opt/pasarguard/backup
       - ./app/db/migrations/versions:/code/app/db/migrations/versions:ro
       - ./app/db/compiles_types.py:/code/app/db/compiles_types.py:ro
       - ./app/models/admin_role.py:/code/app/models/admin_role.py:ro

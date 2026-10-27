@@ -371,27 +371,23 @@ export const Login: FC = () => {
   }, [])
 
   return (
-    <div className="flex min-h-screen w-full flex-col justify-between p-6">
-      <div className="w-full">
-        <div className="flex w-full items-center justify-between">
-          <Language />
-          <ThemeToggle />
-        </div>
-        <div className="flex w-full items-center justify-center">
-          <div className="mt-6 w-full max-w-[340px]">
-            <div className="flex flex-col items-center gap-2">
-              <img src={resolvedTheme === 'dark' ? '/statics/favicon/logo.png' : '/statics/favicon/logo-dark.png'} alt="ManubisGuard Logo" className="h-20 w-20 object-contain" />
-              <span className="text-2xl font-semibold">{view === 'login' ? t('login.loginYourAccount') : t('setup.ownerAccess', { defaultValue: 'Owner access' })}</span>
-              <span className="text-center text-muted-foreground">
-                {view === 'login'
-                  ? t('login.welcomeBack')
-                  : t('setup.ownerAccessDescription', {
-                      defaultValue: 'Use a temporary setup key to create, promote, reset, or remove the owner account.',
-                    })}
-              </span>
-            </div>
+    <main className="px-login-shell">
+      <div className="px-login-ambient px-login-ambient-a" aria-hidden="true" />
+      <div className="px-login-ambient px-login-ambient-b" aria-hidden="true" />
+      <div className="px-login-tools"><Language /><ThemeToggle /></div>
+      <div className="px-login-layout px-login-layout-centered">
+        <section className="px-login-card">
+          <div className="px-card-topline"><span className="px-card-signal" /> SECURE AUTHENTICATION <span className="px-card-version">PX / 01</span></div>
+          <div className="px-card-brand">
+            <img src="/statics/favicon/logo.png" alt="Pasarguard Pro" />
+            <span>PASAR<span>GUARD PRO</span></span>
+          </div>
+          <div className="px-login-heading">
+            <h1>{view === 'login' ? t('login.title', { defaultValue: 'Welcome Back' }) : t('setup.ownerAccess', { defaultValue: 'Owner access' })}</h1>
+            <p>{view === 'login' ? t('login.subtitle', { defaultValue: 'Sign in to your Pasarguard Pro panel' }) : t('setup.ownerAccessDescription', { defaultValue: 'Use a temporary setup key to create, promote, reset, or remove the owner account.' })}</p>
+          </div>
 
-            <div className="mx-auto w-full max-w-[300px] pt-4">
+          <div className="px-login-form-wrap">
               {view === 'login' ? (
                 <form onSubmit={handleSubmit(handleLogin)} autoComplete="on">
                   <div className="mt-4 flex flex-col gap-y-2">
@@ -532,12 +528,12 @@ export const Login: FC = () => {
                   </div>
                 </form>
               )}
-            </div>
           </div>
-        </div>
+          <div className="px-login-card-footer"><span>Pasarguard Pro</span><i /> <span>Protected access</span><span className="px-version-label">v1.0.0</span></div>
+        </section>
       </div>
-      <Footer />
-    </div>
+      <footer className="px-login-footer"><span>Developed by Manubis</span></footer>
+    </main>
   )
 }
 

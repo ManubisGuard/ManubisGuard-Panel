@@ -33,7 +33,7 @@ from app.services.backup import (
 from config import database_settings
 
 router = APIRouter(prefix="/api/admin/backup", tags=["Admin Backup"])
-UPLOAD_DIR = Path("/opt/manubisguard/backup/database")
+UPLOAD_DIR = Path("/opt/pasarguard/backup/database")
 # Both application restore routes remain disabled until their executor uses an
 # external disposable database and has a verified production rollback boundary.
 APPLICATION_STAGING_RESTORE_ENABLED = False

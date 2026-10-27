@@ -1,2 +1,2 @@
 #!/bin/bash
-python /code/manubisguard-cli.py "$@"
+python /code/pasarguard-cli.py "$@"

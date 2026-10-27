@@ -1,4 +1,4 @@
-# ManubisGuard Panel
+# PasarGuard Panel
 
 <p align="center">
   <strong>Open-source network infrastructure, under your control.</strong>
@@ -8,7 +8,7 @@
   <a href="#english">🇬🇧 English</a> · <a href="#فارسی">🇮🇷 فارسی</a>
 </p>
 
-> **Fork / upstream:** ManubisGuard Panel is maintained as a feature-enhanced fork of [PasarGuard/panel](https://github.com/PasarGuard/panel), with ManubisGuard-specific architecture, UI, AmneziaWG support, migration/restore tooling, Domain & SSL management, and operational features built on top of the upstream-compatible foundation.
+> **Fork / upstream:** PasarGuard Panel is maintained as a feature-enhanced fork of [PasarGuard/panel](https://github.com/PasarGuard/panel), with PasarGuard-specific architecture, UI, AmneziaWG support, migration/restore tooling, Domain & SSL management, and operational features built on top of the upstream-compatible foundation.
 
 > **Current development branch:** `feature/amnezia-wg`
 
@@ -18,19 +18,19 @@
 
 # 🇬🇧 English
 
-## What is ManubisGuard Panel?
+## What is PasarGuard Panel?
 
-**ManubisGuard Panel** is an open-source, self-hosted control plane for modern network infrastructure. It provides a unified web interface for managing users, Nodes, Cores, Hosts, Groups, subscriptions, networking protocols, domains, TLS certificates, backups, restores, migrations, API access and operational settings.
+**PasarGuard Panel** is an open-source, self-hosted control plane for modern network infrastructure. It provides a unified web interface for managing users, Nodes, Cores, Hosts, Groups, subscriptions, networking protocols, domains, TLS certificates, backups, restores, migrations, API access and operational settings.
 
 The project follows a **Panel + Node** architecture and is designed to manage infrastructure rather than only individual protocol configurations.
 
-ManubisGuard is based on the **PasarGuard Panel** codebase and preserves upstream-compatible operational concepts where required while extending the platform with ManubisGuard features and branding.
+This feature-enhanced PasarGuard build is based on the upstream **PasarGuard Panel** codebase and preserves upstream-compatible operational concepts where required while extending the platform with PasarGuard features and branding.
 
 ### Upstream project
 
 - **Upstream Panel:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
-- **ManubisGuard Panel:** [ManubisGuard/ManubisGuard-Panel](https://github.com/ManubisGuard/ManubisGuard-Panel)
-- **Matching Node:** [ManubisGuard/ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
+- **PasarGuard Panel:** [PasarGuard/PasarGuard-Panel](https://github.com/ManubisGuard/PasarGuard-Panel)
+- **Matching Node:** [PasarGuard/PasarGuard-Node](https://github.com/ManubisGuard/PasarGuard-Node)
 
 ---
 
@@ -98,11 +98,11 @@ ManubisGuard is based on the **PasarGuard Panel** codebase and preserves upstrea
 
 ### Backup, Restore & Migration
 
-- Standard system-level backup and restore through the paired PasarGuard backup/restore engine, adapted for ManubisGuard
-- Canonical archive directory: `/opt/manubisguard/backup/`
-- Database-only exports and panel backup API remain separate under `/opt/manubisguard/backup/database/`
+- Standard system-level backup and restore through the paired PasarGuard backup/restore engine, with the custom AWG and migration features retained
+- Canonical archive directory: `/opt/pasarguard/backup/`
+- Database-only exports and panel backup API remain separate under `/opt/pasarguard/backup/database/`
 - Upstream archive integrity checks, database-engine compatibility checks, interactive restore and explicit fresh-host recovery where metadata permits
-- Explicitly separate cross-panel migration command (`manubis migrate`); native restore never dispatches to migration
+- Explicitly separate cross-panel migration command (`pasarguard migrate`); native restore never dispatches to migration
 - AmneziaWG panel configuration is stored in the panel database; external node runtime state requires its own verified backup plan
 
 ### Security
@@ -175,7 +175,7 @@ Settings
 
 ## 🎨 Theme System
 
-ManubisGuard includes a configurable dark-native theme system.
+PasarGuard includes a configurable dark-native theme system.
 
 Available controls include:
 
@@ -286,7 +286,7 @@ Use API access for automation only after reviewing the current API contract and 
 
 ## 🔐 Reseller & RBAC
 
-ManubisGuard includes:
+PasarGuard includes:
 
 - Admin management
 - Reseller Admins
@@ -355,20 +355,20 @@ Auto Select evaluates SNI candidates against the existing Reality target rather 
 
 ## 💾 Backup & Restore
 
-Standard system-level backup and recovery use the paired original PasarGuard backup/restore implementation adapted for ManubisGuard. The standard archive format is intentionally separate from database-only exports and cross-panel migration.
+Standard system-level backup and recovery use the paired original PasarGuard backup/restore implementation adapted for PasarGuard. The standard archive format is intentionally separate from database-only exports and cross-panel migration.
 
 ### Standard system backup and restore
 
 ```bash
-sudo manubis backup
-sudo manubis restore
-sudo manubis restore /path/to/backup.zip --check
-sudo manubis restore /path/to/backup.zip
-sudo manubis restore --fresh /path/to/backup.zip
-sudo manubis backup-service
+sudo pasarguard backup
+sudo pasarguard restore
+sudo pasarguard restore /path/to/backup.zip --check
+sudo pasarguard restore /path/to/backup.zip
+sudo pasarguard restore --fresh /path/to/backup.zip
+sudo pasarguard backup-service
 ```
 
-- System backup/restore archives are stored under `/opt/manubisguard/backup/`.
+- System backup/restore archives are stored under `/opt/pasarguard/backup/`.
 - The archive includes application configuration, persistent application files, and engine-aware database dumps with integrity/version metadata from the pinned upstream implementation.
 - `--check` is a read-only archive preflight.
 - `--fresh` is only for a new host with empty application/data directories and an archive containing recovery metadata and usable pinned image references. Legacy archives without those metadata require a compatible existing installation.
@@ -378,22 +378,22 @@ sudo manubis backup-service
 ### Database-only exports and panel backup API
 
 ```bash
-sudo manubis backup-db
+sudo pasarguard backup-db
 ```
 
-Database-only CLI/API exports remain under `/opt/manubisguard/backup/database/`. They are not full-system archives and must not be passed to the standard restore command as though they were native system backups.
+Database-only CLI/API exports remain under `/opt/pasarguard/backup/database/`. They are not full-system archives and must not be passed to the standard restore command as though they were native system backups.
 
 ### Separate cross-panel migration
 
 ```bash
-sudo manubis migrate /path/to/source-archive.zip --apply
+sudo pasarguard migrate /path/to/source-archive.zip --apply
 ```
 
-Use migration only when intentionally importing from another panel. Ordinary `manubis restore` uses the native backup/restore engine and never falls back to the migration executor.
+Use migration only when intentionally importing from another panel. Ordinary `pasarguard restore` uses the native backup/restore engine and never falls back to the migration executor.
 
 ### Legacy custom full archives
 
-The custom full-host backup engine and production restore agent have been removed from the standard installation. Existing `manubisguard-full-*.zip` archives under `/opt/manubisguard/backup/full/` are preserved as historical files, but the original PasarGuard restore engine does not automatically support that custom format. Use the native `manubis restore` command for archives created by the original PasarGuard engine. Keep any encryption key needed to recover historical `.enc` archives until those archives are no longer needed.
+The custom full-host backup engine and production restore agent have been removed from the standard installation. Existing `manubisguard-full-*.zip` archives under `/opt/pasarguard/backup/full/` are preserved as historical files, but the original PasarGuard restore engine does not automatically support that custom format. Use the native `pasarguard restore` command for archives created by the original PasarGuard engine. Keep any encryption key needed to recover historical `.enc` archives until those archives are no longer needed.
 
 ## 🗄️ PostgreSQL & TimescaleDB
 
@@ -423,27 +423,27 @@ The Panel provides the `manubis` host CLI for lifecycle and restore operations.
 Common commands:
 
 ```bash
-sudo manubis status
-sudo manubis start
-sudo manubis stop
-sudo manubis restart
-sudo manubis logs
-sudo manubis update
-sudo manubis edit-env
+sudo pasarguard status
+sudo pasarguard start
+sudo pasarguard stop
+sudo pasarguard restart
+sudo pasarguard logs
+sudo pasarguard update
+sudo pasarguard edit-env
 ```
 
 ### Standard backup and restore commands
 
 ```bash
-sudo manubis backup
-sudo manubis backup-db
-sudo manubis restore /path/to/backup.zip --check
-sudo manubis restore /path/to/backup.zip
-sudo manubis restore --fresh /path/to/backup.zip
-sudo manubis backup-service
+sudo pasarguard backup
+sudo pasarguard backup-db
+sudo pasarguard restore /path/to/backup.zip --check
+sudo pasarguard restore /path/to/backup.zip
+sudo pasarguard restore --fresh /path/to/backup.zip
+sudo pasarguard backup-service
 ```
 
-System archives use `/opt/manubisguard/backup/`; database-only exports use `/opt/manubisguard/backup/database/`. The ordinary restore command uses the paired native PasarGuard engine adapted for ManubisGuard; `manubis migrate` is reserved for intentional cross-panel migration.
+System archives use `/opt/pasarguard/backup/`; database-only exports use `/opt/pasarguard/backup/database/`. The ordinary restore command uses the paired native PasarGuard engine adapted for PasarGuard; `pasarguard migrate` is reserved for intentional cross-panel migration.
 
 Restore is a state-changing operation. `--check` is the read-only preflight, not a rollback guarantee. Before restoring, verify the archive, make an independent backup of the destination, and test the archive on a disposable host. Fresh recovery with `--fresh` requires an empty destination and recovery metadata with pinned images. The former custom `/full/` archive format is legacy and is not interchangeable without explicit compatibility verification.
 
@@ -458,7 +458,7 @@ The current Panel CLI entrypoint is:
 Generate a temporary admin key with:
 
 ```bash
-docker exec manubisguard-panel-manubisguard-1 python /code/manubisguard-cli.py generate-temp-key
+docker compose exec pasarguard python /code/manubisguard-cli.py generate-temp-key
 ```
 
 Never commit or publish generated keys.
@@ -474,7 +474,7 @@ The installer is included in the repository.
 A source-based installation can be started with:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh)" @ install --database timescaledb
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-pasarguard.sh)" @ install --database timescaledb
 ```
 
 The installer prepares the runtime, persistent directories, secrets, database, migrations and health checks according to the selected installation options.
@@ -507,11 +507,11 @@ For Let's Encrypt domain installs, the installer explicitly uses a certificate l
 
 ---
 
-## 🛰️ Matching ManubisGuard Node
+## 🛰️ Matching PasarGuard Node
 
 Install the matching Node from:
 
-[ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
+[PasarGuard-Node](https://github.com/ManubisGuard/PasarGuard-Node)
 
 Example:
 
@@ -539,7 +539,7 @@ The subscription/runtime path has regression coverage around stale Core state, d
 
 ## 🧪 Testing & Validation
 
-ManubisGuard uses layered validation instead of treating container startup as the only quality signal.
+PasarGuard uses layered validation instead of treating container startup as the only quality signal.
 
 Validation areas include:
 
@@ -566,7 +566,7 @@ Detailed milestones and execution evidence are maintained in `TODO.md`.
 A source-based deployment can be built and started with:
 
 ```bash
-cd /path/to/ManubisGuard-Panel
+cd /path/to/PasarGuard-Panel
 docker compose --env-file .env up -d --build
 ```
 
@@ -605,14 +605,14 @@ Use the deployment files in the selected branch as the source of truth for the e
 ## 📁 Canonical Paths
 
 ```text
-/opt/manubisguard-panel
-/opt/manubisguard/backup/
-/var/lib/manubisguard/
-/var/lib/manubisguard/migration/
-/var/lib/manubisguard/certs/
+/opt/pasarguard
+/opt/pasarguard/backup/
+/var/lib/pasarguard/
+/var/lib/pasarguard/migration/
+/var/lib/pasarguard/certs/
 ```
 
-Legacy paths such as `/var/lib/pasarguard` may appear in migration/reference material but are not the canonical ManubisGuard runtime paths.
+Canonical runtime paths are `/opt/pasarguard`, `/var/lib/pasarguard`, and `/opt/pasarguard/backup/`.
 
 ---
 
@@ -672,12 +672,12 @@ Before opening a PR, review the repository's current contribution guidance and `
 
 ## 📚 Project Links
 
-- Panel: https://github.com/ManubisGuard/ManubisGuard-Panel
-- Node: https://github.com/ManubisGuard/ManubisGuard-Node
+- Panel: https://github.com/ManubisGuard/PasarGuard-Panel
+- Node: https://github.com/ManubisGuard/PasarGuard-Node
 - Upstream Panel: https://github.com/PasarGuard/panel
 - Upstream Node: https://github.com/PasarGuard/node
-- Issues: https://github.com/ManubisGuard/ManubisGuard-Panel/issues
-- Discussions: https://github.com/ManubisGuard/ManubisGuard-Panel/discussions
+- Issues: https://github.com/ManubisGuard/PasarGuard-Panel/issues
+- Discussions: https://github.com/ManubisGuard/PasarGuard-Panel/discussions
 
 ---
 
@@ -685,9 +685,9 @@ Before opening a PR, review the repository's current contribution guidance and `
 
 # 🇮🇷 فارسی
 
-## ManubisGuard Panel چیست؟
+## PasarGuard Panel چیست؟
 
-**ManubisGuard Panel** یک Control Plane متن‌باز و Self-hosted برای مدیریت زیرساخت‌های مدرن شبکه است.
+**PasarGuard Panel** یک Control Plane متن‌باز و Self-hosted برای مدیریت زیرساخت‌های مدرن شبکه است.
 
 این پنل مدیریت مواردی مانند کاربران، Nodeها، Coreها، Hostها، Groupها، Subscriptionها، پروتکل‌های شبکه، Domain، SSL/TLS، Backup، Restore، Migration، API و تنظیمات عملیاتی را در یک رابط یکپارچه فراهم می‌کند.
 
@@ -695,13 +695,13 @@ Before opening a PR, review the repository's current contribution guidance and `
 
 ### این پروژه Fork کدام پنل است؟
 
-ManubisGuard Panel بر پایه کدبیس **PasarGuard Panel** توسعه داده شده است.
+PasarGuard Panel بر پایه کدبیس **PasarGuard Panel** توسعه داده شده است.
 
 - **Upstream Panel:** [PasarGuard/panel](https://github.com/PasarGuard/panel)
-- **ManubisGuard Panel:** [ManubisGuard/ManubisGuard-Panel](https://github.com/ManubisGuard/ManubisGuard-Panel)
-- **Matching Node:** [ManubisGuard/ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
+- **PasarGuard Panel:** [PasarGuard/PasarGuard-Panel](https://github.com/ManubisGuard/PasarGuard-Panel)
+- **Matching Node:** [PasarGuard/PasarGuard-Node](https://github.com/ManubisGuard/PasarGuard-Node)
 
-در کنار حفظ بخش‌های لازم از سازگاری Upstream، قابلیت‌ها و معماری‌های اختصاصی ManubisGuard روی این پایه توسعه داده شده‌اند.
+در کنار حفظ بخش‌های لازم از سازگاری Upstream، قابلیت‌ها و معماری‌های اختصاصی PasarGuard روی این پایه توسعه داده شده‌اند.
 
 ---
 
@@ -771,11 +771,11 @@ ManubisGuard Panel بر پایه کدبیس **PasarGuard Panel** توسعه دا
 
 ### Backup / Restore / Migration
 
-- بکاپ و بازیابی استاندارد سیستم با موتور اصلی و جفت‌شدهٔ PasarGuard، سازگارشده برای ManubisGuard
-- مسیر اصلی آرشیوها: `/opt/manubisguard/backup/`
-- بکاپ دیتابیس‌تنها و API پنل جداگانه در `/opt/manubisguard/backup/database/`
+- بکاپ و بازیابی استاندارد سیستم با موتور اصلی و جفت‌شدهٔ PasarGuard، سازگارشده برای PasarGuard
+- مسیر اصلی آرشیوها: `/opt/pasarguard/backup/`
+- بکاپ دیتابیس‌تنها و API پنل جداگانه در `/opt/pasarguard/backup/database/`
 - بررسی صحت آرشیو و سازگاری نسخه دیتابیس با موتور اصلی
-- فرمان مستقل `manubis migrate` برای مهاجرت عمدی بین پنل‌ها؛ Restore معمولی هرگز به Migration هدایت نمی‌شود
+- فرمان مستقل `pasarguard migrate` برای مهاجرت عمدی بین پنل‌ها؛ Restore معمولی هرگز به Migration هدایت نمی‌شود
 - تنظیمات AWG ذخیره‌شده در دیتابیس پنل داخل بکاپ دیتابیس قرار می‌گیرد؛ وضعیت اجرایی نودهای خارجی نیازمند بکاپ مستقل و تأییدشده است
 
 ### امنیت
@@ -849,7 +849,7 @@ Settings
 
 ## 🎨 سیستم Theme
 
-ManubisGuard دارای Theme System قابل تنظیم و Dark-native است.
+PasarGuard دارای Theme System قابل تنظیم و Dark-native است.
 
 موارد قابل تنظیم:
 
@@ -1023,20 +1023,20 @@ Auto Select، Candidateهای SNI را در برابر Target فعلی Reality �
 
 ## 💾 Backup، Restore و Migration
 
-بکاپ و بازیابی استاندارد سیستم از موتور اصلی و جفت‌شدهٔ PasarGuard استفاده می‌کند که برای نام‌ها و مسیرهای ManubisGuard سازگار شده است. آرشیو استاندارد سیستم از خروجی دیتابیس‌تنها و مهاجرت بین پنل‌ها جدا است.
+بکاپ و بازیابی استاندارد سیستم از موتور اصلی و جفت‌شدهٔ PasarGuard استفاده می‌کند که برای نام‌ها و مسیرهای PasarGuard سازگار شده است. آرشیو استاندارد سیستم از خروجی دیتابیس‌تنها و مهاجرت بین پنل‌ها جدا است.
 
 ### بکاپ و بازیابی استاندارد سیستم
 
 ```bash
-sudo manubis backup
-sudo manubis restore
-sudo manubis restore /path/to/backup.zip --check
-sudo manubis restore /path/to/backup.zip
-sudo manubis restore --fresh /path/to/backup.zip
-sudo manubis backup-service
+sudo pasarguard backup
+sudo pasarguard restore
+sudo pasarguard restore /path/to/backup.zip --check
+sudo pasarguard restore /path/to/backup.zip
+sudo pasarguard restore --fresh /path/to/backup.zip
+sudo pasarguard backup-service
 ```
 
-- آرشیوهای سیستم در مسیر `/opt/manubisguard/backup/` ذخیره می‌شوند.
+- آرشیوهای سیستم در مسیر `/opt/pasarguard/backup/` ذخیره می‌شوند.
 - آرشیو شامل تنظیمات برنامه، فایل‌های پایدار و خروجی سازگار دیتابیس به همراه بررسی‌های صحت و اطلاعات نسخه از موتور اصلی است.
 - `--check` فقط آرشیو را بررسی می‌کند و نباید سرویس‌ها را تغییر دهد.
 - `--fresh` فقط برای سرور جدید با مسیرهای برنامه/داده خالی و آرشیو دارای metadata بازیابی و image reference قابل استفاده است. آرشیوهای قدیمی فاقد این metadata به نصب سازگار موجود نیاز دارند.
@@ -1046,22 +1046,22 @@ sudo manubis backup-service
 ### خروجی دیتابیس‌تنها و API پنل
 
 ```bash
-sudo manubis backup-db
+sudo pasarguard backup-db
 ```
 
-خروجی دیتابیس‌تنها و API پنل در `/opt/manubisguard/backup/database/` باقی می‌مانند. این فایل‌ها بکاپ کامل سیستم نیستند و نباید به‌عنوان آرشیو native سیستم به Restore داده شوند.
+خروجی دیتابیس‌تنها و API پنل در `/opt/pasarguard/backup/database/` باقی می‌مانند. این فایل‌ها بکاپ کامل سیستم نیستند و نباید به‌عنوان آرشیو native سیستم به Restore داده شوند.
 
 ### مهاجرت مستقل بین پنل‌ها
 
 ```bash
-sudo manubis migrate /path/to/source-archive.zip --apply
+sudo pasarguard migrate /path/to/source-archive.zip --apply
 ```
 
-از Migration فقط برای وارد کردن عمدی داده از پنل دیگر استفاده کنید. فرمان معمولی `manubis restore` از موتور بکاپ/بازیابی native استفاده می‌کند و هرگز به Migration منتقل نمی‌شود.
+از Migration فقط برای وارد کردن عمدی داده از پنل دیگر استفاده کنید. فرمان معمولی `pasarguard restore` از موتور بکاپ/بازیابی native استفاده می‌کند و هرگز به Migration منتقل نمی‌شود.
 
 ### آرشیوهای سفارشی قدیمی
 
-موتور سفارشی بکاپ کامل و سرویس Restore Agent از نصب استاندارد حذف شده‌اند. آرشیوهای قدیمی `manubisguard-full-*.zip` در مسیر `/opt/manubisguard/backup/full/` حفظ می‌شوند، اما موتور اصلی PasarGuard لزوماً از این فرمت سفارشی پشتیبانی نمی‌کند. برای آرشیوهای ساخته‌شده با موتور اصلی از `manubis restore` استفاده کنید. کلید رمزگشایی فایل‌های قدیمی `.enc` را تا زمانی که به آن آرشیوها نیاز دارید نگه دارید.
+موتور سفارشی بکاپ کامل و سرویس Restore Agent از نصب استاندارد حذف شده‌اند. آرشیوهای قدیمی `manubisguard-full-*.zip` در مسیر `/opt/pasarguard/backup/full/` حفظ می‌شوند، اما موتور اصلی PasarGuard لزوماً از این فرمت سفارشی پشتیبانی نمی‌کند. برای آرشیوهای ساخته‌شده با موتور اصلی از `pasarguard restore` استفاده کنید. کلید رمزگشایی فایل‌های قدیمی `.enc` را تا زمانی که به آن آرشیوها نیاز دارید نگه دارید.
 
 ## 🗄️ PostgreSQL و TimescaleDB
 
@@ -1089,27 +1089,27 @@ Migration Layer برای موارد زیر منطق Compatibility دارد:
 CLI میزبان با نام `manubis` برای مدیریت Lifecycle و Restore ارائه شده است.
 
 ```bash
-sudo manubis status
-sudo manubis start
-sudo manubis stop
-sudo manubis restart
-sudo manubis logs
-sudo manubis update
-sudo manubis edit-env
+sudo pasarguard status
+sudo pasarguard start
+sudo pasarguard stop
+sudo pasarguard restart
+sudo pasarguard logs
+sudo pasarguard update
+sudo pasarguard edit-env
 ```
 
 ### فرمان‌های استاندارد بکاپ و بازیابی
 
 ```bash
-sudo manubis backup
-sudo manubis backup-db
-sudo manubis restore /path/to/backup.zip --check
-sudo manubis restore /path/to/backup.zip
-sudo manubis restore --fresh /path/to/backup.zip
-sudo manubis backup-service
+sudo pasarguard backup
+sudo pasarguard backup-db
+sudo pasarguard restore /path/to/backup.zip --check
+sudo pasarguard restore /path/to/backup.zip
+sudo pasarguard restore --fresh /path/to/backup.zip
+sudo pasarguard backup-service
 ```
 
-آرشیوهای سیستم در `/opt/manubisguard/backup/` و خروجی دیتابیس‌تنها در `/opt/manubisguard/backup/database/` ذخیره می‌شوند. فرمان Restore از موتور اصلی PasarGuard سازگارشده برای ManubisGuard استفاده می‌کند؛ `manubis migrate` فقط برای مهاجرت عمدی بین پنل‌ها است.
+آرشیوهای سیستم در `/opt/pasarguard/backup/` و خروجی دیتابیس‌تنها در `/opt/pasarguard/backup/database/` ذخیره می‌شوند. فرمان Restore از موتور اصلی PasarGuard سازگارشده برای PasarGuard استفاده می‌کند؛ `pasarguard migrate` فقط برای مهاجرت عمدی بین پنل‌ها است.
 
 Restore عملیاتی تغییردهنده است. `--check` فقط پیش‌بررسی خواندنی است و تضمین Rollback محسوب نمی‌شود. قبل از Restore، آرشیو را بررسی کنید، از مقصد یک بکاپ مستقل بگیرید و آرشیو را روی سرور آزمایشی جداگانه امتحان کنید. بازیابی تازه با `--fresh` به مقصد خالی و آرشیو دارای metadata بازیابی و imageهای پین‌شده نیاز دارد. فرمت سفارشی قدیمی `/full/` با فرمت native قابل‌تعویض فرض نمی‌شود؛ سازگاری آن باید جداگانه بررسی شود.
 
@@ -1124,7 +1124,7 @@ Entrypoint فعلی CLI پنل:
 ساخت Temporary Key:
 
 ```bash
-docker exec manubisguard-panel-manubisguard-1 python /code/manubisguard-cli.py generate-temp-key
+docker compose exec pasarguard python /code/manubisguard-cli.py generate-temp-key
 ```
 
 Keyهای تولیدشده را Commit یا منتشر نکنید.
@@ -1140,7 +1140,7 @@ Installer داخل Repository قرار دارد.
 نمونه نصب Source-based:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-manubisguard.sh)" @ install --database timescaledb
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/ManubisGuard/ManubisGuard-Panel/feature/amnezia-wg/install-pasarguard.sh)" @ install --database timescaledb
 ```
 
 Installer بر اساس Optionهای انتخاب‌شده Runtime، Directoryهای دائمی، Secretها، Database، Migration و Health Check را آماده می‌کند.
@@ -1166,11 +1166,11 @@ Wizard تعاملی SSL از `/dev/tty` برای دریافت Input استفاد
 
 ---
 
-## 🛰️ ManubisGuard Node
+## 🛰️ PasarGuard Node
 
 Node هماهنگ با Panel:
 
-[ManubisGuard-Node](https://github.com/ManubisGuard/ManubisGuard-Node)
+[PasarGuard-Node](https://github.com/ManubisGuard/PasarGuard-Node)
 
 نمونه نصب:
 
@@ -1223,7 +1223,7 @@ NATS/KV در صورت شکست Refresh از Database به عنوان Fallback ن
 نمونه اجرای Source-based:
 
 ```bash
-cd /path/to/ManubisGuard-Panel
+cd /path/to/PasarGuard-Panel
 docker compose --env-file .env up -d --build
 ```
 
@@ -1262,14 +1262,14 @@ curl -k https://your-domain.example/health
 ## 📁 مسیرهای اصلی
 
 ```text
-/opt/manubisguard-panel
-/opt/manubisguard/backup/
-/var/lib/manubisguard/
-/var/lib/manubisguard/migration/
-/var/lib/manubisguard/certs/
+/opt/pasarguard
+/opt/pasarguard/backup/
+/var/lib/pasarguard/
+/var/lib/pasarguard/migration/
+/var/lib/pasarguard/certs/
 ```
 
-شناسه‌های ساختاری آرشیوهای قدیمی PasarGuard در صورت نیاز برای سازگاری حفظ می‌شوند؛ مسیرهای اجرای فعلی از مسیرهای ManubisGuard بالا استفاده می‌کنند.
+شناسه‌های ساختاری آرشیوهای قدیمی برای سازگاری حفظ می‌شوند؛ مسیرهای رسمی اجرای فعلی `/opt/pasarguard`، `/var/lib/pasarguard` و `/opt/pasarguard/backup/` هستند.
 
 ---
 
@@ -1287,7 +1287,7 @@ curl -k https://your-domain.example/health
 - API Keys
 - Backup / Restore
 - Backup Scheduling / Retention
-- Native backup/restore بر پایه موتور اصلی PasarGuard با مسیرهای ManubisGuard
+- Native backup/restore بر پایه موتور اصلی PasarGuard با مسیرهای PasarGuard
 - Cross-panel migration به‌صورت فرمان مستقل
 - PostgreSQL / TimescaleDB Migration Bridge
 - Domain Management
@@ -1329,9 +1329,9 @@ Contributionها استقبال می‌شوند.
 
 ## 📚 لینک‌های پروژه
 
-- Panel: https://github.com/ManubisGuard/ManubisGuard-Panel
-- Node: https://github.com/ManubisGuard/ManubisGuard-Node
+- Panel: https://github.com/ManubisGuard/PasarGuard-Panel
+- Node: https://github.com/ManubisGuard/PasarGuard-Node
 - Upstream Panel: https://github.com/PasarGuard/panel
 - Upstream Node: https://github.com/PasarGuard/node
-- Issues: https://github.com/ManubisGuard/ManubisGuard-Panel/issues
-- Discussions: https://github.com/ManubisGuard/ManubisGuard-Panel/discussions
+- Issues: https://github.com/ManubisGuard/PasarGuard-Panel/issues
+- Discussions: https://github.com/ManubisGuard/PasarGuard-Panel/discussions

@@ -1,0 +1,2087 @@
+#!/usr/bin/env bash
+
+# Mask sensitive Telegram bot token for display, showing only the last 6 chars.
+mask_telegram_bot_key() {
+    local secret="$1"
+    local length=${#secret}
+
+    if [ -z "$secret" ]; then
+        printf '%s\n' ""
+        return 0
+    fi
+
+    if [ "$length" -le 6 ]; then
+        printf '****%s\n' "$secret"
+        return 0
+    fi
+
+    printf '****%s\n' "${secret: -6}"
+}
+
+# Remove existing PasarGuard backup cron jobs from a crontab file.
+filter_backup_cron_entries() {
+    local source_file="$1"
+    local target_file="$2"
+
+    grep -F -v "# pasarguard-backup-service" "$source_file" >"$target_file" || true
+}
+
+# Convert a backup interval expressed in minutes into a cron schedule.
+# Echoes the schedule and returns 0 when the value maps to an evenly-spaced
+# schedule; echoes nothing and returns 1 otherwise.
+backup_cron_from_interval_minutes() {
+    local minutes="$1"
+
+    if ! [[ "$minutes" =~ ^[0-9]+$ ]] || [[ "$minutes" -lt 1 ]]; then
+        return 1
+    fi
+
+    # Sub-hour: must divide evenly into 60 minutes.
+    if [[ "$minutes" -lt 60 ]]; then
+        if [[ $((60 % minutes)) -eq 0 ]]; then
+            echo "*/$minutes * * * *"
+            return 0
+        fi
+        return 1
+    fi
+
+    # Exactly one day: keep the existing daily-at-midnight format.
+    if [[ "$minutes" -eq 1440 ]]; then
+        echo "0 0 * * *"
+        return 0
+    fi
+
+    # Between one hour and one day: must be a whole number of hours.
+    if [[ "$minutes" -lt 1440 && $((minutes % 60)) -eq 0 ]]; then
+        echo "0 */$((minutes / 60)) * * *"
+        return 0
+    fi
+
+    return 1
+}
+
+# Convert a backup cron schedule back into an interval in minutes.
+# Echoes the minutes, or an empty string for an unrecognized schedule.
+backup_interval_minutes_from_cron() {
+    local cron_schedule="$1"
+
+    if [[ "$cron_schedule" == "0 0 * * *" ]]; then
+        echo "1440"
+        return 0
+    fi
+
+    if [[ "$cron_schedule" == "0 * * * *" ]]; then
+        echo "60"
+        return 0
+    fi
+
+    if [[ "$cron_schedule" =~ ^0[[:space:]]+\*/([0-9]+)[[:space:]]+\*[[:space:]]+\*[[:space:]]+\*$ ]]; then
+        echo "$(( ${BASH_REMATCH[1]} * 60 ))"
+        return 0
+    fi
+
+    if [[ "$cron_schedule" =~ ^\*/([0-9]+)[[:space:]]+\*[[:space:]]+\*[[:space:]]+\*[[:space:]]+\*$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+
+    echo ""
+}
+
+# Render a backup interval (in minutes) as a human-readable string.
+# Invalid/empty input echoes the optional fallback (default "Unknown").
+format_backup_interval() {
+    local minutes="$1"
+    local fallback="${2:-Unknown}"
+
+    if ! [[ "$minutes" =~ ^[0-9]+$ ]] || [[ "$minutes" -lt 1 ]]; then
+        echo "$fallback"
+        return 0
+    fi
+
+    if [[ "$minutes" -eq 1440 ]]; then
+        echo "Daily at midnight (every 24 hours)"
+    elif [[ "$minutes" -ge 120 && $((minutes % 60)) -eq 0 ]]; then
+        echo "Every $((minutes / 60)) hours"
+    elif [[ "$minutes" -eq 60 ]]; then
+        echo "Every hour"
+    else
+        echo "Every $minutes minutes"
+    fi
+}
+
+# Determine whether a database hostname points to localhost/loopback.
+is_local_db_host() {
+    local host="${1:-}"
+
+    host="${host#[}"
+    host="${host%]}"
+    host="${host%.}"
+    host="${host,,}"
+
+    [[ -z "$host" ]] && return 1
+    [[ "$host" == "localhost" ]] && return 0
+    [[ "$host" == "localhost.localdomain" ]] && return 0
+    [[ "$host" == "127" ]] && return 0
+    [[ "$host" =~ ^127\.([0-9]{1,3}\.){2}[0-9]{1,3}$ ]] && return 0
+    [[ "$host" == "::1" ]] && return 0
+    [[ "$host" == "0:0:0:0:0:0:0:1" ]] && return 0
+
+    return 1
+}
+
+# Stable per-database dump filename for index N (1-based): db-001.sql, db-002.sql ...
+pg_dump_index_filename() {
+    printf 'db-%03d.sql' "$1"
+}
+
+# Encode one manifest line:
+#   dbname<TAB>owner<TAB>has_ts<TAB>filename<TAB>ts_version
+# ts_version is the source timescaledb extension version (empty for non-timescale
+# databases). Rejects (returns 1) any field that would corrupt the TSV.
+pg_manifest_encode() {
+    local dbname="$1" owner="$2" has_ts="$3" filename="$4" ts_version="${5:-}"
+    case "${dbname}${owner}${filename}${ts_version}" in
+        *$'\t'* | *$'\n'*) return 1 ;;
+    esac
+    printf '%s\t%s\t%s\t%s\t%s' "$dbname" "$owner" "$has_ts" "$filename" "$ts_version"
+}
+
+# Validate the complete database artifact that will be put in an archive. This
+# is intentionally independent of a dump command's exit status: a process can
+# be interrupted after writing a plausible-looking prefix, or its output can be
+# truncated by a full filesystem.
+postgres_backup_looks_restorable() {
+    local temp_dir="$1"
+    local expected_database="$2"
+    local layout=""
+    layout=$(pg_backup_layout "$temp_dir")
+
+    if [ "$layout" = "single" ]; then
+        postgres_dump_looks_restorable "$temp_dir/db_backup.sql"
+        return
+    fi
+    [ "$layout" = "multi" ] || return 1
+
+    local dump_dir="$temp_dir/pg_dump"
+    local manifest="$dump_dir/manifest.tsv"
+    postgres_globals_dump_looks_complete "$dump_dir/globals.sql" || return 1
+    [ -s "$manifest" ] || return 1
+
+    local manifest_line=""
+    local dbname=""
+    local has_timescaledb=""
+    local filename=""
+    local field_count=0
+    local manifest_count=0
+    local expected_found=false
+    while IFS= read -r manifest_line || [ -n "$manifest_line" ]; do
+        [ -n "$manifest_line" ] || return 1
+        field_count=$(awk -F '\t' '{ print NF }' <<<"$manifest_line")
+        [ "$field_count" -ge 4 ] && [ "$field_count" -le 5 ] || return 1
+
+        dbname="${manifest_line%%$'\t'*}"
+        has_timescaledb=$(cut -f3 <<<"$manifest_line")
+        filename=$(cut -f4 <<<"$manifest_line")
+        [ -n "$dbname" ] || return 1
+        [[ "$has_timescaledb" =~ ^[01]$ ]] || return 1
+        [[ "$filename" =~ ^db-[0-9]{3}\.sql$ ]] || return 1
+        postgres_dump_looks_restorable "$dump_dir/$filename" || return 1
+
+        manifest_count=$((manifest_count + 1))
+        if [ "$dbname" = "$expected_database" ]; then
+            expected_found=true
+        fi
+    done <"$manifest"
+
+    local dump_count=0
+    dump_count=$(find "$dump_dir" -maxdepth 1 -type f -name 'db-[0-9][0-9][0-9].sql' | wc -l | awk '{ print $1 }')
+    [ "$manifest_count" -gt 0 ] && [ "$dump_count" -eq "$manifest_count" ] && [ "$expected_found" = true ]
+}
+
+# Validate that an SQLite snapshot file is non-empty and passes SQLite quick_check integrity.
+sqlite_snapshot_looks_restorable() {
+    local snapshot_file="$1"
+    [ -s "$snapshot_file" ] || return 1
+    command -v sqlite3 >/dev/null 2>&1 || return 1
+
+    local integrity=""
+    integrity=$(sqlite3 "$snapshot_file" 'PRAGMA quick_check;' 2>/dev/null) || return 1
+    [ "$integrity" = "ok" ]
+}
+
+# Dispatcher to validate database backup restorable integrity for any supported engine.
+database_backup_looks_restorable() {
+    local db_type="$1"
+    local temp_dir="$2"
+    local expected_database="${3:-}"
+    local sqlite_file="${4:-}"
+
+    case "$db_type" in
+        mysql | mariadb)
+            mysql_dump_looks_restorable "$temp_dir/db_backup.sql"
+            ;;
+        postgresql | timescaledb)
+            postgres_backup_looks_restorable "$temp_dir" "$expected_database"
+            ;;
+        sqlite)
+            [ -n "$sqlite_file" ] || return 1
+            sqlite_snapshot_looks_restorable "$temp_dir/$(basename "$sqlite_file")"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Upload completed backup archive(s) to configured Telegram chat, supporting multipart archives.
+send_backup_to_telegram() {
+    local requested_timestamp="${1:-}"
+
+    if [ -f "$ENV_FILE" ]; then
+        while IFS='=' read -r key value; do
+            if [[ -z "$key" || "$key" =~ ^# ]]; then
+                continue
+            fi
+            key=$(echo "$key" | xargs)
+            value=$(echo "$value" | xargs)
+            value=$(echo "$value" | sed -E 's/^["'"'"'](.*)["'"'"']$/\1/')
+            if [[ "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+                export "$key"="$value"
+            else
+                colorized_echo yellow "Skipping invalid line in .env: $key=$value"
+            fi
+        done <"$ENV_FILE"
+    else
+        colorized_echo red "Environment file (.env) not found."
+        exit 1
+    fi
+
+    if [ "$BACKUP_SERVICE_ENABLED" != "true" ]; then
+        colorized_echo yellow "Backup service is not enabled. Skipping Telegram upload."
+        return
+    fi
+
+    # Validate Telegram configuration
+    if [ -z "$BACKUP_TELEGRAM_BOT_KEY" ]; then
+        colorized_echo red "Error: BACKUP_TELEGRAM_BOT_KEY is not set in .env file"
+        return 1
+    fi
+
+    if [ -z "$BACKUP_TELEGRAM_CHAT_ID" ]; then
+        colorized_echo red "Error: BACKUP_TELEGRAM_CHAT_ID is not set in .env file"
+        return 1
+    fi
+
+    local proxy_url=""
+    local curl_proxy_args=()
+    if proxy_url=$(get_backup_proxy_url); then
+        curl_proxy_args=(--proxy "$proxy_url")
+    fi
+
+    local server_ip="$(curl "${curl_proxy_args[@]}" -4 -s --max-time 5 ifconfig.me 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$')"
+    if [ -z "$server_ip" ]; then
+        server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+    if [ -z "$server_ip" ]; then
+        server_ip="Unknown IP"
+    fi
+    local backup_dir="$APP_DIR/backup"
+    local latest_backup=""
+    if [ -n "$requested_timestamp" ]; then
+        if [[ ! "$requested_timestamp" =~ ^[0-9]{14}$ ]]; then
+            colorized_echo red "Invalid backup timestamp requested for upload."
+            return 1
+        fi
+        latest_backup=$(find "$backup_dir" -maxdepth 1 -type f \
+            \( -name "backup_${requested_timestamp}.zip" -o -name "backup_${requested_timestamp}.z[0-9][0-9]" -o -name "backup_${requested_timestamp}.part[0-9][0-9].zip" \) \
+            -printf '%T@ %f\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)
+    else
+        latest_backup=$(find "$backup_dir" -maxdepth 1 -type f \
+            \( -name 'backup_*.tar.gz' -o -name 'backup_*.zip' -o -name 'backup_*.z[0-9][0-9]' -o -name 'backup_*.part[0-9][0-9].zip' \) \
+            -printf '%T@ %f\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)
+    fi
+
+    if [ -z "$latest_backup" ]; then
+        colorized_echo red "No backups found to send."
+        return 1
+    fi
+
+    local backup_paths=()
+    local uploaded_files=()
+    local cleanup_dir=""
+    local extraction_mode="zip"
+
+    local telegram_split_bytes=$((49 * 1000 * 1000))
+
+    if [[ "$latest_backup" =~ \.part[0-9]{2}\.zip$ ]]; then
+        extraction_mode="part_zip"
+        local base="${latest_backup%%.part*}"
+        while IFS= read -r file; do
+            [ -n "$file" ] && backup_paths+=("$file")
+        done < <(find "$backup_dir" -maxdepth 1 -type f -name "${base}.part*.zip" | sort)
+        if [ ${#backup_paths[@]} -eq 0 ]; then
+            colorized_echo red "Incomplete backup parts for $base"
+            return 1
+        fi
+    elif [[ "$latest_backup" =~ \.z[0-9]{2}$ ]]; then
+        extraction_mode="split_zip"
+        local base="${latest_backup%.z??}"
+        while IFS= read -r file; do
+            [ -n "$file" ] && backup_paths+=("$file")
+        done < <(find "$backup_dir" -maxdepth 1 -type f -name "${base}.z[0-9][0-9]" | sort)
+        if [ -f "$backup_dir/${base}.zip" ]; then
+            backup_paths+=("$backup_dir/${base}.zip")
+        else
+            colorized_echo red "Missing final .zip file for split archive $base"
+            return 1
+        fi
+    elif [[ "$latest_backup" =~ \.zip$ ]]; then
+        local base="${latest_backup%.zip}"
+        local split_files=()
+        while IFS= read -r file; do
+            [ -n "$file" ] && split_files+=("$file")
+        done < <(find "$backup_dir" -maxdepth 1 -type f -name "${base}.z[0-9][0-9]" | sort)
+        if [ ${#split_files[@]} -gt 0 ]; then
+            extraction_mode="split_zip"
+            backup_paths=("${split_files[@]}")
+        fi
+        backup_paths+=("$backup_dir/$latest_backup")
+    elif [[ "$latest_backup" =~ \.tar\.gz$ ]]; then
+        extraction_mode="tar"
+        cleanup_dir="/tmp/pasarguard_backup_split"
+        rm -rf "$cleanup_dir"
+        mkdir -p "$cleanup_dir"
+        local legacy_backup="$backup_dir/$latest_backup"
+        local backup_size=$(du -m "$legacy_backup" | cut -f1)
+        if [ "$backup_size" -gt 49 ]; then
+            colorized_echo yellow "Legacy backup is larger than 49MB. Splitting before upload..."
+            split -b "$telegram_split_bytes" "$legacy_backup" "$cleanup_dir/${latest_backup}_part_"
+        else
+            cp "$legacy_backup" "$cleanup_dir/$latest_backup"
+        fi
+        while IFS= read -r file; do
+            [ -n "$file" ] && backup_paths+=("$file")
+        done < <(find "$cleanup_dir" -maxdepth 1 -type f -print | sort)
+        if [ ${#backup_paths[@]} -eq 0 ]; then
+            colorized_echo red "Failed to prepare legacy backup for upload."
+            rm -rf "$cleanup_dir"
+            return 1
+        fi
+    else
+        colorized_echo red "Unsupported backup format: $latest_backup"
+        return 1
+    fi
+
+    local backup_time=$(date "+%Y-%m-%d %H:%M:%S %Z")
+
+    for part in "${backup_paths[@]}"; do
+        local part_name=$(basename "$part")
+        local custom_filename="$part_name"
+
+        local escaped_server_ip=$(printf '%s' "$server_ip" | sed 's/[_*\[\]()~`>#+\-=|{}!.]/\\&/g')
+        local escaped_filename=$(printf '%s' "$custom_filename" | sed 's/[_*\[\]()~`>#+\-=|{}!.]/\\&/g')
+        local escaped_time=$(printf '%s' "$backup_time" | sed 's/[_*\[\]()~`>#+\-=|{}!.]/\\&/g')
+        local caption="📦 *Backup Information*\n🌐 *Server IP*: \`$escaped_server_ip\`\n📁 *Backup File*: \`$escaped_filename\`\n⏰ *Backup Time*: \`$escaped_time\`"
+
+        local response=$(curl "${curl_proxy_args[@]}" -s -w "\n%{http_code}" -F chat_id="$BACKUP_TELEGRAM_CHAT_ID" \
+            -F document=@"$part;filename=$custom_filename" \
+            -F caption="$(printf '%b' "$caption")" \
+            -F parse_mode="MarkdownV2" \
+            "https://api.telegram.org/bot$BACKUP_TELEGRAM_BOT_KEY/sendDocument" 2>&1)
+
+        local http_code=$(echo "$response" | tail -n1)
+        local response_body=$(echo "$response" | sed '$d')
+
+        if [ "$http_code" == "200" ]; then
+            # Check if response contains "ok":true
+            if echo "$response_body" | grep -q '"ok":true'; then
+                uploaded_files+=("$custom_filename")
+                colorized_echo green "Backup part $custom_filename successfully sent to Telegram."
+            else
+                # Extract error message from Telegram response
+                local error_msg=$(echo "$response_body" | grep -o '"description":"[^"]*"' | cut -d'"' -f4 || echo "Unknown error")
+                colorized_echo red "Failed to send backup part $custom_filename to Telegram: $error_msg"
+                echo "Telegram API status: $http_code" >&2
+                echo "Telegram API Response: $response_body" >&2
+            fi
+        else
+            local error_msg=$(echo "$response_body" | grep -o '"description":"[^"]*"' | cut -d'"' -f4 || echo "HTTP $http_code")
+            colorized_echo red "Failed to send backup part $custom_filename to Telegram: $error_msg"
+            echo "Telegram API Response: $response_body" >&2
+        fi
+    done
+
+    if [ ${#uploaded_files[@]} -gt 0 ]; then
+        local files_list=""
+        for file in "${uploaded_files[@]}"; do
+            files_list+="- $file"$'\n'
+        done
+        files_list="${files_list%$'\n'}"
+
+        local info_message=$'📦 Backup Upload Summary\n'
+        info_message+=$'──────────────────────\n'
+        info_message+="🌐 Server IP: $server_ip"$'\n'
+        info_message+="⏰ Time: $backup_time"$'\n'
+        info_message+=$'\n✅ Files Uploaded:\n'
+        info_message+="$files_list"$'\n'
+        info_message+=$'\n📂 Extraction Guide:\n'
+        if [ "$extraction_mode" = "part_zip" ]; then
+            info_message+=$'🪟 Windows: Rebuild the archive first, e.g. copy /b backup_xxx.part01.zip+backup_xxx.part02.zip+... backup_xxx.zip, then extract backup_xxx.zip with 7-Zip.\n'
+            info_message+=$'🐧 Linux: Run cat backup_xxx.part*.zip > backup_xxx.zip && unzip backup_xxx.zip.\n'
+            info_message+=$'🍎 macOS: Run cat backup_xxx.part*.zip > backup_xxx.zip && unzip backup_xxx.zip.\n'
+            info_message+=$'⚠️ Always download every .partNN.zip file before rebuilding the archive.'
+        elif [ "$extraction_mode" = "split_zip" ]; then
+            info_message+=$'🪟 Windows: Install and use 7-Zip. Place the .zip and every .zXX part together, then start extraction from the .zip file.\n'
+            info_message+=$'🐧 Linux: Run unzip (e.g., unzip backup_xxx.zip) with all .zXX parts in the same directory.\n'
+            info_message+=$'🍎 macOS: Use Archive Utility or run unzip backup_xxx.zip from Terminal with the .zXX parts beside the .zip file.\n'
+            info_message+=$'⚠️ Always download the .zip and every .zXX part before extracting.'
+        else
+            info_message+=$'🪟 Windows: Extract the uploaded archive with 7-Zip.\n'
+            info_message+=$'🐧 Linux: Run unzip backup_xxx.zip.\n'
+            info_message+=$'🍎 macOS: Open the archive with Archive Utility or run unzip backup_xxx.zip.\n'
+            info_message+=$'⚠️ Download the complete archive before extracting.'
+        fi
+
+        curl "${curl_proxy_args[@]}" -s -X POST "https://api.telegram.org/bot$BACKUP_TELEGRAM_BOT_KEY/sendMessage" \
+            -d chat_id="$BACKUP_TELEGRAM_CHAT_ID" \
+            -d text="$info_message" >/dev/null 2>&1 || true
+    fi
+
+    if [ -n "$cleanup_dir" ]; then
+        rm -rf "$cleanup_dir"
+    fi
+}
+
+# Send error notification and execution log to Telegram chat upon backup failure.
+send_backup_error_to_telegram() {
+    local error_messages=$1
+    local log_file=$2
+    local proxy_url=""
+    local curl_proxy_args=()
+    if proxy_url=$(get_backup_proxy_url); then
+        curl_proxy_args=(--proxy "$proxy_url")
+    fi
+    local server_ip="$(curl "${curl_proxy_args[@]}" -4 -s --max-time 5 ifconfig.me 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$')"
+    if [ -z "$server_ip" ]; then
+        server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+    if [ -z "$server_ip" ]; then
+        server_ip="Unknown IP"
+    fi
+    local error_time=$(date "+%Y-%m-%d %H:%M:%S %Z")
+    local message="⚠️ Backup Error Notification
+🌐 Server IP: $server_ip
+❌ Errors: $error_messages
+⏰ Time: $error_time"
+
+    local max_length=1000
+    if [ ${#message} -gt $max_length ]; then
+        message="${message:0:$((max_length - 25))}...
+[Message truncated]"
+    fi
+
+    curl "${curl_proxy_args[@]}" -s -X POST "https://api.telegram.org/bot$BACKUP_TELEGRAM_BOT_KEY/sendMessage" \
+        -d chat_id="$BACKUP_TELEGRAM_CHAT_ID" \
+        -d text="$message" >/dev/null 2>&1 &&
+        colorized_echo green "Backup error notification sent to Telegram." ||
+        colorized_echo red "Failed to send error notification to Telegram."
+
+    if [ -f "$log_file" ]; then
+
+        response=$(curl "${curl_proxy_args[@]}" -s -w "%{http_code}" -o /tmp/tg_response.json \
+            -F chat_id="$BACKUP_TELEGRAM_CHAT_ID" \
+            -F document=@"$log_file;filename=backup_error.log" \
+            -F caption="📜 Backup Error Log - $error_time" \
+            "https://api.telegram.org/bot$BACKUP_TELEGRAM_BOT_KEY/sendDocument")
+
+        http_code="${response:(-3)}"
+        if [ "$http_code" -eq 200 ]; then
+            colorized_echo green "Backup error log sent to Telegram."
+        else
+            colorized_echo red "Failed to send backup error log to Telegram. HTTP code: $http_code"
+            cat /tmp/tg_response.json
+        fi
+    else
+        colorized_echo red "Log file not found: $log_file"
+    fi
+}
+
+# Interactive configuration wizard for scheduled automated Telegram backups.
+backup_service() {
+    local telegram_bot_key=""
+    local telegram_chat_id=""
+    local cron_schedule=""
+    local interval_minutes=""
+    local backup_proxy_enabled="false"
+    local backup_proxy_url=""
+
+    colorized_echo blue "====================================="
+    colorized_echo blue "      Welcome to Backup Service      "
+    colorized_echo blue "====================================="
+
+    if grep -q "BACKUP_SERVICE_ENABLED=true" "$ENV_FILE"; then
+        while true; do
+            telegram_bot_key=$(awk -F'=' '/^BACKUP_TELEGRAM_BOT_KEY=/ {print $2}' "$ENV_FILE")
+            telegram_chat_id=$(awk -F'=' '/^BACKUP_TELEGRAM_CHAT_ID=/ {print $2}' "$ENV_FILE")
+            cron_schedule=$(awk -F'=' '/^BACKUP_CRON_SCHEDULE=/ {print $2}' "$ENV_FILE" | tr -d '"')
+            backup_proxy_enabled=$(awk -F'=' '/^BACKUP_PROXY_ENABLED=/ {print $2}' "$ENV_FILE")
+            backup_proxy_url=$(awk -F'=' '/^BACKUP_PROXY_URL=/ {print substr($0, index($0,"=")+1); exit}' "$ENV_FILE")
+            backup_proxy_url=$(echo "$backup_proxy_url" | sed -e 's/^"//' -e 's/"$//')
+            [ -z "$backup_proxy_enabled" ] && backup_proxy_enabled="false"
+            local masked_telegram_bot_key=""
+
+            interval_minutes=$(backup_interval_minutes_from_cron "$cron_schedule")
+
+            masked_telegram_bot_key=$(mask_telegram_bot_key "$telegram_bot_key")
+
+            colorized_echo green "====================================="
+            colorized_echo green "Current Backup Configuration:"
+            colorized_echo cyan "Telegram Bot API Key: $masked_telegram_bot_key"
+            colorized_echo cyan "Telegram Chat ID: $telegram_chat_id"
+            colorized_echo cyan "Backup Interval: $(format_backup_interval "$interval_minutes" "$cron_schedule")"
+            if [[ "$backup_proxy_enabled" == "true" && -n "$backup_proxy_url" ]]; then
+                colorized_echo cyan "Proxy: Enabled ($backup_proxy_url)"
+            else
+                colorized_echo cyan "Proxy: Disabled"
+            fi
+            colorized_echo green "====================================="
+            echo "Choose an option:"
+            echo "1. Check Backup Service"
+            echo "2. Edit Backup Service"
+            echo "3. Reconfigure Backup Service"
+            echo "4. Remove Backup Service"
+            echo "5. Request Instant Backup"
+            echo "6. Exit"
+            read -p "Enter your choice (1-6): " user_choice
+
+            case $user_choice in
+            1)
+                view_backup_service
+                echo ""
+                ;;
+            2)
+                edit_backup_service
+                echo ""
+                ;;
+            3)
+                colorized_echo yellow "Starting reconfiguration..."
+                remove_backup_service
+                break
+                ;;
+            4)
+                colorized_echo yellow "Removing Backup Service..."
+                remove_backup_service
+                return
+                ;;
+            5)
+                colorized_echo yellow "Starting instant backup..."
+                backup_command
+                colorized_echo green "Instant backup completed."
+                echo ""
+                ;;
+            6)
+                colorized_echo yellow "Exiting..."
+                return
+                ;;
+            *)
+                colorized_echo red "Invalid choice. Please try again."
+                echo ""
+                ;;
+            esac
+        done
+    else
+        colorized_echo yellow "No backup service is currently configured."
+    fi
+
+    while true; do
+        printf "Enter your Telegram bot API key: "
+        read telegram_bot_key
+        if [[ -n "$telegram_bot_key" ]]; then
+            break
+        else
+            colorized_echo red "API key cannot be empty. Please try again."
+        fi
+    done
+
+    while true; do
+        printf "Enter your Telegram chat ID: "
+        read telegram_chat_id
+        if [[ -n "$telegram_chat_id" ]]; then
+            break
+        else
+            colorized_echo red "Chat ID cannot be empty. Please try again."
+        fi
+    done
+
+    while true; do
+        printf "How often should backups run? Enter minutes\n(e.g. 30 = every 30 min, 60 = hourly, 1440 = once a day): "
+        read interval_minutes
+
+        if cron_schedule=$(backup_cron_from_interval_minutes "$interval_minutes"); then
+            colorized_echo green "Backups will run: $(format_backup_interval "$interval_minutes")."
+            break
+        else
+            colorized_echo red "Please enter a number that divides evenly into an hour (5, 10, 15, 20, 30) or a whole number of hours (60, 120, 180 ... up to 1440 for once a day)."
+        fi
+    done
+
+    while true; do
+        read -p "Do you need to use an HTTP/SOCKS proxy for Telegram backups? (y/N): " proxy_choice
+        case "$proxy_choice" in
+        [Yy]*)
+            backup_proxy_enabled="true"
+            break
+            ;;
+        [Nn]*|"")
+            backup_proxy_enabled="false"
+            break
+            ;;
+        *)
+            colorized_echo red "Invalid choice. Please enter y or n."
+            ;;
+        esac
+    done
+
+    if [ "$backup_proxy_enabled" = "true" ]; then
+        while true; do
+            read -p "Enter proxy URL (e.g. http://127.0.0.1:8080 or socks5://127.0.0.1:1080): " backup_proxy_url
+            backup_proxy_url=$(echo "$backup_proxy_url" | xargs)
+            if [ -z "$backup_proxy_url" ]; then
+                colorized_echo red "Proxy URL cannot be empty."
+                continue
+            fi
+            if is_valid_proxy_url "$backup_proxy_url"; then
+                break
+            else
+                colorized_echo red "Invalid proxy URL. Supported prefixes: http://, https://, socks5://, socks5h://, socks4://."
+            fi
+        done
+    else
+        backup_proxy_url=""
+    fi
+
+    sed -i '/^BACKUP_SERVICE_ENABLED/d' "$ENV_FILE"
+    sed -i '/^BACKUP_TELEGRAM_BOT_KEY/d' "$ENV_FILE"
+    sed -i '/^BACKUP_TELEGRAM_CHAT_ID/d' "$ENV_FILE"
+    sed -i '/^BACKUP_CRON_SCHEDULE/d' "$ENV_FILE"
+    sed -i '/^BACKUP_PROXY_ENABLED/d' "$ENV_FILE"
+    sed -i '/^BACKUP_PROXY_URL/d' "$ENV_FILE"
+
+    {
+        echo ""
+        echo "# Backup service configuration"
+        echo "BACKUP_SERVICE_ENABLED=true"
+        echo "BACKUP_TELEGRAM_BOT_KEY=$telegram_bot_key"
+        echo "BACKUP_TELEGRAM_CHAT_ID=$telegram_chat_id"
+        echo "BACKUP_CRON_SCHEDULE=\"$cron_schedule\""
+        echo "BACKUP_PROXY_ENABLED=$backup_proxy_enabled"
+        echo "BACKUP_PROXY_URL=\"$backup_proxy_url\""
+    } >>"$ENV_FILE"
+
+    colorized_echo green "Backup service configuration saved in $ENV_FILE."
+
+    # Use full path to the script for cron job
+    local script_path="/usr/local/bin/$APP_NAME"
+    if [ ! -f "$script_path" ]; then
+        script_path=$(which "$APP_NAME" 2>/dev/null || echo "/usr/local/bin/$APP_NAME")
+    fi
+    # Set PATH for cron to ensure docker and other tools are found
+    local backup_command="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin bash $script_path backup"
+    add_cron_job "$cron_schedule" "$backup_command"
+
+    colorized_echo green "Backup service successfully configured."
+
+    # Run initial backup
+    colorized_echo blue "Running initial backup..."
+    backup_command
+    if [ $? -eq 0 ]; then
+        colorized_echo green "Initial backup completed successfully."
+    else
+        colorized_echo yellow "Initial backup completed with warnings. Check logs if needed."
+    fi
+    colorized_echo cyan "Backups will be sent to Telegram: $(format_backup_interval "$interval_minutes")."
+    colorized_echo green "====================================="
+}
+
+# Add or update the PasarGuard backup service entry in system crontab.
+add_cron_job() {
+    local schedule="$1"
+    local command="$2"
+    local temp_cron=$(mktemp)
+    local filtered_cron="${temp_cron}.tmp"
+
+    crontab -l 2>/dev/null >"$temp_cron" || true
+    filter_backup_cron_entries "$temp_cron" "$filtered_cron"
+    mv "$filtered_cron" "$temp_cron"
+    echo "$schedule $command # pasarguard-backup-service" >>"$temp_cron"
+
+    if crontab "$temp_cron"; then
+        colorized_echo green "Cron job successfully added."
+    else
+        colorized_echo red "Failed to add cron job. Please check manually."
+    fi
+    rm -f "$temp_cron"
+}
+
+# Display current configuration details of the automated backup service.
+view_backup_service() {
+    if ! grep -q "BACKUP_SERVICE_ENABLED=true" "$ENV_FILE"; then
+        colorized_echo red "Backup service is not configured."
+        return 1
+    fi
+
+    local telegram_bot_key=$(awk -F'=' '/^BACKUP_TELEGRAM_BOT_KEY=/ {print $2}' "$ENV_FILE")
+    local telegram_chat_id=$(awk -F'=' '/^BACKUP_TELEGRAM_CHAT_ID=/ {print $2}' "$ENV_FILE")
+    local cron_schedule=$(awk -F'=' '/^BACKUP_CRON_SCHEDULE=/ {print $2}' "$ENV_FILE" | tr -d '"')
+    local backup_proxy_enabled=$(awk -F'=' '/^BACKUP_PROXY_ENABLED=/ {print $2}' "$ENV_FILE")
+    local backup_proxy_url=$(awk -F'=' '/^BACKUP_PROXY_URL=/ {print substr($0, index($0,"=")+1); exit}' "$ENV_FILE")
+    backup_proxy_url=$(echo "$backup_proxy_url" | sed -e 's/^"//' -e 's/"$//')
+    [ -z "$backup_proxy_enabled" ] && backup_proxy_enabled="false"
+    local interval_minutes=""
+    local masked_telegram_bot_key=""
+
+    interval_minutes=$(backup_interval_minutes_from_cron "$cron_schedule")
+
+    masked_telegram_bot_key=$(mask_telegram_bot_key "$telegram_bot_key")
+
+    colorized_echo blue "====================================="
+    colorized_echo blue "      Backup Service Details         "
+    colorized_echo blue "====================================="
+    colorized_echo green "Status: Enabled"
+    colorized_echo cyan "Telegram Bot API Key: $masked_telegram_bot_key"
+    colorized_echo cyan "Telegram Chat ID: $telegram_chat_id"
+    colorized_echo cyan "Cron Schedule: $cron_schedule"
+    colorized_echo cyan "Backup Interval: $(format_backup_interval "$interval_minutes" "$cron_schedule")"
+    if [[ "$backup_proxy_enabled" == "true" && -n "$backup_proxy_url" ]]; then
+        colorized_echo cyan "Proxy: Enabled ($backup_proxy_url)"
+    else
+        colorized_echo cyan "Proxy: Disabled"
+    fi
+    colorized_echo blue "====================================="
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Interactive editor for existing automated backup service settings.
+edit_backup_service() {
+    if ! grep -q "BACKUP_SERVICE_ENABLED=true" "$ENV_FILE"; then
+        colorized_echo red "Backup service is not configured."
+        return 1
+    fi
+
+    local telegram_bot_key=$(awk -F'=' '/^BACKUP_TELEGRAM_BOT_KEY=/ {print $2}' "$ENV_FILE")
+    local telegram_chat_id=$(awk -F'=' '/^BACKUP_TELEGRAM_CHAT_ID=/ {print $2}' "$ENV_FILE")
+    local cron_schedule=$(awk -F'=' '/^BACKUP_CRON_SCHEDULE=/ {print $2}' "$ENV_FILE" | tr -d '"')
+    local backup_proxy_enabled=$(awk -F'=' '/^BACKUP_PROXY_ENABLED=/ {print $2}' "$ENV_FILE")
+    local backup_proxy_url=$(awk -F'=' '/^BACKUP_PROXY_URL=/ {print substr($0, index($0,"=")+1); exit}' "$ENV_FILE")
+    backup_proxy_url=$(echo "$backup_proxy_url" | sed -e 's/^"//' -e 's/"$//')
+    [ -z "$backup_proxy_enabled" ] && backup_proxy_enabled="false"
+    local interval_minutes=""
+    local masked_telegram_bot_key=""
+
+    interval_minutes=$(backup_interval_minutes_from_cron "$cron_schedule")
+
+    masked_telegram_bot_key=$(mask_telegram_bot_key "$telegram_bot_key")
+
+    colorized_echo blue "====================================="
+    colorized_echo blue "      Edit Backup Service            "
+    colorized_echo blue "====================================="
+    echo "Current configuration:"
+    local proxy_display="Disabled"
+    if [[ "$backup_proxy_enabled" == "true" && -n "$backup_proxy_url" ]]; then
+        proxy_display="Enabled ($backup_proxy_url)"
+    fi
+    colorized_echo cyan "1. Telegram Bot API Key: $masked_telegram_bot_key"
+    colorized_echo cyan "2. Telegram Chat ID: $telegram_chat_id"
+    colorized_echo cyan "3. Backup Interval: $(format_backup_interval "$interval_minutes" "$cron_schedule")"
+    colorized_echo cyan "4. Proxy: $proxy_display"
+    colorized_echo yellow "5. Cancel"
+    echo ""
+    read -p "Which setting would you like to edit? (1-5): " edit_choice
+
+    case $edit_choice in
+    1)
+        while true; do
+            printf "Enter new Telegram bot API key [current: %s]: " "$masked_telegram_bot_key"
+            read new_bot_key
+            if [[ -n "$new_bot_key" ]]; then
+                sed -i "s|^BACKUP_TELEGRAM_BOT_KEY=.*|BACKUP_TELEGRAM_BOT_KEY=$new_bot_key|" "$ENV_FILE"
+                colorized_echo green "Telegram Bot API Key updated successfully."
+                break
+            else
+                colorized_echo red "API key cannot be empty. Please try again."
+            fi
+        done
+        ;;
+    2)
+        while true; do
+            printf "Enter new Telegram chat ID [current: $telegram_chat_id]: "
+            read new_chat_id
+            if [[ -n "$new_chat_id" ]]; then
+                sed -i "s|^BACKUP_TELEGRAM_CHAT_ID=.*|BACKUP_TELEGRAM_CHAT_ID=$new_chat_id|" "$ENV_FILE"
+                colorized_echo green "Telegram Chat ID updated successfully."
+                break
+            else
+                colorized_echo red "Chat ID cannot be empty. Please try again."
+            fi
+        done
+        ;;
+    3)
+        while true; do
+            printf "How often should backups run? Enter minutes\n(e.g. 30 = every 30 min, 60 = hourly, 1440 = once a day) [current: %s]: " "$(format_backup_interval "$interval_minutes" "$cron_schedule")"
+            read new_interval_minutes
+
+            local new_cron_schedule=""
+            if new_cron_schedule=$(backup_cron_from_interval_minutes "$new_interval_minutes"); then
+                colorized_echo green "Backups will run: $(format_backup_interval "$new_interval_minutes")."
+            else
+                colorized_echo red "Please enter a number that divides evenly into an hour (5, 10, 15, 20, 30) or a whole number of hours (60, 120, 180 ... up to 1440 for once a day)."
+                continue
+            fi
+
+            sed -i "s|^BACKUP_CRON_SCHEDULE=.*|BACKUP_CRON_SCHEDULE=\"$new_cron_schedule\"|" "$ENV_FILE"
+
+            # Use full path to the script for cron job
+            local script_path="/usr/local/bin/$APP_NAME"
+            if [ ! -f "$script_path" ]; then
+                script_path=$(which "$APP_NAME" 2>/dev/null || echo "/usr/local/bin/$APP_NAME")
+            fi
+            # Set PATH for cron to ensure docker and other tools are found
+            local backup_command="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin bash $script_path backup"
+            local temp_cron=$(mktemp)
+            local filtered_cron="${temp_cron}.tmp"
+            crontab -l 2>/dev/null >"$temp_cron" || true
+            filter_backup_cron_entries "$temp_cron" "$filtered_cron"
+            mv "$filtered_cron" "$temp_cron"
+            echo "$new_cron_schedule $backup_command # pasarguard-backup-service" >>"$temp_cron"
+
+            if crontab "$temp_cron"; then
+                colorized_echo green "Backup interval and cron schedule updated successfully."
+            else
+                colorized_echo red "Failed to update cron job. Please check manually."
+            fi
+            rm -f "$temp_cron"
+            break
+        done
+        ;;
+    4)
+        local new_proxy_enabled="$backup_proxy_enabled"
+        local new_proxy_url="$backup_proxy_url"
+        while true; do
+            read -p "Enable proxy for Telegram backups? (y/N) [current: $proxy_display]: " proxy_choice
+            case "$proxy_choice" in
+            [Yy]*)
+                new_proxy_enabled="true"
+                break
+                ;;
+            [Nn]*|"")
+                new_proxy_enabled="false"
+                break
+                ;;
+            *)
+                colorized_echo red "Invalid choice. Please enter y or n."
+                ;;
+            esac
+        done
+
+        if [ "$new_proxy_enabled" = "true" ]; then
+            while true; do
+                read -p "Enter proxy URL (e.g. http://127.0.0.1:8080 or socks5://127.0.0.1:1080) [current: $backup_proxy_url]: " input_proxy_url
+                if [ -z "$input_proxy_url" ]; then
+                    if [ -n "$backup_proxy_url" ]; then
+                        input_proxy_url="$backup_proxy_url"
+                    else
+                        colorized_echo red "Proxy URL cannot be empty."
+                        continue
+                    fi
+                fi
+                input_proxy_url=$(echo "$input_proxy_url" | xargs)
+                if is_valid_proxy_url "$input_proxy_url"; then
+                    new_proxy_url="$input_proxy_url"
+                    break
+                else
+                    colorized_echo red "Invalid proxy URL. Supported prefixes: http://, https://, socks5://, socks5h://, socks4://."
+                fi
+            done
+        else
+            new_proxy_url=""
+        fi
+
+        replace_or_append_env_var "BACKUP_PROXY_ENABLED" "$new_proxy_enabled"
+        replace_or_append_env_var "BACKUP_PROXY_URL" "$new_proxy_url" true
+        colorized_echo green "Backup proxy configuration updated successfully."
+        ;;
+    5)
+        colorized_echo yellow "Edit cancelled."
+        return
+        ;;
+    *)
+        colorized_echo red "Invalid choice."
+        return
+        ;;
+    esac
+
+    colorized_echo green "Backup service configuration updated successfully."
+}
+
+# Disable and completely remove automated backup service configuration and cron task.
+remove_backup_service() {
+    colorized_echo red "in process..."
+
+    sed -i '/^# Backup service configuration/d' "$ENV_FILE"
+    sed -i '/BACKUP_SERVICE_ENABLED/d' "$ENV_FILE"
+    sed -i '/BACKUP_TELEGRAM_BOT_KEY/d' "$ENV_FILE"
+    sed -i '/BACKUP_TELEGRAM_CHAT_ID/d' "$ENV_FILE"
+    sed -i '/BACKUP_CRON_SCHEDULE/d' "$ENV_FILE"
+    sed -i '/BACKUP_PROXY_ENABLED/d' "$ENV_FILE"
+    sed -i '/BACKUP_PROXY_URL/d' "$ENV_FILE"
+
+    local temp_cron=$(mktemp)
+    local filtered_cron="${temp_cron}.tmp"
+    crontab -l 2>/dev/null >"$temp_cron" || true
+
+    filter_backup_cron_entries "$temp_cron" "$filtered_cron"
+    mv "$filtered_cron" "$temp_cron"
+
+    if crontab "$temp_cron"; then
+        colorized_echo green "Backup service task removed from crontab."
+    else
+        colorized_echo red "Failed to update crontab. Please check manually."
+    fi
+
+    rm -f "$temp_cron"
+
+    colorized_echo green "Backup service has been removed."
+}
+
+
+# Dump every real user database (plus cluster globals) from a local
+# PostgreSQL/TimescaleDB container into <temp_dir>/pg_dump/.
+# Layout: globals.sql, db-NNN.sql per database, manifest.tsv
+# (dbname<TAB>owner<TAB>has_timescaledb<TAB>filename<TAB>ts_version).
+# The configured application database is passed as argument 6. Returns 0 only
+# when every enumerated database was dumped and that application database is in
+# the manifest; otherwise removes the pg_dump directory and returns 1 so the
+# caller can fall back to a validated single-database dump.
+pg_dump_all_user_databases() {
+    local container_name="$1"
+    local backup_user="$2"
+    local backup_password="$3"
+    local temp_dir="$4"
+    local log_file="$5"
+    local expected_database="$6"
+
+    local out_dir="$temp_dir/pg_dump"
+    local manifest="$out_dir/manifest.tsv"
+    mkdir -p "$out_dir" || return 1
+
+    # Cluster-wide roles/grants so owners exist on restore.
+    if ! docker exec -e PGPASSWORD="$backup_password" "$container_name" \
+        pg_dumpall -U "$backup_user" --globals-only >"$out_dir/globals.sql" 2>>"$log_file"; then
+        echo "pg_dumpall --globals-only failed" >>"$log_file"
+        rm -rf "$out_dir"
+        return 1
+    fi
+    if ! postgres_globals_dump_looks_complete "$out_dir/globals.sql"; then
+        echo "pg_dumpall globals output failed completion validation" >>"$log_file"
+        rm -rf "$out_dir"
+        return 1
+    fi
+
+    # Enumerate real user databases (skip templates and the postgres maintenance DB).
+    local databases=""
+    if ! databases=$(docker exec -e PGPASSWORD="$backup_password" "$container_name" \
+        psql -U "$backup_user" -d postgres -At \
+        -c "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres';" \
+        2>>"$log_file"); then
+        echo "Could not enumerate user databases for multi-DB backup" >>"$log_file"
+        rm -rf "$out_dir"
+        return 1
+    fi
+    if [ -z "$databases" ]; then
+        echo "No user databases enumerated for multi-DB backup" >>"$log_file"
+        rm -rf "$out_dir"
+        return 1
+    fi
+
+    : >"$manifest"
+    local index=0
+    local dumped=0
+    local expected_found=false
+    local dbname=""
+    while IFS= read -r dbname; do
+        [ -n "$dbname" ] || continue
+        index=$((index + 1))
+        local filename
+        filename=$(pg_dump_index_filename "$index")
+
+        # Owner of this database. If it cannot be determined, the manifest
+        # would be incomplete, so abort and let the caller fall back to a
+        # validated single-database dump.
+        local owner=""
+        if ! owner=$(docker exec -e PGPASSWORD="$backup_password" "$container_name" \
+            psql -U "$backup_user" -d postgres -At \
+            -c "SELECT pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datname = '${dbname//\'/\'\'}';" \
+            2>>"$log_file") || [ -z "$owner" ]; then
+            echo "Could not determine owner for database '$dbname'; multi-DB backup is incomplete" >>"$log_file"
+            rm -rf "$out_dir"
+            return 1
+        fi
+
+        # TimescaleDB presence + version for this database. One query gives both:
+        # a non-empty result means the extension is installed, and the value is
+        # its version (recorded so restore can detect a version mismatch before
+        # doing anything destructive). Check psql's own exit status so a
+        # connection failure isn't silently recorded as "not installed".
+        local has_ts="0"
+        local ts_version=""
+        local ext_check=""
+        if ext_check=$(docker exec -e PGPASSWORD="$backup_password" "$container_name" \
+            psql -U "$backup_user" -d "$dbname" -At \
+            -c "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';" 2>>"$log_file"); then
+            if [ -n "$ext_check" ]; then
+                has_ts="1"
+                ts_version="$ext_check"
+            fi
+        else
+            echo "Could not check timescaledb extension for database '$dbname'; multi-DB backup is incomplete" >>"$log_file"
+            rm -rf "$out_dir"
+            return 1
+        fi
+
+        # Dump this database.
+        if ! docker exec -e PGPASSWORD="$backup_password" "$container_name" \
+            pg_dump -U "$backup_user" -d "$dbname" --clean --if-exists >"$out_dir/$filename" 2>>"$log_file"; then
+            echo "pg_dump failed for database '$dbname'" >>"$log_file"
+            rm -rf "$out_dir"
+            return 1
+        fi
+
+        # Never trust an empty/garbage dump.
+        if ! postgres_dump_looks_restorable "$out_dir/$filename"; then
+            echo "Dump for database '$dbname' failed completion/content validation" >>"$log_file"
+            rm -rf "$out_dir"
+            return 1
+        fi
+
+        local line
+        if ! line=$(pg_manifest_encode "$dbname" "$owner" "$has_ts" "$filename" "$ts_version"); then
+            echo "Database name '$dbname' is not manifest-safe; multi-DB backup is incomplete" >>"$log_file"
+            rm -rf "$out_dir"
+            return 1
+        fi
+        printf '%s\n' "$line" >>"$manifest"
+        dumped=$((dumped + 1))
+        if [ "$dbname" = "$expected_database" ]; then
+            expected_found=true
+        fi
+    done <<<"$databases"
+
+    if [ "$dumped" -eq 0 ] || [ "$dumped" -ne "$index" ] || [ "$expected_found" != true ]; then
+        echo "Multi-DB backup did not include every database and the configured database '$expected_database'" >>"$log_file"
+        rm -rf "$out_dir"
+        return 1
+    fi
+    return 0
+}
+
+# Record the extension version beside a legacy single-database TimescaleDB
+# dump. pg_dump itself does not preserve which extension version must be
+# created first, so this small sidecar is required for automatic cross-version
+# restore when the all-databases layout is unavailable.
+write_timescaledb_single_dump_version() {
+    local container_name="$1"
+    local backup_user="$2"
+    local backup_password="$3"
+    local database_name="$4"
+    local temp_dir="$5"
+    local log_file="$6"
+    local source_version=""
+
+    if ! source_version=$(docker exec -e PGPASSWORD="$backup_password" "$container_name" \
+        psql -X -U "$backup_user" -d "$database_name" -At \
+        -c "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';" \
+        2>>"$log_file"); then
+        echo "Could not query TimescaleDB version for single-database dump" >>"$log_file"
+        return 1
+    fi
+
+    if [ -z "$source_version" ]; then
+        # The compose image can be TimescaleDB while this particular database
+        # does not use the extension. Preserve that fact so restore can use the
+        # normal PostgreSQL path instead of requiring a fake version.
+        printf '%s\n' 'none' >"$temp_dir/db_backup.timescaledb-version"
+        return 0
+    fi
+
+    if [[ ! "$source_version" =~ ^[0-9]+[.][0-9]+[.][0-9]+([-.][A-Za-z0-9]+)*$ ]]; then
+        echo "Could not record TimescaleDB version for single-database dump" >>"$log_file"
+        return 1
+    fi
+
+    printf '%s\n' "$source_version" >"$temp_dir/db_backup.timescaledb-version"
+}
+
+# Record the images actually used by the source containers, including stopped
+# containers. A tag such as latest/lts is not a reproducible recovery image.
+# This is data, never a shell file to source. Missing pins keep ordinary backups
+# usable, but fresh-server recovery must refuse to guess an image version.
+# Arguments: stage, engine, database container, log, SQLite database path, and
+# the database user, password and name used to read the schema revision.
+write_backup_runtime() {
+    local stage="$1" engine="$2" database_container="$3" log="$4"
+    local sqlite_file="$5" db_user="$6" db_password="$7" db_name="$8"
+    local runtime="$stage/backup-runtime.tsv"
+    local server_version="unknown" dump_tool_version="unknown" revision="unknown" dump=""
+    local services="" service="" cid="" image_id="" digest="" pins=0
+    local compose="${COMPOSE:-docker compose}"
+
+    case "${APP_NAME}${APP_DIR}${DATA_DIR}" in
+        *$'\t'* | *$'\n'*) return 1 ;;
+    esac
+    if [ -f "$stage/db_backup.sql" ]; then
+        dump="$stage/db_backup.sql"
+    elif [ -f "$stage/pg_dump/db-001.sql" ]; then
+        dump="$stage/pg_dump/db-001.sql"
+    fi
+    if [ "$engine" = sqlite ]; then
+        # The panel's own SQLite library version is not visible from here; record
+        # the host sqlite3 that made the snapshot instead.
+        dump_tool_version=$(sqlite3 --version 2>>"$log" | awk '{print "sqlite3 " $1}') || dump_tool_version="unknown"
+        # The protected snapshot is immutable. A failed metadata query against
+        # a WAL-mode database must not create new WAL/SHM files in the archive.
+        local snapshot_uri="$stage/$(basename "$sqlite_file")"
+        snapshot_uri="${snapshot_uri//%/%25}"
+        snapshot_uri="${snapshot_uri//\?/%3F}"
+        snapshot_uri="${snapshot_uri//#/%23}"
+        revision=$(sqlite3 "file:${snapshot_uri}?immutable=1" 'SELECT version_num FROM alembic_version;' 2>>"$log") || revision="unknown"
+    elif [ -n "$dump" ]; then
+        server_version=$(sed -n -E 's/^-- (Server version[[:space:]]+|Dumped from database version )//p' "$dump" | head -n 1)
+        # Headers: "-- MySQL dump 10.13  Distrib 8.0.43, for ...", MariaDB up to 11
+        # the same with "Distrib", MariaDB 12 "-- MariaDB dump 10.19-12.3.2-MariaDB, for ...".
+        dump_tool_version=$(sed -n -E 's/^-- Dumped by pg_dump version //p
+            s/^-- (MySQL|MariaDB) dump .*Distrib[[:space:]]+([^,]+),.*/\2/p
+            s/^-- MariaDB dump [0-9.]+-([^,[:space:]]+),.*/\1/p' "$dump" | head -n 1)
+        if [[ "$server_version" == *MariaDB* ]]; then engine="mariadb"; fi
+        if [ -n "$database_container" ] && [ -n "$db_user" ] && [ -n "$db_name" ]; then
+            case "$engine" in
+                mysql|mariadb)
+                    local client="mysql"
+                    [ "$engine" != mariadb ] || client="mariadb"
+                    revision=$(docker exec -e MYSQL_PWD="$db_password" "$database_container" "$client" \
+                        -u "$db_user" "$db_name" -N -s -e 'SELECT version_num FROM alembic_version;' 2>>"$log") || revision="unknown"
+                    ;;
+                postgresql|timescaledb)
+                    revision=$(docker exec -e PGPASSWORD="$db_password" "$database_container" \
+                        psql -X -U "$db_user" -d "$db_name" -At -c 'SELECT version_num FROM alembic_version;' 2>>"$log") || revision="unknown"
+                    ;;
+            esac
+        fi
+    fi
+    server_version="${server_version//$'\t'/ }"
+    server_version="${server_version//$'\n'/ }"
+    revision="${revision//$'\n'/,}"
+    revision="${revision//$'\t'/ }"
+    dump_tool_version="${dump_tool_version//$'\n'/ }"
+    dump_tool_version="${dump_tool_version//$'\t'/ }"
+    {
+        printf 'format\t1\ncreated_utc\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        printf 'database\t%s\nserver_version\t%s\nschema_revision\t%s\n' "$engine" "${server_version:-unknown}" "${revision:-unknown}"
+        printf 'dump_tool_version\t%s\n' "${dump_tool_version:-unknown}"
+        printf 'project\t%s\napp_dir\t%s\ndata_dir\t%s\n' "$APP_NAME" "$APP_DIR" "$DATA_DIR"
+    } >"$runtime" || return 1
+    services=$($compose -f "$COMPOSE_FILE" -p "$APP_NAME" config --services 2>>"$log") || services=""
+    while IFS= read -r service; do
+        [ -n "$service" ] || continue
+        # Compose service names: letters, digits, ".", "_" and "-".
+        [[ "$service" =~ ^[a-zA-Z0-9._-]+$ ]] || return 1
+        cid=$($compose -f "$COMPOSE_FILE" -p "$APP_NAME" ps -a -q -- "$service" 2>>"$log" | head -n 1) || cid=""
+        image_id=""
+        digest=""
+        if [ -n "$cid" ]; then
+            image_id=$(docker inspect --format '{{.Image}}' "$cid" 2>>"$log") || image_id=""
+            if [ -n "$image_id" ]; then
+                digest=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image_id" 2>>"$log" | head -n 1) || digest=""
+            fi
+        fi
+        [[ "$digest" =~ ^[a-zA-Z0-9._:/-]+@sha256:[a-f0-9]{64}$ ]] || digest="unavailable"
+        [[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]] || image_id="unavailable"
+        [ "$digest" = unavailable ] || pins=$((pins + 1))
+        printf 'image\t%s\t%s\t%s\n' "$service" "$digest" "$image_id" >>"$runtime" || return 1
+    done <<<"$services"
+    if [ "$pins" -eq 0 ]; then
+        colorized_echo yellow "Recovery image digests could not be recorded. This backup can be restored to an existing installation; --fresh needs the original images."
+    fi
+}
+
+# Cover the archive payload, including settings and version metadata.
+# Checksums detect corruption; they do not authenticate an untrusted archive.
+# A file whose name holds a backslash, CR or LF cannot be written as one plain
+# inventory line; it is reported and left to the archive's own CRC instead of
+# failing the whole backup.
+write_backup_checksums() (
+    cd "$1" || exit 1
+    local payload="" checksum=""
+    while IFS= read -r -d '' payload; do
+        case "$payload" in
+            *$'\n'* | *$'\r'* | *\\*)
+                printf 'Warning: file not in the checksum inventory (unsupported characters in its name): %q\n' "$payload" >&2
+                continue
+                ;;
+        esac
+        checksum=$(sha256sum -- "$payload") || exit 1
+        printf '%s\n' "$checksum"
+    done < <(find . -type f ! -path './backup-files.sha256' -print0 | sort -z)
+) >"$1/backup-files.sha256"
+
+# Execute a complete PasarGuard system backup including database dumps, configuration, and data.
+backup_command() {
+    colorized_echo blue "Starting backup process..."
+
+    # Check if pasarguard is installed
+    if ! is_pasarguard_installed; then
+        colorized_echo red "pasarguard is not installed!"
+        return 1
+    fi
+
+    local backup_dir="$APP_DIR/backup"
+    local timestamp=$(date +"%Y%m%d%H%M%S")
+    local backup_file="$backup_dir/backup_$timestamp.zip"
+    local error_messages=()
+    local final_backup_paths=()
+    local split_size_bytes="${BACKUP_SPLIT_SIZE_BYTES:-$((47 * 1024 * 1024))}" # keep Telegram chunks under 50MB
+    local split_threshold_bytes="${BACKUP_SPLIT_THRESHOLD_BYTES:-$split_size_bytes}"
+    local staging_root=""
+    local temp_dir=""
+    local sqlite_snapshot_dir=""
+    local log_file=""
+    # Keep the lock with the backup artifacts so it is not affected by sticky-dir
+    # protections on /tmp when different users invoke the command.
+    local lock_dir="${backup_dir}/.${APP_NAME}-backup.lock.d"
+    local keep_log_file=false
+
+    if ! mkdir -p "$backup_dir"; then
+        colorized_echo red "Failed to prepare backup directory: $backup_dir"
+        return 1
+    fi
+
+    # Backups can be large, so avoid /tmp by default and stage beside the final
+    # archive unless BACKUP_TMPDIR is explicitly set.
+    staging_root="${BACKUP_TMPDIR:-$backup_dir}"
+    if ! mkdir -p "$staging_root"; then
+        colorized_echo red "Failed to prepare backup staging directory: $staging_root"
+        return 1
+    fi
+
+    if ! temp_dir=$(mktemp -d "${staging_root}/pasarguard_backup.XXXXXX"); then
+        colorized_echo red "Failed to create backup temp directory."
+        return 1
+    fi
+
+    if ! log_file=$(mktemp "${staging_root}/pasarguard_backup_error.XXXXXX.log"); then
+        colorized_echo red "Failed to create backup log file."
+        rm -rf "$temp_dir"
+        return 1
+    fi
+
+    # Acquire an exclusive directory-based lock to ensure only one backup runs at a time.
+    acquire_backup_lock() {
+        local lock_pid=""
+
+        if mkdir "$lock_dir" 2>/dev/null; then
+            printf '%s\n' "$$" >"$lock_dir/pid"
+            return 0
+        fi
+
+        if [ -f "$lock_dir/pid" ]; then
+            lock_pid=$(cat "$lock_dir/pid" 2>/dev/null || true)
+            if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
+                return 1
+            fi
+        fi
+
+        if rm -rf "$lock_dir" 2>/dev/null && mkdir "$lock_dir" 2>/dev/null; then
+            printf '%s\n' "$$" >"$lock_dir/pid"
+            return 0
+        fi
+
+        return 2
+    }
+
+    local lock_status=0
+    if acquire_backup_lock; then
+        lock_status=0
+    else
+        lock_status=$?
+    fi
+
+    case "$lock_status" in
+    0)
+        ;;
+    1)
+        colorized_echo yellow "Another backup process is already running."
+        rm -rf "$temp_dir"
+        rm -f "$log_file"
+        return 1
+        ;;
+    *)
+        colorized_echo red "Failed to acquire backup lock: $lock_dir"
+        rm -rf "$temp_dir"
+        rm -f "$log_file"
+        return 1
+        ;;
+    esac
+
+    # Clean up temporary staging directories, snapshot files, and release the backup lock.
+    cleanup_backup_command() {
+        rm -rf "$temp_dir"
+        if [ -n "$sqlite_snapshot_dir" ]; then
+            rm -rf "$sqlite_snapshot_dir"
+        fi
+        if [ "$keep_log_file" != true ] && [ -n "$log_file" ]; then
+            rm -f "$log_file"
+        fi
+        rm -rf "$lock_dir"
+    }
+
+    >"$log_file"
+    echo "Backup Log - $(date)" >>"$log_file"
+
+    colorized_echo blue "Reading environment configuration..."
+
+    if ! command -v rsync >/dev/null 2>&1; then
+        detect_os
+        install_package rsync
+    fi
+
+    if ! command -v zip >/dev/null 2>&1; then
+        detect_os
+        install_package zip
+    fi
+
+    if [ -f "$ENV_FILE" ]; then
+        while IFS='=' read -r key value; do
+            if [[ -z "$key" || "$key" =~ ^# ]]; then
+                continue
+            fi
+            key=$(echo "$key" | xargs)
+            value=$(echo "$value" | xargs)
+            # Remove surrounding quotes from value if present
+            value=$(echo "$value" | sed -E 's/^["'\''](.*)["'\'']$/\1/')
+            if [[ "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+                export "$key"="$value"
+            else
+                echo "Skipping invalid line in .env: $key=$value" >>"$log_file"
+            fi
+        done <"$ENV_FILE"
+    else
+        error_messages+=("Environment file (.env) not found.")
+        echo "Environment file (.env) not found." >>"$log_file"
+        send_backup_error_to_telegram "${error_messages[*]}" "$log_file"
+        keep_log_file=true
+        cleanup_backup_command
+        return 1
+    fi
+
+    local db_type=""
+    local sqlite_file=""
+    local db_host=""
+    local db_port=""
+    local db_user=""
+    local db_password=""
+    local db_name=""
+    local container_name=""
+    local safe_sqlalchemy_url=""
+
+    safe_sqlalchemy_url=$(printf '%s' "${SQLALCHEMY_DATABASE_URL:-not set}" | sed -E 's#^([^:]+://)([^@/]+)@#\1REDACTED@#')
+
+    # SQLALCHEMY_DATABASE_URL should already be loaded from .env above
+    # Just log what we have
+    echo "SQLALCHEMY_DATABASE_URL from environment: ${safe_sqlalchemy_url}" >>"$log_file"
+
+    if [ -z "$SQLALCHEMY_DATABASE_URL" ]; then
+        colorized_echo red "Error: SQLALCHEMY_DATABASE_URL not found in .env file or not set"
+        echo "Please check $ENV_FILE for SQLALCHEMY_DATABASE_URL" >>"$log_file"
+        error_messages+=("SQLALCHEMY_DATABASE_URL not found in .env file")
+        colorized_echo yellow "Please check the log file for details: $log_file"
+        keep_log_file=true
+        send_backup_error_to_telegram "${error_messages[*]}" "$log_file"
+        cleanup_backup_command
+        return 1
+    fi
+
+    if [ -n "$SQLALCHEMY_DATABASE_URL" ]; then
+        echo "Parsing SQLALCHEMY_DATABASE_URL: ${safe_sqlalchemy_url}" >>"$log_file"
+
+        # Extract database type from scheme
+        if [[ "$SQLALCHEMY_DATABASE_URL" =~ ^sqlite ]]; then
+            db_type="sqlite"
+            if ! sqlite_file=$(sqlite_database_path_from_url "$SQLALCHEMY_DATABASE_URL") || [ -z "$sqlite_file" ]; then
+                sqlite_file=""
+                echo "Invalid SQLite SQLALCHEMY_DATABASE_URL: ${safe_sqlalchemy_url}" >>"$log_file"
+                error_messages+=("SQLite database URL is malformed; expected sqlite[+driver]:// followed by a database path.")
+            fi
+        elif [[ "$SQLALCHEMY_DATABASE_URL" =~ ^(mysql|mariadb|postgresql)[^:]*:// ]]; then
+            # Extract scheme to determine type
+            if [[ "$SQLALCHEMY_DATABASE_URL" =~ ^mariadb[^:]*:// ]]; then
+                db_type="mariadb"
+            elif [[ "$SQLALCHEMY_DATABASE_URL" =~ ^mysql[^:]*:// ]]; then
+                db_type="mysql"
+            elif [[ "$SQLALCHEMY_DATABASE_URL" =~ ^postgresql[^:]*:// ]]; then
+                # Check if it's timescaledb by checking for specific patterns or container
+                if grep -q "image: timescale/timescaledb" "$COMPOSE_FILE" 2>/dev/null; then
+                    db_type="timescaledb"
+                else
+                    db_type="postgresql"
+                fi
+            fi
+
+            # Parse connection string: scheme://[user[:password]@]host[:port]/database[?query]
+            # Remove scheme prefix
+            local url_part="${SQLALCHEMY_DATABASE_URL#*://}"
+            # Remove query parameters if present
+            url_part="${url_part%%\?*}"
+            url_part="${url_part%%#*}"
+
+            # Extract auth part (user:password@)
+            # Use the last '@' as the separator between auth and host
+            if [[ "$url_part" == *@* ]]; then
+                local auth_part="${url_part%@*}"
+                url_part="${url_part##*@}"
+
+                # Extract username and password (first ':' is the separator)
+                if [[ "$auth_part" == *:* ]]; then
+                    db_user="${auth_part%%:*}"
+                    db_password="${auth_part#*:}"
+                else
+                    db_user="$auth_part"
+                fi
+            fi
+
+            # Extract host, port, and database
+            if [[ "$url_part" =~ ^\[([^]]+)\](:([0-9]+))?/(.+)$ ]]; then
+                db_host="${BASH_REMATCH[1]}"
+                db_port="${BASH_REMATCH[3]:-}"
+                db_name="${BASH_REMATCH[4]}"
+            elif [[ "$url_part" =~ ^([^:/]+)(:([0-9]+))?/(.+)$ ]]; then
+                db_host="${BASH_REMATCH[1]}"
+                db_port="${BASH_REMATCH[3]:-}"
+                db_name="${BASH_REMATCH[4]}"
+            fi
+
+            if [ -n "$db_host" ]; then
+                # Remove query parameters from database name if any
+                db_name="${db_name%%\?*}"
+                db_name="${db_name%%#*}"
+
+                # Decode percent-encoded characters and plus signs into standard text.
+                urldecode() { local url_encoded="${1//+/ }"; printf '%b' "${url_encoded//%/\\x}"; }
+                db_user=$(urldecode "$db_user")
+                db_password=$(urldecode "$db_password")
+                db_name=$(urldecode "$db_name")
+
+                # Set default ports if not specified
+                if [ -z "$db_port" ]; then
+                    if [[ "$db_type" =~ ^(mysql|mariadb)$ ]]; then
+                        db_port="3306"
+                    elif [[ "$db_type" =~ ^(postgresql|timescaledb)$ ]]; then
+                        db_port="5432"
+                    fi
+                fi
+            fi
+
+            # For local databases, try to find container name from docker-compose
+            if is_local_db_host "$db_host"; then
+                container_name=$(find_container "$db_type")
+                echo "Container name/ID for $db_type: $container_name" >>"$log_file"
+            fi
+        fi
+    fi
+
+    if [ -n "$db_type" ]; then
+        echo "Database detected: $db_type" >>"$log_file"
+        echo "Database host: ${db_host:-localhost}" >>"$log_file"
+        colorized_echo blue "Database detected: $db_type"
+        colorized_echo blue "Backing up database..."
+        case $db_type in
+        mariadb)
+            if is_local_db_host "$db_host"; then
+                if [ -z "$container_name" ]; then
+                    colorized_echo red "Error: MariaDB container not found. Is the container running?"
+                    echo "MariaDB container not found. Container name: ${container_name:-empty}" >>"$log_file"
+                    error_messages+=("MariaDB container not found or not running.")
+                else
+                    local verified_container=$(check_container "$container_name" "$db_type")
+                    if [ -z "$verified_container" ]; then
+                        colorized_echo red "Error: MariaDB container not found or not running."
+                        echo "Container not found or not running: $container_name" >>"$log_file"
+                        error_messages+=("MariaDB container not found or not running.")
+                    else
+                        container_name="$verified_container"
+                # Local Docker container
+                # Try root user with MYSQL_ROOT_PASSWORD first for all databases backup
+                if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then
+                    colorized_echo blue "Backing up all MariaDB databases from container: $container_name (using root user)"
+                    local mariadb_databases=""
+                    local configured_db_found=false
+                    mariadb_databases=$(docker exec -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" "$container_name" \
+                        mariadb -N -s -u root -e "SHOW DATABASES;" 2>>"$log_file") || mariadb_databases=""
+                    while IFS= read -r _db_line; do
+                        [ -n "$_db_line" ] || continue
+                        if [ "$_db_line" = "$db_name" ]; then
+                            configured_db_found=true
+                            break
+                        fi
+                    done <<<"$mariadb_databases"
+
+                    if [ "$configured_db_found" = true ] && docker exec -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" "$container_name" mariadb-dump -u root --all-databases --ignore-database=mysql --ignore-database=performance_schema --ignore-database=information_schema --ignore-database=sys --events --triggers >"$temp_dir/db_backup.sql" 2>>"$log_file"; then
+                        colorized_echo green "MariaDB backup completed successfully (all databases)"
+                    else
+                        # Fallback to SQL URL credentials for specific database
+                        colorized_echo yellow "Root backup failed or did not include '$db_name'; falling back to app user for the configured database"
+                        local backup_user="${db_user:-${DB_USER:-}}"
+                        local backup_password="${db_password:-${DB_PASSWORD:-}}"
+
+                        if [ -z "$backup_password" ] || [ -z "$db_name" ]; then
+                            colorized_echo red "Error: Cannot fallback - missing database name or password in SQLALCHEMY_DATABASE_URL"
+                            error_messages+=("MariaDB backup failed - root backup failed and fallback credentials incomplete.")
+                        else
+                            colorized_echo blue "Backing up MariaDB database '$db_name' from container: $container_name (using app user)"
+                            if ! docker exec -e MYSQL_PWD="$backup_password" "$container_name" mariadb-dump -u "$backup_user" "$db_name" --events --triggers >"$temp_dir/db_backup.sql" 2>>"$log_file"; then
+                                colorized_echo red "MariaDB dump failed. Check log file for details."
+                                error_messages+=("MariaDB dump failed.")
+                            else
+                                colorized_echo green "MariaDB backup completed successfully"
+                            fi
+                        fi
+                    fi
+                else
+                    # No MYSQL_ROOT_PASSWORD, use SQL URL credentials for specific database
+                    local backup_user="${db_user:-${DB_USER:-}}"
+                    local backup_password="${db_password:-${DB_PASSWORD:-}}"
+
+                    if [ -z "$backup_password" ]; then
+                        colorized_echo red "Error: Database password not found. Check MYSQL_ROOT_PASSWORD or SQLALCHEMY_DATABASE_URL in .env"
+                        error_messages+=("MariaDB password not found.")
+                    elif [ -z "$db_name" ]; then
+                        colorized_echo red "Error: Database name not found in SQLALCHEMY_DATABASE_URL"
+                        error_messages+=("MariaDB database name not found.")
+                    else
+                        colorized_echo blue "Backing up MariaDB database '$db_name' from container: $container_name (using app user)"
+                        if ! docker exec -e MYSQL_PWD="$backup_password" "$container_name" mariadb-dump -u "$backup_user" "$db_name" --events --triggers >"$temp_dir/db_backup.sql" 2>>"$log_file"; then
+                            colorized_echo red "MariaDB dump failed. Check log file for details."
+                            error_messages+=("MariaDB dump failed.")
+                        else
+                            colorized_echo green "MariaDB backup completed successfully"
+                        fi
+                    fi
+                fi
+                    fi
+                fi
+            else
+                # Remote database - would need mariadb-client installed
+                colorized_echo red "Remote MariaDB backup not yet supported. Please use local database or install mariadb-client."
+                error_messages+=("Remote MariaDB backup not yet supported. Please use local database or install mariadb-client.")
+            fi
+            ;;
+        mysql)
+            if is_local_db_host "$db_host"; then
+                if [ -z "$container_name" ]; then
+                    colorized_echo red "Error: MySQL container not found. Is the container running?"
+                    echo "MySQL container not found. Container name: ${container_name:-empty}" >>"$log_file"
+                    error_messages+=("MySQL container not found or not running.")
+                else
+                    local verified_container=$(check_container "$container_name" "$db_type")
+                    if [ -z "$verified_container" ]; then
+                        colorized_echo red "Error: MySQL/MariaDB container not found or not running."
+                        echo "Container not found or not running: $container_name" >>"$log_file"
+                        error_messages+=("MySQL/MariaDB container not found or not running.")
+                    else
+                        container_name="$verified_container"
+                            # Check if this is actually a MariaDB container (try mariadb-dump first)
+                            local is_mariadb=false
+                            if docker exec "$container_name" mariadb-dump --version >/dev/null 2>&1; then
+                                is_mariadb=true
+                            fi
+
+                    # Local Docker container
+                    # Try root user with MYSQL_ROOT_PASSWORD first for all databases backup
+                    if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then
+                                # Choose command based on whether it's MariaDB or MySQL
+                                local mysql_cmd="mysql"
+                                local dump_cmd="mysqldump"
+                                local db_type_name="MySQL"
+                                if [ "$is_mariadb" = true ]; then
+                                    mysql_cmd="mariadb"
+                                    dump_cmd="mariadb-dump"
+                                    db_type_name="MariaDB"
+                                fi
+
+                                colorized_echo blue "Backing up all $db_type_name databases from container: $container_name (using root user)"
+                                databases=$(docker exec -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" "$container_name" "$mysql_cmd" -u root -e "SHOW DATABASES;" 2>>"$log_file" | grep -Ev "^(Database|mysql|performance_schema|information_schema|sys)$" || true)
+                                # Collect DB names into an array so each is passed as one argument
+                                # (a name containing a space must not be word-split).
+                                local -a database_list=()
+                                local configured_db_found=false
+                                while IFS= read -r _db_line; do
+                                    if [ -n "$_db_line" ]; then
+                                        database_list+=("$_db_line")
+                                        if [ "$_db_line" = "$db_name" ]; then
+                                            configured_db_found=true
+                                        fi
+                                    fi
+                                done <<<"$databases"
+                        if [ -z "$databases" ] || [ "$configured_db_found" != true ]; then
+                            colorized_echo yellow "The configured database '$db_name' was not found in the root database list; falling back to a specific database backup"
+                            # Fallback to SQL URL credentials
+                            local backup_user="${db_user:-${DB_USER:-}}"
+                            local backup_password="${db_password:-${DB_PASSWORD:-}}"
+
+                            if [ -z "$backup_password" ] || [ -z "$db_name" ]; then
+                                colorized_echo red "Error: Cannot fallback - missing database name or password in SQLALCHEMY_DATABASE_URL"
+                                error_messages+=("MySQL backup failed - no databases found and fallback credentials incomplete.")
+                            else
+                                        colorized_echo blue "Backing up $db_type_name database '$db_name' from container: $container_name (using app user)"
+                                        if ! docker exec -e MYSQL_PWD="$backup_password" "$container_name" "$dump_cmd" -u "$backup_user" "$db_name" --events --triggers >"$temp_dir/db_backup.sql" 2>>"$log_file"; then
+                                            colorized_echo red "$db_type_name dump failed. Check log file for details."
+                                            error_messages+=("$db_type_name dump failed.")
+                                        else
+                                            colorized_echo green "$db_type_name backup completed successfully"
+                                        fi
+                                    fi
+                                elif ! docker exec -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" "$container_name" "$dump_cmd" -u root --databases "${database_list[@]}" --events --triggers >"$temp_dir/db_backup.sql" 2>>"$log_file"; then
+                            # Root backup failed, fallback to SQL URL credentials
+                            colorized_echo yellow "Root backup failed, falling back to app user for specific database"
+                            local backup_user="${db_user:-${DB_USER:-}}"
+                            local backup_password="${db_password:-${DB_PASSWORD:-}}"
+
+                            if [ -z "$backup_password" ] || [ -z "$db_name" ]; then
+                                colorized_echo red "Error: Cannot fallback - missing database name or password in SQLALCHEMY_DATABASE_URL"
+                                error_messages+=("MySQL backup failed - root backup failed and fallback credentials incomplete.")
+                            else
+                                        colorized_echo blue "Backing up $db_type_name database '$db_name' from container: $container_name (using app user)"
+                                        if ! docker exec -e MYSQL_PWD="$backup_password" "$container_name" "$dump_cmd" -u "$backup_user" "$db_name" --events --triggers >"$temp_dir/db_backup.sql" 2>>"$log_file"; then
+                                            colorized_echo red "$db_type_name dump failed. Check log file for details."
+                                            error_messages+=("$db_type_name dump failed.")
+                                        else
+                                            colorized_echo green "$db_type_name backup completed successfully"
+                                        fi
+                            fi
+                        else
+                                    colorized_echo green "$db_type_name backup completed successfully (all databases)"
+                        fi
+                    else
+                        # No MYSQL_ROOT_PASSWORD, use SQL URL credentials for specific database
+                        local backup_user="${db_user:-${DB_USER:-}}"
+                        local backup_password="${db_password:-${DB_PASSWORD:-}}"
+                                local dump_cmd="mysqldump"
+                                local db_type_name="MySQL"
+                                if [ "$is_mariadb" = true ]; then
+                                    dump_cmd="mariadb-dump"
+                                    db_type_name="MariaDB"
+                                fi
+
+                        if [ -z "$backup_password" ]; then
+                            colorized_echo red "Error: Database password not found. Check MYSQL_ROOT_PASSWORD or SQLALCHEMY_DATABASE_URL in .env"
+                            error_messages+=("MySQL password not found.")
+                        elif [ -z "$db_name" ]; then
+                            colorized_echo red "Error: Database name not found in SQLALCHEMY_DATABASE_URL"
+                            error_messages+=("MySQL database name not found.")
+                        else
+                                    colorized_echo blue "Backing up $db_type_name database '$db_name' from container: $container_name (using app user)"
+                                    if ! docker exec -e MYSQL_PWD="$backup_password" "$container_name" "$dump_cmd" -u "$backup_user" "$db_name" --events --triggers >"$temp_dir/db_backup.sql" 2>>"$log_file"; then
+                                        colorized_echo red "$db_type_name dump failed. Check log file for details."
+                                        error_messages+=("$db_type_name dump failed.")
+                                    else
+                                        colorized_echo green "$db_type_name backup completed successfully"
+                                    fi
+                                fi
+                        fi
+                    fi
+                fi
+            else
+                # Remote database - would need mysql-client installed
+                colorized_echo red "Remote MySQL backup not yet supported. Please use local database or install mysql-client."
+                error_messages+=("Remote MySQL backup not yet supported. Please use local database or install mysql-client.")
+            fi
+            ;;
+        postgresql)
+            if is_local_db_host "$db_host"; then
+                if [ -z "$container_name" ]; then
+                    colorized_echo red "Error: PostgreSQL container not found. Is the container running?"
+                    echo "PostgreSQL container not found. Container name: ${container_name:-empty}" >>"$log_file"
+                    error_messages+=("PostgreSQL container not found or not running.")
+                else
+                    local verified_container=$(check_container "$container_name" "$db_type")
+                    if [ -z "$verified_container" ]; then
+                        colorized_echo red "Error: PostgreSQL container not found or not running."
+                        echo "Container not found or not running: $container_name" >>"$log_file"
+                        error_messages+=("PostgreSQL container not found or not running.")
+                    else
+                        container_name="$verified_container"
+                        local backup_user="${db_user:-${DB_USER:-postgres}}"
+                        local backup_password="${db_password:-${DB_PASSWORD:-}}"
+
+                        if [ -z "$backup_password" ]; then
+                            colorized_echo red "Error: Database password not found. Check DB_PASSWORD or SQLALCHEMY_DATABASE_URL in .env"
+                            error_messages+=("PostgreSQL password not found.")
+                        elif [ -z "$db_name" ]; then
+                            colorized_echo red "Error: Database name not found in SQLALCHEMY_DATABASE_URL"
+                            error_messages+=("PostgreSQL database name not found.")
+                        else
+                            colorized_echo blue "Backing up all PostgreSQL databases from container: $container_name (using user: $backup_user)"
+                            if pg_dump_all_user_databases "$container_name" "$backup_user" "$backup_password" "$temp_dir" "$log_file" "$db_name"; then
+                                colorized_echo green "PostgreSQL backup completed successfully (all databases)"
+                            else
+                                colorized_echo yellow "Multi-database backup unavailable; falling back to single database '$db_name'."
+                                if ! docker exec -e PGPASSWORD="$backup_password" "$container_name" pg_dump -U "$backup_user" -d "$db_name" --clean --if-exists >"$temp_dir/db_backup.sql" 2>>"$log_file"; then
+                                    colorized_echo red "PostgreSQL dump failed. Check log file for details."
+                                    error_messages+=("PostgreSQL dump failed.")
+                                else
+                                    colorized_echo green "PostgreSQL backup completed successfully"
+                                fi
+                            fi
+                        fi
+                    fi
+                fi
+            else
+                # Remote database - would need postgresql-client installed
+                colorized_echo red "Remote PostgreSQL backup not yet supported. Please use local database or install postgresql-client."
+                error_messages+=("Remote PostgreSQL backup not yet supported. Please use local database or install postgresql-client.")
+            fi
+            ;;
+        timescaledb)
+            if is_local_db_host "$db_host"; then
+                if [ -z "$container_name" ]; then
+                    colorized_echo red "Error: TimescaleDB container not found. Is the container running?"
+                    echo "Container name detection failed. Checked for: timescaledb, postgresql" >>"$log_file"
+                    error_messages+=("TimescaleDB container not found or not running.")
+                else
+                    # Get actual container name/ID - ps -q returns container ID, which is what we need
+                    # But first verify the container exists
+                    local actual_container=""
+                    if docker inspect "$container_name" >/dev/null 2>&1; then
+                        actual_container="$container_name"
+                    else
+                        # Try to find container by service name using docker compose
+                        actual_container=$($COMPOSE -f "$COMPOSE_FILE" -p "$APP_NAME" ps -q timescaledb 2>/dev/null)
+                        if [ -z "$actual_container" ]; then
+                            actual_container=$($COMPOSE -f "$COMPOSE_FILE" -p "$APP_NAME" ps -q postgresql 2>/dev/null)
+                        fi
+                        if [ -z "$actual_container" ]; then
+                            # Try with full container name pattern
+                            local full_container_name="${APP_NAME}-timescaledb-1"
+                            if docker inspect "$full_container_name" >/dev/null 2>&1; then
+                                actual_container="$full_container_name"
+                            else
+                                full_container_name="${APP_NAME}-postgresql-1"
+                                if docker inspect "$full_container_name" >/dev/null 2>&1; then
+                                    actual_container="$full_container_name"
+                                fi
+                            fi
+                        fi
+                    fi
+
+                    if [ -z "$actual_container" ]; then
+                        colorized_echo red "Error: TimescaleDB container not found. Is the container running?"
+                        echo "Container not found. Tried: $container_name and various patterns" >>"$log_file"
+                        error_messages+=("TimescaleDB container not found or not running.")
+                    else
+                        container_name="$actual_container"
+                        # Local Docker container
+                        # Use SQL URL credentials directly for pg_dump (more reliable than pg_dumpall)
+                        local backup_user="${db_user:-${DB_USER:-postgres}}"
+                        local backup_password="${db_password:-${DB_PASSWORD:-}}"
+
+                        if [ -z "$backup_password" ]; then
+                            colorized_echo red "Error: Database password not found. Check DB_PASSWORD or SQLALCHEMY_DATABASE_URL in .env"
+                            error_messages+=("TimescaleDB password not found.")
+                        elif [ -z "$db_name" ]; then
+                            colorized_echo red "Error: Database name not found in SQLALCHEMY_DATABASE_URL"
+                            error_messages+=("TimescaleDB database name not found.")
+                        else
+                            colorized_echo blue "Backing up all TimescaleDB databases from container: $container_name (using user: $backup_user)"
+                            if pg_dump_all_user_databases "$container_name" "$backup_user" "$backup_password" "$temp_dir" "$log_file" "$db_name"; then
+                                colorized_echo green "TimescaleDB backup completed successfully (all databases)"
+                            else
+                                colorized_echo yellow "Multi-database backup unavailable; falling back to single database '$db_name'."
+                                if ! docker exec -e PGPASSWORD="$backup_password" "$container_name" pg_dump -U "$backup_user" -d "$db_name" --clean --if-exists >"$temp_dir/db_backup.sql" 2>>"$log_file"; then
+                                    colorized_echo red "TimescaleDB dump failed. Check log file for details: $log_file"
+                                    error_messages+=("TimescaleDB dump failed for database '$db_name'.")
+                                elif ! write_timescaledb_single_dump_version "$container_name" "$backup_user" "$backup_password" "$db_name" "$temp_dir" "$log_file"; then
+                                    colorized_echo red "TimescaleDB version metadata could not be created."
+                                    error_messages+=("TimescaleDB version metadata could not be created for '$db_name'.")
+                                else
+                                    colorized_echo green "TimescaleDB backup completed successfully"
+                                fi
+                            fi
+                        fi
+                    fi
+                fi
+            else
+                # Remote database - would need postgresql-client installed
+                colorized_echo red "Remote TimescaleDB backup not yet supported. Please use local database or install postgresql-client."
+                error_messages+=("Remote TimescaleDB backup not yet supported. Please use local database or install postgresql-client.")
+            fi
+            ;;
+        sqlite)
+            if [ -z "$sqlite_file" ]; then
+                # URL parsing already recorded the actionable error above.
+                :
+            elif [ -f "$sqlite_file" ]; then
+                if ! command -v sqlite3 >/dev/null 2>&1; then
+                    detect_os
+                    # Best-effort: if sqlite3 can't be installed, continue (the
+                    # presence check below skips the snapshot). install_package
+                    # aborts on failure, so use the non-aborting variant here.
+                    try_install_package sqlite3 || true
+                fi
+
+                local sqlite_basename=$(basename "$sqlite_file")
+                if command -v sqlite3 >/dev/null 2>&1; then
+                    if ! sqlite_snapshot_dir=$(mktemp -d "${staging_root}/pasarguard_sqlite_snapshot.XXXXXX"); then
+                        error_messages+=("Failed to create protected SQLite snapshot staging directory.")
+                    elif ! sqlite3 "$sqlite_file" ".backup '$sqlite_snapshot_dir/$sqlite_basename'" >>"$log_file" 2>&1; then
+                        error_messages+=("Failed to create SQLite backup snapshot.")
+                    fi
+                else
+                    error_messages+=("sqlite3 is required to create a consistent SQLite backup snapshot.")
+                fi
+            else
+                error_messages+=("SQLite database file not found at $sqlite_file.")
+            fi
+            ;;
+        esac
+    else
+        colorized_echo red "No database type detected. Check SQLALCHEMY_DATABASE_URL in .env; no backup will be published."
+        error_messages+=("No database type detected; a configuration-only archive cannot recover this installation.")
+        echo "Warning: No database type detected." >>"$log_file"
+        echo "SQLALCHEMY_DATABASE_URL: ${safe_sqlalchemy_url}" >>"$log_file"
+    fi
+
+    colorized_echo blue "Copying app directory..."
+    if [ -d "$APP_DIR" ]; then
+        # Database artifacts are staged before app files. Old restore versions
+        # could leave dumps in APP_DIR; copying those over staging would replace
+        # today's fresh dump with a complete-but-stale dump that still passes
+        # structural validation.
+        local app_rsync_args=(
+            -av
+            --exclude 'backup'
+            --exclude 'db_backup.sql'
+            --exclude 'db_backup.sqlite'
+            --exclude 'db_backup.timescaledb-version'
+            --exclude 'pg_dump'
+            --exclude 'backup-runtime.tsv'
+            --exclude 'backup-files.sha256'
+            --exclude '.pasarguard-recovery-compose.json'
+            --exclude '.pasarguard-destination-compose.yml'
+            --exclude '.pasarguard-fresh-restore'
+            --exclude 'pasarguard_ts_compat.*'
+            --exclude '*_combined.zip'
+            --exclude 'pasarguard_env_cleaned'
+            --exclude 'pasarguard_restore_error.log'
+        )
+        if [ "$db_type" = "sqlite" ] && [ -n "$sqlite_file" ]; then
+            local app_sqlite_basename=""
+            app_sqlite_basename=$(basename "$sqlite_file")
+            app_rsync_args+=(--exclude "$app_sqlite_basename")
+            app_rsync_args+=(--exclude "${app_sqlite_basename}-wal")
+            app_rsync_args+=(--exclude "${app_sqlite_basename}-shm")
+            app_rsync_args+=(--exclude "${app_sqlite_basename}-journal")
+        fi
+        if ! rsync "${app_rsync_args[@]}" "$APP_DIR/" "$temp_dir/" >>"$log_file" 2>&1; then
+            error_messages+=("Failed to copy app directory.")
+            echo "Failed to copy app directory" >>"$log_file"
+        fi
+    else
+        colorized_echo yellow "Warning: App directory $APP_DIR does not exist. Copying individual files as fallback."
+        if [ -f "$APP_DIR/.env" ]; then
+            cp "$APP_DIR/.env" "$temp_dir/" 2>>"$log_file" || true
+        fi
+        if [ -f "$APP_DIR/docker-compose.yml" ]; then
+            cp "$APP_DIR/docker-compose.yml" "$temp_dir/" 2>>"$log_file" || true
+        fi
+    fi
+
+    colorized_echo blue "Copying data directory..."
+    # Ensure destination directory exists and is empty (already cleaned above, but be explicit)
+    if [ -d "$DATA_DIR" ]; then
+        local rsync_args=(-av "${PASARGUARD_DATA_DIR_EXCLUDES[@]}")
+        local normalized_data_dir=""
+        normalized_data_dir=$(normalize_posix_path "$DATA_DIR")
+
+        if [ "$db_type" = "sqlite" ] && [ -n "$sqlite_file" ] && [[ "$sqlite_file" == "$normalized_data_dir/"* ]]; then
+            local sqlite_relative_path="${sqlite_file#"$normalized_data_dir"/}"
+            rsync_args+=(--exclude "$sqlite_relative_path")
+            rsync_args+=(--exclude "${sqlite_relative_path}-wal")
+            rsync_args+=(--exclude "${sqlite_relative_path}-shm")
+            rsync_args+=(--exclude "${sqlite_relative_path}-journal")
+            echo "Excluding SQLite database from data directory copy: $sqlite_relative_path" >>"$log_file"
+        fi
+
+        if ! rsync "${rsync_args[@]}" "$DATA_DIR/" "$temp_dir/pasarguard_data/" >>"$log_file" 2>&1; then
+            error_messages+=("Failed to copy data directory.")
+            echo "Failed to copy data directory" >>"$log_file"
+        elif [ "$db_type" = "sqlite" ] && [ -n "$sqlite_file" ] && [[ "$sqlite_file" == "$normalized_data_dir/"* ]]; then
+            local sqlite_relative_path="${sqlite_file#"$normalized_data_dir"/}"
+            rm -f "$temp_dir/pasarguard_data/$sqlite_relative_path" \
+                "$temp_dir/pasarguard_data/${sqlite_relative_path}-wal" \
+                "$temp_dir/pasarguard_data/${sqlite_relative_path}-shm" \
+                "$temp_dir/pasarguard_data/${sqlite_relative_path}-journal" 2>>"$log_file" || true
+        fi
+    else
+        colorized_echo yellow "Data directory $DATA_DIR does not exist. Skipping data directory backup."
+        echo "Data directory $DATA_DIR does not exist. Skipping." >>"$log_file"
+        # Create empty directory structure so tar doesn't fail
+        mkdir -p "$temp_dir/pasarguard_data"
+    fi
+
+    # Remove Unix socket files so zip doesn't fail with ENXIO ("No such device or address")
+    if [ -d "$temp_dir" ]; then
+        local socket_files
+        socket_files=$(find "$temp_dir" -type s -print 2>/dev/null || true)
+        if [ -n "$socket_files" ]; then
+            colorized_echo yellow "Removing Unix socket files before archiving (zip cannot archive sockets)."
+            printf "%s\n" "$socket_files" >>"$log_file"
+            find "$temp_dir" -type s -delete >>"$log_file" 2>&1 || true
+        fi
+    fi
+
+    # Refuse to archive a database artifact unless the final staged copy is
+    # complete and contains the configured application database. Keep this
+    # gate after app/data copying because those operations also write into the
+    # staging directory and must not replace an already-validated artifact.
+    if [ -n "$db_type" ] && [ ${#error_messages[@]} -eq 0 ]; then
+        if [ "$db_type" = "sqlite" ] && [ -n "$sqlite_file" ]; then
+            local final_sqlite_basename=""
+            final_sqlite_basename=$(basename "$sqlite_file")
+            if [ -z "$sqlite_snapshot_dir" ] || [ ! -f "$sqlite_snapshot_dir/$final_sqlite_basename" ]; then
+                error_messages+=("Protected SQLite snapshot is missing before final archive staging.")
+            elif ! mv -f "$sqlite_snapshot_dir/$final_sqlite_basename" "$temp_dir/$final_sqlite_basename" 2>>"$log_file"; then
+                error_messages+=("Failed to move the protected SQLite snapshot into final archive staging.")
+            fi
+            rm -f "$temp_dir/${final_sqlite_basename}-wal" \
+                "$temp_dir/${final_sqlite_basename}-shm" \
+                "$temp_dir/${final_sqlite_basename}-journal" 2>>"$log_file" || true
+        fi
+        if [ ${#error_messages[@]} -eq 0 ] && ! database_backup_looks_restorable "$db_type" "$temp_dir" "$db_name" "$sqlite_file"; then
+            colorized_echo red "Database backup artifact failed completeness validation."
+            echo "Final staged database artifact failed completeness validation for $db_type" >>"$log_file"
+            error_messages+=("$db_type backup artifact is missing, truncated, corrupt, or does not contain the configured database.")
+        fi
+    fi
+
+    if [ ${#error_messages[@]} -eq 0 ]; then
+        if ! write_backup_runtime "$temp_dir" "$db_type" "$container_name" "$log_file" \
+            "$sqlite_file" "$db_user" "$db_password" "$db_name" || \
+            ! write_backup_checksums "$temp_dir"; then
+            error_messages+=("Failed to record recovery versions or payload checksums.")
+        fi
+    fi
+
+    colorized_echo blue "Creating backup archive..."
+    # Verify temp_dir exists and has content before creating archive
+    if [ ${#error_messages[@]} -gt 0 ]; then
+        echo "Skipping archive creation because the backup has errors." >>"$log_file"
+    elif [ ! -d "$temp_dir" ] || [ -z "$(ls -A "$temp_dir" 2>/dev/null)" ]; then
+        error_messages+=("Temporary directory is empty or missing. Cannot create archive.")
+        echo "Temporary directory is empty or missing: $temp_dir" >>"$log_file"
+    elif ! (umask 077; cd "$temp_dir" && zip -rq "$backup_file" .) 2>>"$log_file"; then
+        error_messages+=("Failed to create backup archive.")
+        echo "Failed to create backup archive." >>"$log_file"
+    else
+        local archive_size_bytes=0
+        archive_size_bytes=$(stat -c%s "$backup_file" 2>/dev/null || wc -c <"$backup_file")
+
+        if [ "$archive_size_bytes" -gt "$split_threshold_bytes" ]; then
+            colorized_echo blue "Splitting backup archive into Telegram-sized parts..."
+            if ! (umask 077; split -d -a 2 --numeric-suffixes=1 -b "$split_size_bytes" --additional-suffix=".zip" \
+                "$backup_file" "$backup_dir/backup_${timestamp}.part") 2>>"$log_file"; then
+                error_messages+=("Failed to split backup archive.")
+                echo "Failed to split backup archive." >>"$log_file"
+            else
+                rm -f "$backup_file"
+            fi
+        fi
+
+        if [ ${#error_messages[@]} -eq 0 ]; then
+            find "$backup_dir" -maxdepth 1 -type f \
+                \( -name "backup_*.tar.gz" -o -name "backup_*.zip" -o -name "backup_*.z[0-9][0-9]" -o -name "backup_*.part[0-9][0-9].zip" \) \
+                ! -name "backup_${timestamp}.zip" \
+                ! -name "backup_${timestamp}.z[0-9][0-9]" \
+                ! -name "backup_${timestamp}.part[0-9][0-9].zip" \
+                -delete 2>/dev/null || true
+        fi
+    fi
+
+    while IFS= read -r file; do
+        final_backup_paths+=("$file")
+    done < <(find "$backup_dir" -maxdepth 1 -type f -name "backup_${timestamp}.part[0-9][0-9].zip" | sort)
+
+    if [ ${#final_backup_paths[@]} -eq 0 ] && [ -f "$backup_file" ]; then
+        final_backup_paths+=("$backup_file")
+    fi
+
+    if [ ${#error_messages[@]} -eq 0 ] && [ ${#final_backup_paths[@]} -gt 0 ]; then
+        local backup_size_bytes=0
+        local size_file=""
+        for size_file in "${final_backup_paths[@]}"; do
+            [ -n "$size_file" ] || continue
+            local size_bytes=0
+            size_bytes=$(stat -c%s "$size_file" 2>/dev/null || wc -c <"$size_file")
+            backup_size_bytes=$((backup_size_bytes + size_bytes))
+        done
+
+        local backup_size=""
+        if command -v numfmt >/dev/null 2>&1; then
+            backup_size=$(numfmt --to=iec --suffix=B "$backup_size_bytes" 2>/dev/null || awk -v size="$backup_size_bytes" 'BEGIN { printf "%.2f MB", size/1048576 }')
+        else
+            backup_size=$(awk -v size="$backup_size_bytes" 'BEGIN { printf "%.2f MB", size/1048576 }')
+        fi
+        if [ ${#final_backup_paths[@]} -eq 1 ]; then
+            colorized_echo green "Backup archive created: ${final_backup_paths[0]} (Size: $backup_size)"
+        else
+            colorized_echo green "Backup archive created in ${#final_backup_paths[@]} parts (Total Size: $backup_size)"
+        fi
+    fi
+
+    if [ ${#error_messages[@]} -gt 0 ]; then
+        rm -f "$backup_file"
+        find "$backup_dir" -maxdepth 1 -type f \
+            \( -name "backup_${timestamp}.z[0-9][0-9]" -o -name "backup_${timestamp}.part[0-9][0-9].zip" \) \
+            -delete 2>/dev/null || true
+        keep_log_file=true
+        colorized_echo red "Backup completed with errors:"
+        for error in "${error_messages[@]}"; do
+            colorized_echo red "  - $error"
+        done
+        colorized_echo yellow "Check log file: $log_file"
+        if [ -f "$ENV_FILE" ]; then
+            send_backup_error_to_telegram "${error_messages[*]}" "$log_file"
+        fi
+        cleanup_backup_command
+        return 1
+    fi
+
+    if [ ${#final_backup_paths[@]} -eq 0 ]; then
+        keep_log_file=true
+        colorized_echo red "Backup file was not created. Check log file: $log_file"
+        cleanup_backup_command
+        return 1
+    fi
+
+    if [ ${#final_backup_paths[@]} -eq 1 ]; then
+        colorized_echo green "Backup completed successfully: ${final_backup_paths[0]}"
+    else
+        colorized_echo green "Backup completed successfully in ${#final_backup_paths[@]} parts:"
+        for part in "${final_backup_paths[@]}"; do
+            colorized_echo green "  - $(basename "$part")"
+        done
+    fi
+    if [ -f "$ENV_FILE" ]; then
+        send_backup_to_telegram "$timestamp"
+    fi
+    cleanup_backup_command
+}

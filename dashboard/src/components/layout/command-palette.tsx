@@ -174,16 +174,6 @@ export function CommandPalette() {
           <CommandSeparator />
           <CommandGroup heading={t('commandPalette.theme', { defaultValue: 'Theme' })}>
             <CommandItem
-              value={searchValue(t('theme.light', { defaultValue: 'Light' }), 'theme light')}
-              onSelect={() => {
-                setTheme('light')
-                setOpen(false)
-              }}
-            >
-              <Sun />
-              {t('theme.light', { defaultValue: 'Light' })}
-            </CommandItem>
-            <CommandItem
               value={searchValue(t('theme.dark', { defaultValue: 'Dark' }), 'theme dark')}
               onSelect={() => {
                 setTheme('dark')

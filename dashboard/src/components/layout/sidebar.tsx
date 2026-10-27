@@ -302,8 +302,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   >
                     <a href={REPO_URL} target="_blank">
                       <img
-                        src="/statics/branding/manubisguard-cyber.png"
-                        alt="ManubisGuard Logo"
+                        src="/statics/favicon/logo.png"
+                        alt="Pasarguard Pro Logo"
                         className="h-6 w-6 flex-shrink-0 object-contain"
                       />
                       {canReadSystem && hasUpdate && (
@@ -341,12 +341,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuButton size="lg" className={cn('w-full !gap-2')}>
                     <a href={REPO_URL} target="_blank" className="flex min-w-0 flex-1 items-center gap-2">
                       <img
-                        src="/statics/branding/manubisguard-cyber.png"
-                        alt="ManubisGuard Logo"
+                        src="/statics/favicon/logo.png"
+                        alt="Pasarguard Pro Logo"
                         className="h-8 w-8 flex-shrink-0 object-contain"
                       />
                       <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden">
-                        <span className={cn(isRTL ? 'text-right' : 'text-left', 'mg-brand-wordmark truncate text-sm leading-tight font-semibold')}>MANUBISGUARD</span>
+                        <span className={cn(isRTL ? 'text-right' : 'text-left', 'mg-brand-wordmark truncate text-sm leading-tight font-semibold')}>PASARGUARD PRO</span>
                         {canReadSystem && (
                           <div className="flex min-w-0 flex-wrap items-center gap-0.75 leading-none">
                             <span className="max-w-full truncate text-xs leading-none opacity-45">{displayVersion}</span>
@@ -390,12 +390,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuButton size="lg" asChild className="!gap-2">
                   <a href={REPO_URL} target="_blank">
                     <img
-                      src="/statics/branding/manubisguard-cyber.png"
-                      alt="ManubisGuard Logo"
+                      src="/statics/favicon/logo.png"
+                      alt="Pasarguard Pro Logo"
                       className="h-8 w-8 flex-shrink-0 object-contain"
                     />
                     <div className="flex min-w-0 flex-col overflow-hidden">
-                      <span className={cn(isRTL ? 'text-right' : 'text-left', 'mg-brand-wordmark truncate text-sm leading-tight font-semibold')}>MANUBISGUARD</span>
+                      <span className={cn(isRTL ? 'text-right' : 'text-left', 'mg-brand-wordmark truncate text-sm leading-tight font-semibold')}>PASARGUARD PRO</span>
                       {canReadSystem && (
                         <div className="flex min-w-0 flex-wrap items-center gap-0.75 leading-none">
                           <span className="max-w-full truncate text-xs leading-none opacity-45">{displayVersion}</span>

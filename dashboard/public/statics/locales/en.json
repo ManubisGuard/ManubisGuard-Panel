@@ -1,8 +1,7 @@
 {
-  "manubisguard": "ManubisGuard",
   "dashboard": "Dashboard",
   "master": "Overall",
-  "dashboardDescription": "ManubisGuard Management Dashboard",
+  "dashboardDescription": "Pasarguard Pro Management Dashboard",
   "default": "Default",
   "unlimited": "Unlimited",
   "active": "active",
@@ -1764,7 +1763,6 @@
   "monitorServers": "Monitor your servers and users",
   "manageServers": "Control your server details",
   "nodes.addHostForEveryInbound": "Add this node as a new host for every inbound",
-  "nodes.addNewManubisGuardNode": "Create New ManubisGuard Node",
   "nodes.addNodeSuccess": "Node {{name}} created successfully",
   "nodes.apply": "modifyNode",
   "nodes.certificate": "Certificate",
@@ -1774,7 +1772,7 @@
   "nodes.nodePort": "Port",
   "nodes.reconnect": "Reconnect",
   "nodes.reconnecting": "Reconnecting...",
-  "nodes.title": "Using ManubisGuard-Node, you are able to scale up your connection quality by creating different nodes on different servers.",
+  "nodes.title": "Using Pasarguard Pro-Node, you are able to scale up your connection quality by creating different nodes on different servers.",
   "nodes.usageCoefficient": "Usage Ratio",
   "on_hold": "On Hold",
   "duplicate": "Duplicate",
@@ -3732,8 +3730,8 @@
   "hosts.filters.enabledHosts": "Enabled Hosts",
   "hosts.filters.disabledHosts": "Disabled Hosts",
   "donation": {
-    "title": "Support ManubisGuard",
-    "message": "Your support helps us improve ManubisGuard and build better features for everyone!",
+    "title": "Support Pasarguard Pro",
+    "message": "Your support helps us improve Pasarguard Pro and build better features for everyone!",
     "donate": "Donate Now",
     "starOnGitHub": "Star on GitHub"
   },
@@ -3863,7 +3861,7 @@
     "nodes": "Nodes",
     "users": "Users",
     "groups": "Groups",
-    "networkConsole": "ManubisGuard network console",
+    "networkConsole": "Pasarguard Pro network console",
     "telemetry": "MANUBIS / TELEMETRY",
     "resourceUtilization": "Resource utilization: {{label}}",
     "coresCount": "{{count}} cores",
@@ -3877,5 +3875,9 @@
   "personalHostNameField": "Display name",
   "originalHostName": "Original host name",
   "personalHostNameEmpty": "No personal name set yet",
-  "editPersonalHostName": "Change personal name"
+  "editPersonalHostName": "Change personal name",
+  "manubisguard": "Pasarguard Pro",
+  "nodes.addNewManubisGuardNode": "Create New Pasarguard Pro Node",
+  "login.title": "Welcome Back",
+  "login.subtitle": "Sign in to your Pasarguard Pro panel"
 }

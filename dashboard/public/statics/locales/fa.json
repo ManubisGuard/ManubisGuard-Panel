@@ -1,5 +1,4 @@
 {
-  "manubisguard": "پاسارگارد",
   "dashboard": "داشبورد",
   "master": "کلی",
   "dashboardDescription": "داشبورد مدیریت پاسارگارد",
@@ -1589,7 +1588,6 @@
   "monitorServers": "نظارت بر سرورها و کاربران شما",
   "manageServers": "کنترل جزئیات سرور شما",
   "nodes.addHostForEveryInbound": "استفاده از این گره به عنوان هاست تمام ورودی‌ها",
-  "nodes.addNewManubisGuardNode": "افزودن گره پاسارگارد",
   "nodes.addNode": "افزودن گره",
   "nodes.addNodeSuccess": "گره {{name}} با موفقیت افزوده شد",
   "nodes.apply": "ویرایش گره",
@@ -3840,7 +3838,7 @@
     "nodes": "نودها",
     "users": "کاربران",
     "groups": "گروه‌ها",
-    "networkConsole": "کنسول شبکه ManubisGuard",
+    "networkConsole": "کنسول شبکه Pasarguard Pro",
     "telemetry": "مانوبیس / پایش",
     "resourceUtilization": "میزان مصرف منابع: {{label}}",
     "coresCount": "{{count}} هسته",
@@ -3854,5 +3852,9 @@
   "personalHostNameField": "نام نمایشی",
   "originalHostName": "نام اصلی هاست",
   "personalHostNameEmpty": "هنوز نام اختصاصی تعیین نشده",
-  "editPersonalHostName": "تغییر نام اختصاصی"
+  "editPersonalHostName": "تغییر نام اختصاصی",
+  "manubisguard": "پاسارگارد",
+  "nodes.addNewManubisGuardNode": "افزودن گره پاسارگارد",
+  "login.title": "خوش آمدید",
+  "login.subtitle": "برای ورود به پنل پاسارگارد پرو وارد شوید"
 }

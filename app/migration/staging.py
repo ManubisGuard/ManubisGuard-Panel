@@ -22,6 +22,10 @@ from app.migration.detector import (
     BackupDetection,
     detect_backup,
     inspect_pg_dump_custom,
+    MAX_ARCHIVE_TOTAL_BYTES as MAX_ARCHIVE_BYTES,
+    MAX_ARCHIVE_ENTRY_BYTES,
+    MAX_ARCHIVE_FILES,
+    MAX_ARCHIVE_COMPRESSION_RATIO,
 )
 from app.migration.timescale import (
     TIMESCALEDB_CATALOG_SEED_CLEAR_SQL,
@@ -38,7 +42,6 @@ CUTOVER_DB_PATTERN = re.compile(r"^manubisguard_cutover_[0-9a-f]{12}$")
 ISOLATED_DB_PATTERN = re.compile(
     r"^manubisguard_(?:migration|cutover)_[0-9a-f]{12}$"
 )
-MAX_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_SQL_INSPECT_BYTES = 1_200_000
 SQL_COMPLETE_MARKER = "-- PostgreSQL database dump complete"
 
@@ -190,15 +193,28 @@ def _safe_extract_zip(src: Path, dst: Path) -> None:
     total = 0
     root = dst.resolve()
     with zipfile.ZipFile(src) as zf:
-        for info in zf.infolist():
+        infos = zf.infolist()
+        if len(infos) > MAX_ARCHIVE_FILES:
+            raise MigrationSafetyError("Archive contains too many entries.")
+        compressed_total = sum(info.compress_size for info in infos if not info.is_dir())
+        declared_total = sum(info.file_size for info in infos if not info.is_dir())
+        if declared_total > MAX_ARCHIVE_BYTES:
+            raise MigrationSafetyError("Archive exceeds the safe total uncompressed size limit.")
+        if any(info.file_size > MAX_ARCHIVE_ENTRY_BYTES for info in infos if not info.is_dir()):
+            raise MigrationSafetyError("Archive entry exceeds the safe uncompressed size limit.")
+        if declared_total and declared_total > max(compressed_total, 1) * MAX_ARCHIVE_COMPRESSION_RATIO:
+            raise MigrationSafetyError("Archive compression ratio exceeds the safe limit.")
+        for info in infos:
             if info.is_dir():
                 continue
             mode = (info.external_attr >> 16) & 0o170000
             if mode == 0o120000 or (mode and mode != 0o100000):
                 raise MigrationSafetyError("Archive contains a link or special file.")
+            if info.file_size > MAX_ARCHIVE_ENTRY_BYTES:
+                raise MigrationSafetyError("Archive entry exceeds the safe uncompressed size limit.")
             total += info.file_size
             if total > MAX_ARCHIVE_BYTES:
-                raise MigrationSafetyError("Archive exceeds the safe extraction limit.")
+                raise MigrationSafetyError("Archive exceeds the safe total uncompressed size limit.")
             target = (dst / info.filename).resolve()
             if not target.is_relative_to(root):
                 raise MigrationSafetyError("Archive contains a path traversal entry.")
@@ -211,16 +227,24 @@ def _safe_extract_tar(src: Path, dst: Path) -> None:
     total = 0
     root = dst.resolve()
     with tarfile.open(src, "r:*") as tf:
-        for info in tf.getmembers():
+        members = tf.getmembers()
+        if len(members) > MAX_ARCHIVE_FILES:
+            raise MigrationSafetyError("Archive contains too many entries.")
+        compressed_size = max(src.stat().st_size, 1)
+        for info in members:
             if info.isfile():
+                if info.size > MAX_ARCHIVE_ENTRY_BYTES:
+                    raise MigrationSafetyError("Archive entry exceeds the safe uncompressed size limit.")
                 total += info.size
                 if total > MAX_ARCHIVE_BYTES:
-                    raise MigrationSafetyError("Archive exceeds the safe extraction limit.")
+                    raise MigrationSafetyError("Archive exceeds the safe total uncompressed size limit.")
                 target = (dst / info.name).resolve()
                 if not target.is_relative_to(root):
                     raise MigrationSafetyError("Archive contains a path traversal entry.")
             elif not info.isdir():
                 raise MigrationSafetyError("Archive contains a link or special file.")
+        if total and total > compressed_size * MAX_ARCHIVE_COMPRESSION_RATIO:
+            raise MigrationSafetyError("Archive compression ratio exceeds the safe limit.")
         tf.extractall(dst, filter="data")
 
 
