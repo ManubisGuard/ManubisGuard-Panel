@@ -35,6 +35,12 @@ jobs:
       - name: Migration shell syntax
         run: bash -n scripts/manubisguard-migrate.sh
 
+      - name: Installer source-fetch regression and shell syntax
+        run: bash -n install-pasarguard.sh tests/test_installer_source_fetch.sh && bash tests/test_installer_source_fetch.sh
+
+      - name: Installer safety gates and CLI bootstrap
+        run: bash tests/test_pasarguard_install_script_bootstrap.sh && bash tests/test_installer_update_gate.sh && bash tests/test_installer_update_preflight.sh
+
       - name: Native backup/restore architecture checks
         run: bash tests/test_native_backup_adapter.sh && bash tests/test_native_backup_transform.sh
 

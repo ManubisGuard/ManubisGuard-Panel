@@ -36,15 +36,19 @@ The installer does not stop/remove the separate N2 container. It does not use Do
 The installer prepares the normal ManubisGuard runtime. Backup restore stays separate:
 --check -> source-compatible staging -> restore -> bridge/normalization -> validation -> rollback -> cutover.
 
-## Validation status
-This exact installer revision has not yet been executed on the server. Full suite and real backup E2E are therefore still pending.
+## Validation status (updated 2026-10-27)
 
-No new result is marked PASSED without an actual execution result.
+- Real installer run on the disposable test host, targeting `/opt/pasarguard` and `/var/lib/pasarguard`, with TimescaleDB and no TLS: **exit 0**. The installer fetched the branch, built the image, recreated the panel container, verified the built image ID, imported `app`, and installed the canonical CLI/helpers.
+- Post-install checks: `GET http://127.0.0.1:8000/health` returned `{"status":"ok"}`; panel and TimescaleDB containers were both `running/healthy`; installed checkout and GitHub branch were at commit `60d23c4` at the time of the test; canonical CLI aliases, native backup helper, migration helper and restore-safety helper were present.
+- The first real run exposed a source-fetch bug in existing checkouts with a restricted `remote.origin.fetch` refspec. The installer now fetches explicitly from `refs/heads/$BRANCH` into `refs/remotes/origin/$BRANCH`. Regression test: `tests/test_installer_source_fetch.sh` PASS.
+- Focused CI-equivalent validation: Ruff PASS; `tests/migration` plus `tests/compatibility`: **98 passed**; installer source-fetch, CLI bootstrap, update gate/preflight and native backup adapter/transform shell tests PASS.
+- Full repository suite was also attempted: **827 passed, 20 skipped, 34 failed, 3 errors**. The remaining failures span existing API/timezone/Node fixtures and phase-5 migration tests; the full suite is not green and these failures are not represented as passing. They are outside the installer source-fetch regression and require separate triage.
+- This validates the real install/build/health path on the disposable test host. It does not claim a full native backup archive restore round-trip or a clean-host reinstall on a second machine.
 
 ## Deployment restriction
 Do not run the installer against the live production host. Any end-to-end installer acceptance must use a disposable host with isolated data and explicit approval. The command above is intentionally not provided as a live-server instruction.
 
-## Source-only acceptance update (2026-10-27)
+## Source-level acceptance evidence before the real install run (2026-10-27)
 
 - Canonical paths are `/opt/pasarguard`, `/var/lib/pasarguard`, and `/opt/pasarguard/backup/`.
 - The canonical `pasarguard` CLI and compatibility names `manubis` and `manubisguard` route to the same script; the legacy installer entrypoint delegates to `install-pasarguard.sh`.
