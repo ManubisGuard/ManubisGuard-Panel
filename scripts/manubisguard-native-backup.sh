@@ -66,6 +66,42 @@ sed -i "s|WHERE datistemplate = false AND datname <> 'postgres';|WHERE datistemp
 sed -i 's#local script_path="/usr/local/bin/\$APP_NAME"#local script_path="/usr/local/bin/pasarguard"#g' "$work/lib/pasarguard-backup.sh"
 sed -i 's#script_path=$(which "\$APP_NAME" 2>/dev/null || echo "/usr/local/bin/\$APP_NAME")#script_path=$(command -v pasarguard 2>/dev/null || echo "/usr/local/bin/pasarguard")#g' "$work/lib/pasarguard-backup.sh"
 
+# Keep the backup self-contained without embedding source-control history or
+# transient restore/transfer workspaces and encrypted duplicate artifacts.
+# These exclusions are applied to the private working copy on every run, even
+# when the pinned upstream cache is refreshed.
+python3 - "$work/lib/pasarguard-backup.sh" <<'PATCH_BACKUP_EXCLUDES'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text()
+app_old = '''        local app_rsync_args=(
+            -av
+'''
+app_new = '''        local app_rsync_args=(
+            -av
+            --exclude '/.git'
+'''
+if s.count(app_old) != 1:
+    raise SystemExit('Expected exactly one app rsync argument block in pinned upstream library.')
+s = s.replace(app_old, app_new, 1)
+data_old = '''        local rsync_args=(-av "${PASARGUARD_DATA_DIR_EXCLUDES[@]}")
+'''
+data_new = '''        local rsync_args=(
+            -av "${PASARGUARD_DATA_DIR_EXCLUDES[@]}"
+            --exclude '/backups/incoming/***'
+            --exclude '/backups/full-transfer/***'
+            --exclude '/backups/staging/***'
+            --exclude '/backups/pre-restore/***'
+            --exclude '/backups/*.enc'
+        )
+'''
+if s.count(data_old) != 1:
+    raise SystemExit('Expected exactly one data rsync argument block in pinned upstream library.')
+s = s.replace(data_old, data_new, 1)
+p.write_text(s)
+PATCH_BACKUP_EXCLUDES
+
 # Keep the pinned upstream archive and restore engine, adding only a narrow
 # safety layer for local PostgreSQL/TimescaleDB restores. Fail closed if the
 # safety patch cannot be applied to the exact reviewed upstream library.

@@ -1,7 +1,7 @@
 services:
   timescaledb:
     image: timescale/timescaledb:latest-pg16
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-pasarguard}
       POSTGRES_USER: ${POSTGRES_USER:-pasarguard}
@@ -15,10 +15,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
-
   pasarguard:
     image: ghcr.io/manubisguard/manubisguard-panel:feature-amnezia-wg
-    restart: always
+    restart: unless-stopped
     init: true
     env_file: .env
     network_mode: host

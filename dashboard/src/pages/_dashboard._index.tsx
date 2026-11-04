@@ -107,9 +107,13 @@ const Dashboard = () => {
         <div className="mg-dashboard-heading-wrap">
           <PageHeader title="dashboard" description="dashboardDescription" buttonIcon={Bookmark} buttonText="quickActions.title" onButtonClick={handleOpenQuickActions} className="mg-dashboard-page-header" />
           <div className="mg-network-banner" aria-label={t('mgUi.networkConsole')}>
-            <div className="mg-network-art" aria-hidden="true"><span /><span /><span /><span /><i /><i /><i /></div>
-            <div className="mg-network-copy"><span className="mg-eyebrow">{t('mgUi.yourNetwork')}</span><strong>{t('mgUi.brandTagline')}</strong><span className="mg-network-sub"><Activity className="h-3.5 w-3.5" /> {t('mgUi.securityConsole')}</span></div>
-            <div className="mg-network-mark"><ShieldCheck className="h-5 w-5" /></div>
+            <div className="mg-network-art" aria-hidden="true"><span /><span /><span /><span /><i /><i /><i /><b /><b /><b /></div>
+            <div className="mg-network-copy">
+              <span className="mg-network-eyebrow"><span className="mg-network-eyebrow-dot" /> YOUR NETWORK</span>
+              <strong>Beyond Connection</strong>
+              <span className="mg-network-sub"><Activity className="h-3.5 w-3.5" /> Security operations console</span>
+            </div>
+            <div className="mg-network-mark"><ShieldCheck className="h-5 w-5" /><span>MANUBISGUARD</span><small>NETWORK INTELLIGENCE</small></div>
           </div>
         </div>
         <div className="mg-command-row">

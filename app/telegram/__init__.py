@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import os
 from asyncio import Lock
 
 from aiogram import Bot, Dispatcher
@@ -260,6 +261,9 @@ def get_dispatcher():
 
 
 async def startup_telegram_bot():
+    if os.getenv("PASARGUARD_CUTOVER_STAGING") == "1":
+        logger.info("Telegram startup skipped for isolated cutover staging")
+        return
     await telegram_bot_manager.sync_from_settings(force=True)
 
 

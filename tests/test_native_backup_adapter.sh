@@ -25,6 +25,14 @@ grep -Fq 'local backup_dir="${BACKUP_DIR:-$APP_DIR/backup}"' "$ADAPTER"
 grep -Fq "datallowconn = true AND datname <> 'postgres'" "$ADAPTER"
 grep -Fq 'local script_path="/usr/local/bin/pasarguard"' "$ADAPTER"
 grep -Fq 'command -v pasarguard' "$ADAPTER"
+# Backup size regression: the adapter reapplies these exclusions to its
+# temporary upstream library on every invocation, even if its cache refreshes.
+grep -Fq -- "--exclude '/.git'" "$ADAPTER"
+grep -Fq -- "--exclude '/backups/incoming/***'" "$ADAPTER"
+grep -Fq -- "--exclude '/backups/full-transfer/***'" "$ADAPTER"
+grep -Fq -- "--exclude '/backups/staging/***'" "$ADAPTER"
+grep -Fq -- "--exclude '/backups/pre-restore/***'" "$ADAPTER"
+grep -Fq -- "--exclude '/backups/*.enc'" "$ADAPTER"
 grep -Fq 'restore) bash "$work/pasarguard.sh" restore "$@" ;;' "$ADAPTER"
 # Native restore safety is patched into a private copy of the pinned upstream
 # library; the cached upstream files and archive format remain untouched.

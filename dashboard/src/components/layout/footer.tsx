@@ -3,10 +3,11 @@ import { FC } from 'react'
 
 const FooterContent = () => {
   return (
-    <p className="text-muted-foreground inline-block flex-grow text-center text-xs">
+    <p className="inline-block text-center text-[11px] leading-relaxed text-muted-foreground/75">
       Developed by &nbsp;
-      <a className="text-primary hover:underline" href={REPO_URL}>
-        Pasarguard Pro
+<a className="font-medium text-primary/90 transition-colors hover:text-primary hover:underline" href={REPO_URL}>
+        ManubisGuard
+
       </a>{' '}
       Team
     </p>
@@ -15,7 +16,7 @@ const FooterContent = () => {
 
 export const Footer: FC = ({ ...props }) => {
   return (
-    <div className="relative flex w-full pt-1 pb-3" {...props}>
+    <div className="mg-app-footer relative mt-auto flex w-full shrink-0 items-center justify-center px-4 pt-5 pb-4" {...props}>
       <FooterContent />
     </div>
   )

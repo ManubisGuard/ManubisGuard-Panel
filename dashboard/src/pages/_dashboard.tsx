@@ -13,7 +13,7 @@ import { Outlet } from 'react-router'
 import { CommandPalette } from '@/components/layout/command-palette'
 import ManubisTopbar from '@/components/layout/manubis-topbar'
 
-export const clientLoader = async (): Promise<any> => {
+export const clientLoader = async () => {
   try {
     const response = await getCurrentAdmin()
     return response
@@ -28,19 +28,19 @@ export const clientLoader = async (): Promise<any> => {
 
 export default function DashboardLayout() {
   return (
-    <SidebarProvider>
+    <SidebarProvider className="mg-shell-provider">
       <RouteGuard>
         <TopLoadingBar />
         <DonationPopup />
         <CommandPalette />
-        <div className="flex w-full flex-col lg:flex-row">
+        <div className="mg-app-frame flex min-h-0 w-full min-w-0 flex-col lg:flex-row">
           <AppSidebar />
-          <SidebarInset className="dashboard-scroll min-w-0 scroll-smooth bg-background/95">
+          <SidebarInset className="dashboard-scroll min-h-0 min-w-0 flex-1 scroll-smooth bg-background/95">
             <ManubisTopbar />
             <TopbarAd />
             <VersionUpdateBanner />
-            <div className="flex min-h-0 w-full flex-1 flex-col justify-between gap-y-4">
-              <PageTransition duration={250} className="flex min-h-0 flex-1 flex-col">
+            <div className="mg-page-flow flex min-h-full w-full min-w-0 flex-col gap-y-4">
+              <PageTransition duration={180} className="mg-page-content flex min-w-0 flex-col">
                 <Outlet />
               </PageTransition>
               <Footer />

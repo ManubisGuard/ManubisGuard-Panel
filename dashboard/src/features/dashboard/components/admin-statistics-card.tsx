@@ -80,17 +80,17 @@ const AdminStatisticsCard = ({
             <span className="truncate text-lg font-bold md:text-xl">{admin.username === 'Total' ? t('admins.total') : admin.username}</span>
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="mg-admin-statistics-stack flex min-w-0 flex-col gap-4">
           <UserStatisticsCard data={statsToUse} />
-          <DeferredDataUsageChart adminUsername={shouldScopeAdminData ? admin.username : undefined} />
+          <div className="mg-admin-traffic-bottom w-full min-w-0"><DeferredDataUsageChart adminUsername={shouldScopeAdminData ? admin.username : undefined} /></div>
         </div>
       </div>
     )
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+    <div className="mg-admin-statistics-stack flex min-w-0 flex-col gap-4">
       <UserStatisticsCard data={statsToUse} />
-      <DeferredDataUsageChart adminUsername={shouldScopeAdminData ? admin.username : undefined} />
+      <div className="mg-admin-traffic-bottom w-full min-w-0"><DeferredDataUsageChart adminUsername={shouldScopeAdminData ? admin.username : undefined} /></div>
     </div>
   )
 }

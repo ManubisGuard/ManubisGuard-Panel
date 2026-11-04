@@ -415,8 +415,13 @@ type ChartQueryRange = {
 
 const buildChartQueryRange = (period: Period, from: Date, to: Date): ChartQueryRange => {
   const useDayBounds = period === Period.day || period === Period.month
-  const startDate = useDayBounds ? formatOffsetStartOfDay(from) : formatOffsetDateTime(from)
-  const endDate = useDayBounds ? formatOffsetEndOfDay(to) : formatOffsetDateTime(to)
+  // Send both bounds in UTC. Local offsets can differ across a daylight-saving
+  // transition (for example -07:00 and -08:00), while the API requires matching
+  // timezone objects for start/end. UTC keeps the interval unambiguous.
+  const start = useDayBounds ? new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0, 0, 0, 0) : from
+  const end = useDayBounds ? new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999) : to
+  const startDate = start.toISOString()
+  const endDate = end.toISOString()
 
   return { period, startDate, endDate }
 }

@@ -295,6 +295,70 @@ export default function ThemeSettings() {
   const [datePickerPreference, setDatePickerPreferenceState] = useState<DatePickerPreference>('locale')
   const [chartViewType, setChartViewTypeState] = useState<ChartViewType>('bar')
   const [coresListUseConfigModal, setCoresListUseConfigModalState] = useState(false)
+  type SavedAppearancePreset = {
+    id: string
+    name: string
+    savedAt: string
+    theme: 'light' | 'dark' | 'system'
+    colorTheme: ColorTheme
+    radius: string
+    customization: ReturnType<typeof useTheme>['customization']
+  }
+  const SAVED_APPEARANCE_PRESETS_KEY = 'manubisguard-saved-appearance-presets-v1'
+  const [savedAppearancePresets, setSavedAppearancePresets] = useState<SavedAppearancePreset[]>(() => {
+    try {
+      const stored = localStorage.getItem(SAVED_APPEARANCE_PRESETS_KEY)
+      const parsed: unknown = stored ? JSON.parse(stored) : []
+      return Array.isArray(parsed) ? parsed.filter((item): item is SavedAppearancePreset => Boolean(item && typeof item.id === 'string' && typeof item.name === 'string' && item.customization && typeof item.customization === 'object')) : []
+    } catch {
+      return []
+    }
+  })
+  const [presetName, setPresetName] = useState('')
+
+  const persistAppearancePresets = (presets: SavedAppearancePreset[]) => {
+    try {
+      localStorage.setItem(SAVED_APPEARANCE_PRESETS_KEY, JSON.stringify(presets))
+      setSavedAppearancePresets(presets)
+      return true
+    } catch {
+      toast.error('Could not save preset', { description: 'Browser storage is unavailable or full.' })
+      return false
+    }
+  }
+
+  const saveCurrentAppearancePreset = () => {
+    const name = presetName.trim()
+    if (!name) {
+      toast.error('Enter a preset name first')
+      return
+    }
+    const preset: SavedAppearancePreset = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      name: name.slice(0, 48),
+      savedAt: new Date().toISOString(),
+      theme,
+      colorTheme,
+      radius,
+      customization: { ...customization },
+    }
+    if (persistAppearancePresets([...savedAppearancePresets, preset])) {
+      setPresetName('')
+      toast.success(`Preset “${preset.name}” saved`)
+    }
+  }
+
+  const applySavedAppearancePreset = (preset: SavedAppearancePreset) => {
+    setTheme(preset.theme)
+    setColorTheme(preset.colorTheme)
+    setRadius(preset.radius)
+    setCustomization(preset.customization)
+    toast.success(`Preset “${preset.name}” applied`)
+  }
+
+  const deleteSavedAppearancePreset = (id: string) => {
+    persistAppearancePresets(savedAppearancePresets.filter(preset => preset.id !== id))
+  }
   const isDatePickerFollowingLocale = datePickerPreference === 'locale'
   const defaultManualDatePreference: Exclude<DatePickerPreference, 'locale'> = isPersianLocaleLanguage(i18n.resolvedLanguage ?? i18n.language) ? 'persian' : 'gregorian'
   const datePickerModeCopy: Record<DatePickerPreference, string> = {
@@ -405,6 +469,29 @@ export default function ThemeSettings() {
 
   return (
     <div className="space-y-6 p-4 pb-10 sm:space-y-8 sm:py-6 lg:space-y-10 lg:py-8">
+        <Section icon={<Palette className="text-primary h-4 w-4" />} title="Saved appearance presets" description="Save the complete current theme, colors, radius, glass, motion and layout settings in this browser. You can restore them at any time.">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input value={presetName} onChange={event => setPresetName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') saveCurrentAppearancePreset() }} maxLength={48} placeholder="Name this preset…" aria-label="Preset name" className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-background/70 px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15" />
+            <Button type="button" onClick={saveCurrentAppearancePreset} className="h-10 shrink-0"><Check className="mr-2 h-4 w-4" />Save current settings</Button>
+          </div>
+          {savedAppearancePresets.length > 0 ? (
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {savedAppearancePresets.map(preset => (
+                <div key={preset.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/55 p-3 transition hover:border-primary/30 hover:bg-card/80">
+                  <button type="button" onClick={() => applySavedAppearancePreset(preset)} className="min-w-0 flex-1 text-left">
+                    <span className="block truncate text-sm font-semibold">{preset.name}</span>
+                    <span className="mt-1 block text-[11px] text-muted-foreground">{preset.theme} · {preset.customization.density} · {preset.radius} radius</span>
+                    <span className="mt-2 flex gap-1.5"><i className="size-3 rounded-full" style={{ background: preset.customization.primaryColor }} /><i className="size-3 rounded-full" style={{ background: preset.customization.secondaryColor }} /><i className="size-3 rounded-full" style={{ background: preset.customization.accentColor }} /></span>
+                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button type="button" size="sm" variant="outline" onClick={() => applySavedAppearancePreset(preset)}>Apply</Button>
+                    <Button type="button" size="icon" variant="ghost" aria-label={`Delete ${preset.name}`} onClick={() => deleteSavedAppearancePreset(preset.id)}><RotateCcw className="h-4 w-4" /></Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-xs text-muted-foreground">No custom presets saved yet.</p>}
+        </Section>
         <AppearanceControlCenter />
 
         <Section
@@ -464,26 +551,6 @@ export default function ThemeSettings() {
               )
             })}
           </div>
-        </Section>
-
-        <Section icon={<SwatchBook className="text-primary h-4 w-4" />} title={t('theme.baseColor')} description={t('theme.baseColorDescription')}>
-          <ColorDotPicker
-            value={customization.baseColor}
-            options={baseColorOrder}
-            onChange={handleBaseChange}
-            getLabel={name => t(`theme.${name}`)}
-            getColor={name => baseSwatches[name]}
-          />
-        </Section>
-
-        <Section icon={<Palette className="text-primary h-4 w-4" />} title={t('theme.themeColor')} description={t('theme.themeColorDescription')}>
-          <ColorDotPicker
-            value={colorTheme}
-            options={colorThemeOrder}
-            onChange={handleColorChange}
-            getLabel={name => t(`theme.${name}`)}
-            getColor={name => (name === 'default' ? baseSwatches[customization.baseColor] : resolveTokenHex(accentThemes[name][resolvedTheme], '--primary'))}
-          />
         </Section>
 
         <Section icon={<Ruler className="text-primary h-4 w-4" />} title={t('theme.radius')} description={t('theme.radiusDescription')}>

@@ -1868,6 +1868,8 @@ backup_command() {
         # structural validation.
         local app_rsync_args=(
             -av
+            # Source-control history is not needed to restore the running panel.
+            --exclude '/.git'
             --exclude 'backup'
             --exclude 'db_backup.sql'
             --exclude 'db_backup.sqlite'
@@ -1908,7 +1910,17 @@ backup_command() {
     colorized_echo blue "Copying data directory..."
     # Ensure destination directory exists and is empty (already cleaned above, but be explicit)
     if [ -d "$DATA_DIR" ]; then
-        local rsync_args=(-av "${PASARGUARD_DATA_DIR_EXCLUDES[@]}")
+        # Exclude transient transfer/restore workspaces and encrypted duplicate
+        # artifacts. Keep completed backups at backups/ root, so useful backup
+        # history is preserved without recursively embedding large staging files.
+        local rsync_args=(
+            -av "${PASARGUARD_DATA_DIR_EXCLUDES[@]}"
+            --exclude '/backups/incoming/***'
+            --exclude '/backups/full-transfer/***'
+            --exclude '/backups/staging/***'
+            --exclude '/backups/pre-restore/***'
+            --exclude '/backups/*.enc'
+        )
         local normalized_data_dir=""
         normalized_data_dir=$(normalize_posix_path "$DATA_DIR")
 

@@ -1,3 +1,4 @@
+import os
 import warnings
 
 from fastapi import FastAPI, Request, status
@@ -291,6 +292,8 @@ def _register_scheduler_hooks():
     set_on_leadership_lost(_pause_jobs_on_leadership_lost)
 
     async def _start_scheduler_if_leader():
+        if os.getenv("PASARGUARD_CUTOVER_STAGING") == "1":
+            return
         if await start_job_leader():
             scheduler.start()
         elif needs_job_leader():
@@ -316,6 +319,8 @@ def _register_scheduler_hooks():
         on_shutdown(_stop_notification_dispatcher_if_started)
 
     async def _stop_scheduler_and_leader():
+        if os.getenv("PASARGUARD_CUTOVER_STAGING") == "1":
+            return
         await _cancel_reclaim_task()
         if scheduler.running:
             scheduler.shutdown()
@@ -345,8 +350,9 @@ def _warn_deprecated_role():
 def create_app() -> FastAPI:
     from app.lifecycle import lifespan
 
-    # Fail fast before NATS handlers / queues register (covers all-in-one + UVICORN_WORKERS>1).
-    require_nats_if_multiworker(is_multi_worker())
+    # Isolated cutover staging serves the copied database without starting NATS-dependent workers.
+    if os.getenv("PASARGUARD_CUTOVER_STAGING") != "1":
+        require_nats_if_multiworker(is_multi_worker())
 
     _warn_deprecated_role()
 

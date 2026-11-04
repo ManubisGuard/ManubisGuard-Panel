@@ -131,7 +131,7 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
             </div>
           </div>
           <LiveNetworkIntelligence selectedServer={actualSelectedServer} nodeStats={actualSelectedServer === 'master' ? undefined : selectedNodeConnected ? (nodeStats as NodeRealtimeStats) : null} usersStats={actualSelectedServer === 'master' ? usersData : undefined} />
-          <div className="transform-gpu"><SystemStatisticsSection currentStats={currentStats} usersStats={actualSelectedServer === 'master' ? usersData : undefined} hideCpu /></div>
+          <div className="transform-gpu"><SystemStatisticsSection currentStats={currentStats} usersStats={actualSelectedServer === 'master' ? usersData : undefined} /></div>
         </div>
       )}
 
@@ -142,9 +142,6 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
             {actualSelectedServer === 'master' ? <AllNodesStackedBarChart /> : <CostumeBarChart nodeId={selectedNodeId} />}
           </div>
         )}
-        <div className="mg-stat-chart-panel mg-stat-chart-users transform-gpu">
-          <UserCountsChart nodeId={selectedNodeId} isSudo={canViewNodeStats} nodesData={nodesData} />
-        </div>
         {actualSelectedServer === 'master' && (
           <div className="mg-stat-chart-panel mg-stat-chart-subscriptions transform-gpu">
             <UserSubUpdatePieChart />
@@ -158,6 +155,9 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
             realtimeStats={actualSelectedServer === 'master' ? data : selectedNodeConnected ? nodeStats || undefined : undefined}
             realtimeAvailable={actualSelectedServer === 'master' || selectedNodeConnected}
           />
+        </div>
+        <div className="mg-stat-chart-panel mg-stat-chart-users transform-gpu">
+          <UserCountsChart nodeId={selectedNodeId} isSudo={canViewNodeStats} nodesData={nodesData} />
         </div>
       </div>
     </div>
