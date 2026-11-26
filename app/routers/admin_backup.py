@@ -1,4 +1,5 @@
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -101,10 +102,13 @@ async def upload_backup(
     if not filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Only ZIP backup files are accepted")
     UPLOAD_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
-    target = UPLOAD_DIR / f"upload-{admin.id}-{filename}"
+    UPLOAD_DIR.chmod(0o700)
+    target = None
+    committed = False
     size = 0
     try:
-        with target.open("wb") as handle:
+        with NamedTemporaryFile(dir=UPLOAD_DIR, prefix=f"upload-{admin.id}-", suffix=".zip", delete=False) as handle:
+            target = Path(handle.name)
             while chunk := await file.read(1024 * 1024):
                 size += len(chunk)
                 if size > MAX_UPLOAD_SIZE:
@@ -120,13 +124,16 @@ async def upload_backup(
         )
         db.add(backup)
         await db.commit()
+        committed = True
         await db.refresh(backup)
         return backup
     except HTTPException:
-        target.unlink(missing_ok=True)
+        if target is not None and not committed:
+            target.unlink(missing_ok=True)
         raise
     except Exception as exc:
-        target.unlink(missing_ok=True)
+        if target is not None and not committed:
+            target.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Backup upload failed: {exc}") from exc
 
 

@@ -12,7 +12,7 @@ fi
 
 BACKUP="$1"
 RESTORE_DB="${2:-manubisguard_restore}"
-IMAGE="timescale/timescaledb:latest-pg16"
+IMAGE="${RESTORE_IMAGE:-timescale/timescaledb:latest-pg16}"
 NAME="manubisguard-db-restore-test-$$-${RANDOM}"
 
 [[ -s "$BACKUP" ]] || { echo "ERROR: backup does not exist or is empty: $BACKUP" >&2; exit 1; }

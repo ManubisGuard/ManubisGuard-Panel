@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main", "feature/amnezia-wg"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "feature/amnezia-wg"]
   workflow_dispatch:
   schedule:
     - cron: "17 * * * *"
@@ -19,6 +19,8 @@ jobs:
           python-version: "3.14"
       - run: uv sync --dev
       - run: uv run ruff check app tests
+      - run: uv run ruff check --no-fix app/services/backup.py app/jobs/backup_scheduler.py app/routers/admin_backup.py tests/migration/test_backup_payload.py tests/test_backup_safety_phase1.py
+      - run: uv run pytest tests/test_backup_safety_phase1.py tests/migration/test_backup_payload.py tests/test_backup_restore_fail_closed.py tests/migration/test_backup_restore.py tests/test_native_backup_architecture.py -q
       - run: uv run pytest tests/test_amneziawg.py tests/test_managed_domains.py tests/test_reality_sni_pool.py tests/test_domain_intelligence.py tests/test_certificate_store.py tests/test_acme.py -q
 
   dashboard:

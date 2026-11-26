@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import subprocess
 import tempfile
 import zipfile
+from collections import deque
 from datetime import UTC, datetime as dt
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -25,13 +27,42 @@ MAX_BACKUP_SIZE = 10 * 1024 * 1024 * 1024
 PG_DUMP_COMPLETE_MARKER = b"-- PostgreSQL database dump complete"
 
 
+def _has_complete_dump_trailer(payload: bytes) -> bool:
+    lines = payload.rstrip().splitlines()
+    if not lines:
+        return False
+    last = lines[-1].strip()
+    if last.startswith(b"\\unrestrict "):
+        key = last.removeprefix(b"\\unrestrict ")
+        if not re.fullmatch(rb"[A-Za-z0-9]+", key):
+            return False
+        if b"\\restrict " + key not in lines:
+            return False
+        lines.pop()
+    elif any(line.startswith(b"\\restrict ") for line in lines):
+        return False
+    while lines and lines[-1].strip() in (b"", b"--"):
+        lines.pop()
+    return bool(lines and lines[-1] == PG_DUMP_COMPLETE_MARKER)
+
+
 def _database_name() -> str:
     return (urlsplit(database_settings.url).path or "").lstrip("/")
 
 
-def _pg_dump_url() -> str:
+def _pg_dump_connection() -> tuple[str, dict[str, str]]:
+    """Keep the database password out of the pg_dump process argument list."""
+    from urllib.parse import unquote
+
     parsed = urlsplit(database_settings.url)
-    return urlunsplit(("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
+    if parsed.password is None:
+        raise RuntimeError("Database URL must contain a password for backup")
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 5432
+    username = unquote(parsed.username or "")
+    clean_host = f"[{host}]" if ":" in host else host
+    safe_url = urlunsplit(("postgresql", f"{clean_host}:{port}", parsed.path, parsed.query, ""))
+    return safe_url, {"PGPASSWORD": unquote(parsed.password), "PGUSER": username}
 
 
 def _source_metadata(
@@ -51,6 +82,7 @@ def _source_metadata(
 
 
 def _pg_dump(*, target_pg_major: int | None) -> bytes:
+    dump_url, pg_env = _pg_dump_connection()
     result = subprocess.run(
         [
             "pg_dump",
@@ -58,8 +90,9 @@ def _pg_dump(*, target_pg_major: int | None) -> bytes:
             "--no-owner",
             "--no-privileges",
             "--quote-all-identifiers",
-            _pg_dump_url(),
+            dump_url,
         ],
+        env={**os.environ, **pg_env},
         capture_output=True,
         timeout=900,
         check=False,
@@ -85,13 +118,79 @@ def _pg_dump(*, target_pg_major: int | None) -> bytes:
     # pg_dump writes this trailer only after the logical dump has completed.
     # Do not package a truncated dump as a successful backup even if the process
     # returned zero (e.g. interrupted output or an unexpected wrapper behavior).
-    if not payload.rstrip().endswith(PG_DUMP_COMPLETE_MARKER):
+    if not _has_complete_dump_trailer(payload):
         raise RuntimeError("pg_dump output is incomplete: PostgreSQL dump completion marker is missing")
     return payload
 
 
+def _pg_dump_to_file(*, target_pg_major: int | None) -> tuple[Path, int]:
+    """Produce a validated SQL dump on disk instead of buffering the DB in RAM.
+
+    Call on a worker thread. Neither the raw dump nor the filtered dump is
+    published as a backup until the complete trailer has been verified.
+    """
+    BACKUP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    dump_url, pg_env = _pg_dump_connection()
+    with tempfile.NamedTemporaryFile(dir=BACKUP_DIR, prefix=".raw-pg-dump-", delete=False) as raw:
+        raw_path = Path(raw.name)
+        try:
+            result = subprocess.run(
+                ["pg_dump", "--format=plain", "--no-owner", "--no-privileges",
+                 "--quote-all-identifiers", dump_url],
+                env={**os.environ, **pg_env}, stdout=raw, stderr=subprocess.PIPE,
+                timeout=900, check=False,
+            )
+        except BaseException:
+            raw_path.unlink(missing_ok=True)
+            raise
+    try:
+        if result.returncode != 0:
+            detail = (result.stderr or b"").decode("utf-8", errors="replace")[-2000:]
+            raise RuntimeError(f"pg_dump failed: {detail}")
+        with tempfile.NamedTemporaryFile(dir=BACKUP_DIR, prefix=".filtered-pg-dump-", delete=False) as output:
+            filtered_path = Path(output.name)
+            try:
+                tail: deque[bytes] = deque(maxlen=5)
+                restrict_tokens: set[bytes] = set()
+                seen_unrestrict = False
+                written = 0
+                with raw_path.open("rb") as source:
+                    for raw_line in source:
+                        if filter_postgresql_compatibility_line(
+                            raw_line.decode("utf-8", errors="replace").rstrip("\r\n"),
+                            target_pg_major=target_pg_major,
+                        ):
+                            continue
+                        output.write(raw_line)
+                        written += len(raw_line)
+                        if written > MAX_BACKUP_SIZE:
+                            raise RuntimeError("Uncompressed database dump exceeds backup size limit")
+                        stripped = raw_line.strip()
+                        tail.append(stripped)
+                        if stripped.startswith(b"\\restrict "):
+                            restrict_tokens.add(stripped.removeprefix(b"\\restrict "))
+                lines = list(tail)
+                while lines and lines[-1] in (b"", b"--"):
+                    lines.pop()
+                if lines and lines[-1].startswith(b"\\unrestrict "):
+                    token = lines.pop().removeprefix(b"\\unrestrict ")
+                    seen_unrestrict = bool(
+                        re.fullmatch(rb"[A-Za-z0-9]+", token) and token in restrict_tokens
+                    )
+                    while lines and lines[-1] in (b"", b"--"):
+                        lines.pop()
+                if not lines or lines[-1] != PG_DUMP_COMPLETE_MARKER or (restrict_tokens and not seen_unrestrict):
+                    raise RuntimeError("pg_dump output is incomplete: PostgreSQL dump completion marker is missing")
+            except BaseException:
+                filtered_path.unlink(missing_ok=True)
+                raise
+        return filtered_path, written
+    finally:
+        raw_path.unlink(missing_ok=True)
+
+
 def _write_archive(
-    payload: bytes,
+    payload: bytes | Path,
     filename: str,
     *,
     source_metadata: dict[str, str | int] | None = None,
@@ -99,13 +198,16 @@ def _write_archive(
     BACKUP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     archive_path = BACKUP_DIR / filename
     manifest = dict(source_metadata or _source_metadata())
-    manifest.update({"format": "zip", "database_size": len(payload), "dump": "db.sql"})
+    manifest.update({"format": "zip", "database_size": payload.stat().st_size if isinstance(payload, Path) else len(payload), "dump": "db.sql"})
     with tempfile.NamedTemporaryFile(dir=BACKUP_DIR, prefix=".backup-", suffix=".tmp", delete=False) as tmp:
         tmp_path = Path(tmp.name)
     try:
         with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("manifest.json", json.dumps(manifest, indent=2, sort_keys=True))
-            archive.writestr("db.sql", payload)
+            if isinstance(payload, Path):
+                archive.write(payload, arcname="db.sql")
+            else:
+                archive.writestr("db.sql", payload)
         size = tmp_path.stat().st_size
         if size > MAX_BACKUP_SIZE:
             raise RuntimeError("Backup exceeds the configured maximum size")
@@ -147,14 +249,17 @@ async def create_backup(db: AsyncSession, *, created_by: int | None, note: str |
             postgresql_version=postgresql_version,
             timescaledb_version=str(extension_version) if extension_version else None,
         )
-        payload = _pg_dump(target_pg_major=target_pg_major)
-        _path, size = _write_archive(payload, filename, source_metadata=source_metadata)
+        dump_path, dump_size = await asyncio.to_thread(_pg_dump_to_file, target_pg_major=target_pg_major)
+        try:
+            _path, size = await asyncio.to_thread(_write_archive, dump_path, filename, source_metadata=source_metadata)
+        finally:
+            dump_path.unlink(missing_ok=True)
         backup.size = size
         backup.status = "created"
         backup.metadata_json = {
             **(backup.metadata_json or {}),
             **source_metadata,
-            "database_size": len(payload),
+            "database_size": dump_size,
         }
         await db.commit()
         await db.refresh(backup)
@@ -218,11 +323,22 @@ async def list_backups(db: AsyncSession) -> tuple[list[Backup], int]:
 
 
 async def delete_backup(db: AsyncSession, backup: Backup) -> None:
-    path = Path(backup.backup_path)
-    if path.exists():
-        path.unlink()
+    """Delete the DB record before removing the archive; never unlink on rollback.
+
+    If the filesystem deletion fails, preserve the DB record when possible.
+    Backup paths are restricted to the application backup root.
+    """
+    path = Path(backup.backup_path).resolve()
+    root = BACKUP_DIR.resolve()
+    if backup.status == "telegram_configured":
+        raise ValueError("Telegram settings cannot be deleted as a backup")
+    if root not in path.parents:
+        raise ValueError("Backup path escapes configured backup directory")
+    # File must remain intact until the DB commit has succeeded.
     await db.execute(delete(Backup).where(Backup.id == backup.id))
     await db.commit()
+    if path.is_file():
+        path.unlink()
 
 
 async def configure_telegram(db: AsyncSession, *, created_by: int | None, token: str, chat_id: str) -> Backup:
@@ -309,7 +425,7 @@ async def get_pending_telegram_backup(db: AsyncSession) -> Backup | None:
         (
             await db.execute(
                 select(Backup)
-                .where(Backup.status == "created")
+                .where(Backup.status.in_(("created", "valid")))
                 .order_by(Backup.created_at.desc())
                 .limit(20)
             )
@@ -350,6 +466,12 @@ async def apply_backup_retention(db: AsyncSession, retention_count: int) -> int:
     if retention_count < 1:
         return 0
     backups = list((await db.execute(select(Backup).where(Backup.status != "telegram_configured").order_by(Backup.created_at.desc()))).scalars())
+    backups = [
+        backup for backup in backups
+        if backup.status in ("created", "valid")
+        and backup.created_by is None
+        and str((backup.metadata_json or {}).get("note", "")).startswith("scheduled:")
+    ]
     deleted = 0
     for backup in backups[retention_count:]:
         if backup.status == "telegram_configured":

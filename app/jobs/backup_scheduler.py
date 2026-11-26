@@ -1,4 +1,4 @@
-from datetime import UTC, datetime as dt
+from datetime import UTC, datetime as dt, timedelta
 
 from app import scheduler
 from app.db import GetDB
@@ -52,9 +52,16 @@ async def scheduled_backup() -> None:
         schedule = await get_backup_schedule(db)
         now = dt.now(UTC)
 
-        # Retry the last failed Telegram delivery before creating another archive.
+        # Local backup creation takes priority over remote delivery retries.
         pending = await get_pending_telegram_backup(db)
+        retry_due = False
         if pending is not None:
+            last_retry = (pending.metadata_json or {}).get("telegram_retry_at")
+            try:
+                retry_due = last_retry is None or now - dt.fromisoformat(last_retry).astimezone(UTC) >= timedelta(hours=1)
+            except (TypeError, ValueError):
+                retry_due = True
+        if pending is not None and retry_due and not _is_due(now, schedule):
             try:
                 delivered = await send_backup_to_telegram(db, pending)
                 pending.metadata_json = {
@@ -79,6 +86,10 @@ async def scheduled_backup() -> None:
             return
         try:
             backup = await create_backup(db, created_by=None, note=f"scheduled:{schedule.frequency}")
+            # Persist the local success before remote network IO: Telegram must not
+            # cause an already-written backup to be generated again next minute.
+            schedule.last_run_at = now
+            await db.commit()
             try:
                 delivered = await send_backup_to_telegram(db, backup)
                 backup.metadata_json = {
@@ -98,8 +109,6 @@ async def scheduled_backup() -> None:
                 }
                 await db.commit()
                 logger.exception("Scheduled backup Telegram delivery failed: %s", backup.filename)
-            schedule.last_run_at = now
-            await db.commit()
             deleted = await apply_backup_retention(db, schedule.retention_count)
             logger.info("Scheduled backup created: %s; retention deleted=%s", backup.filename, deleted)
         except Exception:
