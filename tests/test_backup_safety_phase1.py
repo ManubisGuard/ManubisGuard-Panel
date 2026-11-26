@@ -235,3 +235,21 @@ def test_retention_can_expire_scheduled_validated_archive(monkeypatch):
     monkeypatch.setattr(svc, "delete_backup", delete)
     assert run(svc.apply_backup_retention(Session(), 1)) == 1
     assert removed == [2]
+
+
+def test_backup_delete_rejects_symlink_to_other_internal_archive(monkeypatch, tmp_path):
+    from app.services import backup as svc
+
+    backup_root = tmp_path / "database"
+    backup_root.mkdir()
+    surviving = backup_root / "somebody-elses-archive.zip"
+    surviving.write_bytes(b"not-this-backup")
+    link = backup_root / "pointer.zip"
+    link.symlink_to(surviving)
+    monkeypatch.setattr(svc, "BACKUP_DIR", backup_root)
+    db = FakeDB()
+    row = SimpleNamespace(backup_path=str(link), id=14, status="created")
+    with pytest.raises(ValueError, match="symlink"):
+        run(svc.delete_backup(db, row))
+    assert surviving.read_bytes() == b"not-this-backup"
+    assert not db.deleted

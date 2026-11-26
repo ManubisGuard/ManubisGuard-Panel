@@ -304,7 +304,7 @@ def validate_backup(path: str | Path) -> BackupCheckResponse:
 
 
 async def check_backup(db: AsyncSession, backup: Backup) -> BackupCheckResponse:
-    result = validate_backup(backup.backup_path)
+    result = await asyncio.to_thread(validate_backup, backup.backup_path)
     backup.status = "valid" if result.valid else "failed"
     backup.error_message = None if result.valid else "; ".join(result.errors)
     backup.source_version = result.source_version
@@ -328,8 +328,11 @@ async def delete_backup(db: AsyncSession, backup: Backup) -> None:
     If the filesystem deletion fails, preserve the DB record when possible.
     Backup paths are restricted to the application backup root.
     """
-    path = Path(backup.backup_path).resolve()
+    original_path = Path(backup.backup_path)
+    path = original_path.resolve()
     root = BACKUP_DIR.resolve()
+    if original_path.is_symlink():
+        raise ValueError("Refusing to delete backup through a symlink")
     if backup.status == "telegram_configured":
         raise ValueError("Telegram settings cannot be deleted as a backup")
     if root not in path.parents:
@@ -337,8 +340,8 @@ async def delete_backup(db: AsyncSession, backup: Backup) -> None:
     # File must remain intact until the DB commit has succeeded.
     await db.execute(delete(Backup).where(Backup.id == backup.id))
     await db.commit()
-    if path.is_file():
-        path.unlink()
+    if original_path.is_file():
+        original_path.unlink()
 
 
 async def configure_telegram(db: AsyncSession, *, created_by: int | None, token: str, chat_id: str) -> Backup:
