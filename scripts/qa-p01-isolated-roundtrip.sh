@@ -48,6 +48,19 @@ for MAJOR in 16 17; do
   docker exec "$CONTAINER" pg_dump -U fixture -d fixture_src --format=custom --no-owner --no-acl > "$DUMP"
   docker exec "$CONTAINER" pg_dump -U fixture -d fixture_src --format=plain --no-owner --no-acl > "$SQL"
   [[ -s "$DUMP" && -s "$SQL" ]] || { echo "Empty fixture dump" >&2; exit 1; }
+  docker run --rm -i --network none \
+    -v "$ROOT:/work:ro" -v "$TEST_ROOT:/fixture:ro" -w /work \
+    ghcr.io/astral-sh/uv:python3.14-bookworm-slim \
+    sh -c 'uv run --no-sync python -' <<PYCODE
+from pathlib import Path
+from app.services.backup import _has_complete_dump_trailer
+from app.migration.timescale import filter_postgresql_compatibility_line
+payload = Path("/fixture/fixture-pg${MAJOR}.sql").read_bytes()
+assert _has_complete_dump_trailer(payload), "PG${MAJOR} live dump trailer not accepted"
+filtered = b"".join(line for line in payload.splitlines(keepends=True)
+                    if not filter_postgresql_compatibility_line(line.decode("utf-8", errors="replace").rstrip("\\r\\n"), target_pg_major=16))
+assert _has_complete_dump_trailer(filtered), "PG${MAJOR} filtered dump trailer not accepted"
+PYCODE
   docker exec "$CONTAINER" createdb -U fixture fixture_copy
   docker exec -i "$CONTAINER" pg_restore -U fixture -d fixture_copy \
     --no-owner --no-acl --exit-on-error < "$DUMP"
