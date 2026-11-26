@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main", "feature/amnezia-wg"]
+    branches: ["main", "feature/amnezia-wg", "fix/**"]
   pull_request:
     branches: ["main", "feature/amnezia-wg"]
   workflow_dispatch:
