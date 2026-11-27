@@ -942,7 +942,7 @@ def test_realtime_node_stats(access_token, node_operator_mock):
 
 
 @pytest.mark.asyncio
-async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch: pytest.MonkeyPatch):
+async def test_node_create_schedules_connect_but_metadata_edit_does_not(monkeypatch: pytest.MonkeyPatch):
     operator = NodeOperation(operator_type=OperatorType.API)
     scheduled_node_ids: list[int] = []
 
@@ -968,7 +968,7 @@ async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch:
             node_id = created.id
             await asyncio.sleep(0)
 
-            modified = await operator.modify_node(
+            await operator.modify_node(
                 session,
                 created.id,
                 NodeModify(name=unique_name("node_background_modified")),
@@ -976,7 +976,8 @@ async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch:
             )
             await asyncio.sleep(0)
 
-            assert scheduled_node_ids == [created.id, modified.id]
+            # A name-only edit must not interrupt a running backend.
+            assert scheduled_node_ids == [created.id]
         finally:
             if node_id is not None:
                 db_node = await session.get(Node, node_id)

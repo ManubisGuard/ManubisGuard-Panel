@@ -645,3 +645,61 @@ def test_bulk_delete_user_templates_removes_group_links_and_next_plan_refs(acces
         delete_user(access_token, user["username"])
         delete_group_if_present(access_token, group["id"])
         delete_core_if_present(access_token, core["id"])
+
+
+def test_bulk_delete_core_keeps_surviving_multicore_assignment(access_token, monkeypatch):
+    from app.operation.node import NodeOperation
+
+    deleted = create_core(access_token, name=unique_name("bulk_multicore_deleted"))
+    surviving = create_core(access_token, name=unique_name("bulk_multicore_surviving"))
+    node_id = create_db_node(core_config_id=deleted["id"], name=unique_name("bulk_multicore_node"))
+    disconnect = AsyncMock()
+    reconnect = AsyncMock()
+    monkeypatch.setattr(NodeOperation, "disconnect_single_node", disconnect)
+    monkeypatch.setattr(NodeOperation, "connect_single_node", reconnect)
+    try:
+        async def _assign_two_cores():
+            async with TestSession() as session:
+                db_node = await session.get(Node, node_id)
+                db_node.core_config_ids = [deleted["id"], surviving["id"]]
+                await session.commit()
+
+        asyncio.run(_assign_two_cores())
+
+        response = client.post(
+            "/api/cores/bulk/delete",
+            headers=auth_headers(access_token),
+            json={"ids": [deleted["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["count"] == 1
+
+        async def _assert_survivor():
+            async with TestSession() as session:
+                db_node = await session.get(Node, node_id)
+                assert db_node.core_config_id == surviving["id"]
+                assert db_node.core_config_ids == [surviving["id"]]
+
+        asyncio.run(_assert_survivor())
+        disconnect.assert_awaited_once_with(node_id)
+        reconnect.assert_awaited_once()
+        assert reconnect.await_args.kwargs["force_start"] is True
+    finally:
+        delete_db_node(node_id)
+        delete_core_if_present(access_token, deleted["id"])
+        delete_core_if_present(access_token, surviving["id"])
+
+
+def test_bulk_delete_nonexistent_core_leaves_existing_untouched(access_token):
+    existing = create_core(access_token, name=unique_name("bulk_existing_core"))
+    try:
+        response = client.post(
+            "/api/cores/bulk/delete",
+            headers=auth_headers(access_token),
+            json={"ids": [existing["id"], 2147483640]},
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        check = client.get(f"/api/core/{existing['id']}", headers=auth_headers(access_token))
+        assert check.status_code == status.HTTP_200_OK
+    finally:
+        delete_core_if_present(access_token, existing["id"])

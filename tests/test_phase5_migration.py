@@ -68,7 +68,7 @@ def test_migration_metadata_and_chain_contract():
 def test_fresh_sqlite_runs_full_chain_and_exposes_awg_type(tmp_path):
     database = tmp_path / "fresh.sqlite"
     config = _alembic_config(database)
-    upgrade(config, "head")
+    upgrade(config, AWG_REVISION)
     engine = _sync_engine(database)
     inspector = inspect(engine)
 
@@ -104,7 +104,7 @@ def test_existing_sqlite_upgrade_preserves_legacy_core_rows(tmp_path):
             text("SELECT name, type, config FROM core_configs ORDER BY name")
         ).all()
 
-    upgrade(config, "head")
+    upgrade(config, AWG_REVISION)
 
     with engine.connect() as connection:
         after = connection.execute(
@@ -117,7 +117,7 @@ def test_existing_sqlite_upgrade_preserves_legacy_core_rows(tmp_path):
 def test_sqlite_downgrade_is_schema_safe_and_reupgrade_is_repeatable(tmp_path):
     database = tmp_path / "roundtrip.sqlite"
     config = _alembic_config(database)
-    upgrade(config, "head")
+    upgrade(config, AWG_REVISION)
     engine = _sync_engine(database)
     _insert_core(engine, "roundtrip-awg", "amneziawg")
 
@@ -128,7 +128,7 @@ def test_sqlite_downgrade_is_schema_safe_and_reupgrade_is_repeatable(tmp_path):
             text("SELECT type FROM core_configs WHERE name = 'roundtrip-awg'")
         ).scalar_one() == "amneziawg"
 
-    upgrade(config, "head")
+    upgrade(config, AWG_REVISION)
     assert _version(engine) == AWG_REVISION
     with engine.connect() as connection:
         assert connection.execute(

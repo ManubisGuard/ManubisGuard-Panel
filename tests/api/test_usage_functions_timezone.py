@@ -61,6 +61,7 @@ async def setup_test_data(session, test_suffix=""):
         server_ca="ca",
         api_key="key",
         core_config_id=None,
+        core_config_ids=[],
     )
     session.add(node)
     await session.flush()
@@ -886,6 +887,7 @@ class TestGetUserCountMetricStats:
     async def test_single_metric_responses_share_count_logic(self):
         async with TestSession() as session:
             admin_id, active_user_id, node_id = await setup_test_data(session)
+            admin_username = (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
 
             expired_user = User(
                 username=f"expired_metric_{uuid4().hex[:8]}",
@@ -923,7 +925,7 @@ class TestGetUserCountMetricStats:
 
             online = await get_user_count_metric_stats(
                 session,
-                admins=None,
+                admins=[admin_username],
                 start=start,
                 end=end,
                 period=Period.hour,
@@ -931,7 +933,7 @@ class TestGetUserCountMetricStats:
             )
             expired = await get_user_count_metric_stats(
                 session,
-                admins=None,
+                admins=[admin_username],
                 start=start,
                 end=end,
                 period=Period.hour,
@@ -939,7 +941,7 @@ class TestGetUserCountMetricStats:
             )
             limited = await get_user_count_metric_stats(
                 session,
-                admins=None,
+                admins=[admin_username],
                 start=start,
                 end=end,
                 period=Period.hour,
@@ -957,7 +959,8 @@ class TestGetUserCountMetricStats:
     @pytest.mark.asyncio
     async def test_partial_first_bucket_is_excluded(self):
         async with TestSession() as session:
-            _admin_id, user_id, node_id = await setup_test_data(session)
+            admin_id, user_id, node_id = await setup_test_data(session)
+            admin_username = (await session.execute(select(Admin.username).where(Admin.id == admin_id))).scalar_one()
 
             tehran_tz = timezone(timedelta(hours=3, minutes=30))
             start = datetime(2026, 5, 9, 14, 2, 37, tzinfo=tehran_tz)
@@ -980,7 +983,7 @@ class TestGetUserCountMetricStats:
 
             result = await get_user_count_metric_stats(
                 session,
-                admins=None,
+                admins=[admin_username],
                 start=start,
                 end=end,
                 period=Period.hour,
@@ -1009,6 +1012,7 @@ class TestGetUserCountMetricStats:
                 server_ca="ca",
                 api_key="key",
                 core_config_id=None,
+                core_config_ids=[],
             )
             session.add_all([admin_two, node_two])
             await session.flush()

@@ -1,5 +1,7 @@
 import asyncio
 
+from sqlalchemy import select
+
 from app import notification
 from app.core.hosts import host_manager
 from app.core.manager import core_manager
@@ -9,7 +11,6 @@ from app.db.crud.core import (
     get_core_configs,
     get_cores_simple,
     modify_core_config,
-    remove_core_config,
     remove_cores,
 )
 from app.db.crud.host import get_hosts
@@ -21,6 +22,7 @@ from app.db.crud.wireguard import (
     reconcile_wireguard_subnets,
     wg_core_subnets,
 )
+from app.db.models import CoreConfig
 from app.models.admin import AdminDetails
 from app.models.core import (
     BulkCoreSelection,
@@ -182,6 +184,56 @@ class CoreOperation(BaseOperation):
 
         return core
 
+    async def _reconcile_deleted_core_nodes(self, db: AsyncSession, affected: list[tuple[int, bool]]) -> None:
+        """Stop removed cores and reapply any surviving core assignments."""
+        if not affected:
+            return
+        from app.operation.node import NodeOperation
+
+        node_operator = NodeOperation(OperatorType.API)
+        failures = []
+        for node_id, has_survivors in affected:
+            try:
+                await node_operator.disconnect_single_node(node_id)
+                if has_survivors:
+                    await node_operator.connect_single_node(db, node_id, force_start=True)
+            except Exception:
+                logger.exception("Core deletion failed to reconcile node %s", node_id)
+                failures.append(node_id)
+        if failures:
+            await self.raise_error(
+                message=f"Cores deleted, but node reconciliation failed: {failures}", code=502, db=db
+            )
+
+    async def bulk_remove_cores(
+        self, db: AsyncSession, bulk_cores: BulkCoreSelection, admin: AdminDetails
+    ) -> RemoveCoresResponse:
+        """Delete selected cores atomically, preserving other node core assignments."""
+        ids = sorted(bulk_cores.ids)
+        if 1 in ids:
+            await self.raise_error(message="Cannot delete default core config", code=403, db=db)
+
+        cores = (await db.scalars(select(CoreConfig).where(CoreConfig.id.in_(ids)))).all()
+        found = {core.id for core in cores}
+        if set(ids) != found:
+            await self.raise_error(message="Core config not found", code=404, db=db)
+
+        names = [core.name for core in cores]
+        removed_wireguard = any(core.type in (CoreType.wg, CoreType.amneziawg) for core in cores)
+        affected = await remove_cores(db, ids)
+        for core in cores:
+            await core_manager.remove_core(core.id)
+            asyncio.create_task(notification.remove_core(core.id, admin.username))
+            logger.info('Core config "%s" deleted by admin "%s"', core.name, admin.username)
+
+        if removed_wireguard:
+            await self._reconcile_wireguard(db)
+        await self._refresh_hosts_from_db(db)
+
+        await self._reconcile_deleted_core_nodes(db, affected)
+
+        return RemoveCoresResponse(cores=names, count=len(cores))
+
     async def delete_core(self, db: AsyncSession, core_id: int, admin: AdminDetails) -> None:
         if core_id == 1:
             return await self.raise_error(message="Cannot delete default core config", code=403)
@@ -189,7 +241,7 @@ class CoreOperation(BaseOperation):
         db_core = await self.get_validated_core_config(db, core_id)
         was_wg = db_core.type in (CoreType.wg, CoreType.amneziawg)
 
-        await remove_core_config(db, db_core)
+        affected = await remove_cores(db, [db_core.id])
         await core_manager.remove_core(db_core.id)
 
         asyncio.create_task(notification.remove_core(db_core.id, admin.username))
@@ -199,3 +251,4 @@ class CoreOperation(BaseOperation):
         if was_wg:
             await self._reconcile_wireguard(db)
         await self._refresh_hosts_from_db(db)
+        await self._reconcile_deleted_core_nodes(db, affected)
