@@ -153,3 +153,21 @@ async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: p
     assert third is first
     assert first.stop_calls == 0
     assert first.set_health_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_failed_stop_preserves_node_for_retry(monkeypatch):
+    manager = NodeManager()
+    monkeypatch.setattr("app.node.ensure_bridge_memory", lambda: _AwaitableNone())
+    monkeypatch.setattr("app.node.get_bridge_memory", lambda: (None, None, None))
+    monkeypatch.setattr("app.node.create_node", lambda **kwargs: _FakePGNode(**kwargs))
+    node = await manager.update_node(_make_node(1))
+
+    async def fail():
+        raise RuntimeError("stop failed")
+
+    monkeypatch.setattr(node, "stop", fail)
+    with pytest.raises(RuntimeError, match="stop failed"):
+        await manager.remove_node(1)
+    assert await manager.get_node(1) is node
+    assert node.set_health_calls == 0

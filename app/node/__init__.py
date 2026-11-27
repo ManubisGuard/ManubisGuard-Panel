@@ -66,12 +66,9 @@ class NodeManager:
         if node is None:
             return
 
-        try:
-            await node.set_health(Health.INVALID)
-            if remote_stop:
-                await node.stop()
-        except Exception:
-            pass
+        if remote_stop:
+            await node.stop()
+        await node.set_health(Health.INVALID)
 
     async def update_node(self, node: Node) -> PasarGuardNode:
         await ensure_bridge_memory()
@@ -99,16 +96,11 @@ class NodeManager:
                 existing.name = node.name
                 return existing
 
+            new_node = create_node(**self._create_node_kwargs(node))
+            await self._shutdown_node(existing, remote_stop=True)
             async with self._lock.writer_lock:
-                old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
-
-                new_node = create_node(**self._create_node_kwargs(node))
-
                 self._nodes[node.id] = new_node
                 self._node_signatures[node.id] = signature
-
-            # Stop the old node after releasing the lock.
-            await self._shutdown_node(old_node, remote_stop=True)
 
         return new_node
 
@@ -117,13 +109,14 @@ class NodeManager:
         # so removal can't tear the node down mid-sync and can't drop the lock entry while
         # a current waiter still holds that lock identity.
         lock = self._user_sync_locks.setdefault(id, asyncio.Lock())
-        async with lock, self._lock.writer_lock:
-            old_node: PasarGuardNode | None = self._nodes.pop(id, None)
-            self._node_signatures.pop(id, None)
-            self._user_sync_locks.pop(id, None)
-
-        # Do cleanup without holding the lock to avoid slow delete operations.
-        asyncio.create_task(self._shutdown_node(old_node, remote_stop=remote_stop))
+        async with lock:
+            async with self._lock.reader_lock:
+                old_node = self._nodes.get(id)
+            await self._shutdown_node(old_node, remote_stop=remote_stop)
+            async with self._lock.writer_lock:
+                self._nodes.pop(id, None)
+                self._node_signatures.pop(id, None)
+            # Keep the lock identity for any existing waiters.
 
     async def get_node(self, id: int) -> PasarGuardNode | None:
         async with self._lock.reader_lock:
