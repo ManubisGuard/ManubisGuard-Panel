@@ -61,6 +61,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
+// Keep these links and components in source for easy re-enabling later.
+const SHOW_COMMUNITY_LINKS = false
+const SHOW_GITHUB_STAR = false
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isRTL = useDirDetection() === 'rtl'
   const { t } = useTranslation()
@@ -415,11 +419,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarHeader>
         <SidebarContent>
           <NavMain items={data.navMain} />
-          {isOwner(admin) && <NavSecondary items={data.community} label={t('community')} />}
-          <NavSecondary items={data.navSecondary} className="mt-auto" />
+          {SHOW_COMMUNITY_LINKS && isOwner(admin) && <NavSecondary items={data.community} label={t('community')} />}
+          {SHOW_COMMUNITY_LINKS && <NavSecondary items={data.navSecondary} className="mt-auto" />}
           <GoalProgress />
           <div className="flex items-center justify-between px-2 [&>:first-child]:[direction:ltr]">
-            {state !== 'collapsed' && <GithubStar />}
+            {SHOW_GITHUB_STAR && state !== 'collapsed' && <GithubStar />}
             {state !== 'collapsed' && (
               <div className="flex items-start gap-2">
                 <Language />
@@ -428,7 +432,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             )}
             {state === 'collapsed' && isMobile && (
               <>
-                <GithubStar />
+                {SHOW_GITHUB_STAR && <GithubStar />}
 
                 <div className="flex items-start gap-2">
                   <Language />
