@@ -229,13 +229,14 @@ class NodeOperation(BaseOperation):
         if not core_ids:
             return {}, {}
 
-        resolved_cores = await core_manager.get_cores(core_ids | {1})
-        default_core = resolved_cores.get(1)
+        resolved_cores = await core_manager.get_cores(core_ids)
         cores_by_id: dict[int, object | None] = {}
         users_by_core: dict[int, list] = {}
 
         for core_id in core_ids:
-            core = resolved_cores.get(core_id) or default_core
+            # Never silently run default Xray when an explicitly assigned
+            # WireGuard/AmneziaWG configuration has been deleted.
+            core = resolved_cores.get(core_id)
             cores_by_id[core_id] = core
             if core is None:
                 users_by_core[core_id] = []
@@ -256,6 +257,17 @@ class NodeOperation(BaseOperation):
             ids = [db_node.core_config_id or 1]
         # Preserve order while removing accidental duplicates.
         return list(dict.fromkeys(ids))
+
+    @staticmethod
+    def _missing_core_result(db_node: Node, missing_ids: list[int]) -> dict:
+        return {
+            "node_id": db_node.id,
+            "status": NodeStatus.error,
+            "message": f"Assigned core configurations not found: {', '.join(map(str, missing_ids))}",
+            "xray_version": "",
+            "node_version": "",
+            "old_status": db_node.status,
+        }
 
     @staticmethod
     def _union_core_users(users_by_core: dict[int, list]) -> list:
@@ -433,7 +445,8 @@ class NodeOperation(BaseOperation):
         except NodeAPIError as e:
             if e.code == -4:
                 return None
-            if e.code == 409:
+            if e.code == 409 and not additive:
+                # A global attach cannot prove an additive secondary core started.
                 # Another worker holds the lifecycle lease; try attach once more.
                 attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
                 if attached is not None:
@@ -456,7 +469,8 @@ class NodeOperation(BaseOperation):
                 logger.debug(f'"{db_node.name}" node lifecycle lease is held by another worker, will retry')
                 return None
 
-            if e.code == -1:
+            if e.code == -1 and not additive:
+                # A global attach cannot verify that an additive core came up.
                 # A timed-out Start has an ambiguous outcome: cancelling the panel-side
                 # request does not guarantee that the remote node stopped starting. Probe
                 # it before reporting an error so a late success is attached instead of
@@ -829,6 +843,9 @@ class NodeOperation(BaseOperation):
 
             async with sem:
                 selected_ids = self._selected_core_ids(node)
+                missing_ids = [core_id for core_id in selected_ids if cores_by_id.get(core_id) is None]
+                if missing_ids:
+                    return self._missing_core_result(node, missing_ids)
                 original_core = cores_by_id.get(selected_ids[0])
                 runtime = build_runtime_core(
                     original_core,
@@ -955,6 +972,16 @@ class NodeOperation(BaseOperation):
 
         selected_ids = self._selected_core_ids(db_node)
         cores_by_id, users_by_core = await self._get_core_users_map(db, set(selected_ids))
+        missing_ids = [core_id for core_id in selected_ids if cores_by_id.get(core_id) is None]
+        if missing_ids:
+            missing = self._missing_core_result(db_node, missing_ids)
+            old_status = db_node.status
+            await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=missing["message"])
+            if old_status != NodeStatus.error:
+                asyncio.create_task(notification.error_node(NodeNotification(
+                    id=db_node.id, name=db_node.name, message=missing["message"]
+                )))
+            return
         managed_service = ManagedCertificateService()
         managed_domains = await managed_service.list_node_domains(db, node_id)
         primary_core = cores_by_id.get(selected_ids[0])
