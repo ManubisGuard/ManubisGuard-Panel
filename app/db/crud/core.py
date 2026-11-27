@@ -1,7 +1,7 @@
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import CoreConfig, Node
+from app.db.models import CoreConfig, Node, NodeStatus
 from app.models.core import (
     CoreCreate,
     CoreListQuery,
@@ -180,17 +180,35 @@ async def get_cores_simple(
     return rows, total
 
 
-async def remove_cores(db: AsyncSession, core_ids: list[int]) -> None:
-    """
-    Removes multiple cores from the database by ID.
+async def remove_cores(db: AsyncSession, core_ids: list[int]) -> list[tuple[int, bool]]:
+    """Delete cores and atomically reconcile every node's legacy and JSON assignments.
 
-    Args:
-        db (AsyncSession): Database session.
-        core_ids (list[int]): List of core IDs to remove.
+    Return (node id, has surviving cores) for the caller to reconcile the
+    running backend set after commit. No remote calls happen in this transaction.
     """
     if not core_ids:
-        return
+        return []
 
-    await db.execute(update(Node).where(Node.core_config_id.in_(core_ids)).values(core_config_id=None))
-    await db.execute(delete(CoreConfig).where(CoreConfig.id.in_(core_ids)))
+    deleted = set(core_ids)
+    affected: list[tuple[int, bool]] = []
+    nodes = (await db.scalars(select(Node))).all()
+    for node in nodes:
+        current = list(node.core_config_ids or [])
+        if not current and node.core_config_id is not None:
+            current = [node.core_config_id]
+        if not (deleted.intersection(current) or node.core_config_id in deleted):
+            continue
+
+        survivors = [core_id for core_id in current if core_id not in deleted]
+        node.core_config_ids = survivors
+        node.core_config_id = survivors[0] if survivors else None
+        if not survivors:
+            node.status = NodeStatus.disabled
+        elif node.status not in (NodeStatus.disabled, NodeStatus.limited):
+            node.status = NodeStatus.connecting
+        affected.append((node.id, bool(survivors)))
+
+    await db.flush()  # clear foreign keys before deleting CoreConfig rows
+    await db.execute(delete(CoreConfig).where(CoreConfig.id.in_(deleted)))
     await db.commit()
+    return affected
