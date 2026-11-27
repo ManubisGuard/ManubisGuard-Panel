@@ -29,7 +29,6 @@ logger = get_logger("record-usages")
 # Start with 2-4, adjust based on DB performance
 JOB_SEM = asyncio.Semaphore(3)  # Max 3 concurrent DB write operations
 API_SEM = asyncio.Semaphore(10)  # Max 10 concurrent node stats RPCs
-USAGE_COEFFICIENT_TTL_S = 60.0
 NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
     "mysql": 1_000,
     "sqlite": 400,
@@ -45,7 +44,6 @@ DEADLOCK_MAX_RETRIES = 5
 # node stats calls take longer than the scheduler interval.
 _user_usage_running = False
 _node_usage_running = False
-_usage_coefficient_cache: dict[int, tuple[float, float]] = {}
 
 
 def _chunked(items: list, size: int):
@@ -456,9 +454,15 @@ async def record_node_stats_batched(all_node_params: dict):
                 await safe_execute(stmt, stmt_params)
 
     # Execute all node stats with limited concurrency
-    tasks = [_record_single_node(node_id, params) for node_id, params in all_node_params.items()]
+    node_ids = list(all_node_params)
+    tasks = [_record_single_node(node_id, all_node_params[node_id]) for node_id in node_ids]
     if tasks:
-        await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for node_id, result in zip(node_ids, results, strict=True):
+            if isinstance(result, asyncio.CancelledError):
+                raise result
+            if isinstance(result, Exception):
+                logger.error("Node usage write failed for node %s", node_id, exc_info=result)
 
 
 def _process_users_stats_response(stats_response):
@@ -508,38 +512,29 @@ async def _await_usage_job(job_name: str, impl, interval: int, interval_env: str
 
 
 async def _node_usage_coefficient(node: PasarGuardNode, node_id: int) -> float:
-    now = time.monotonic()
-    cached = _usage_coefficient_cache.get(node_id)
-    if cached is not None and cached[1] > now:
-        return cached[0]
-    try:
-        extra = await node.get_extra()
-        coeff = float(extra.get("usage_coefficient", 1) or 1) if extra else 1.0
-    except Exception as exc:
-        logger.warning("Failed to get extra data for node %s: %s", node_id, exc)
-        coeff = cached[0] if cached is not None else 1.0
-    _usage_coefficient_cache[node_id] = (coeff, now + USAGE_COEFFICIENT_TTL_S)
-    return coeff
+    """Use the committed DB coefficient, independent of bridge connection metadata.
+
+    Never silently bill with a stale coefficient when the database is unavailable.
+    The usage read fails closed so that a reconnect cannot retroactively
+    overwrite the configured billing multiplier.
+    """
+    async with GetDB() as db:
+        value = await db.scalar(select(Node.usage_coefficient).where(Node.id == node_id))
+    if value is None:
+        raise ValueError(f"Usage coefficient unavailable for node {node_id}")
+    return float(value)
 
 
 async def _collect_node_user_usage(node: PasarGuardNode, node_id: int) -> tuple[int, float, list]:
-    """Fetch coefficient and user stats under one RPC slot so extra+stats overlap."""
+    """Resolve accounting first, before resetting the node's traffic counters.
+
+    If the database is unavailable we must not reset remote counters and lose
+    the traffic we could not account for. A failed stats request still leaves
+    the node's own error reporting in charge of its counters.
+    """
     async with API_SEM:
-        coeff_result, stats_result = await asyncio.gather(
-            _node_usage_coefficient(node, node_id),
-            get_users_stats(node, node_id),
-            return_exceptions=True,
-        )
-    if isinstance(coeff_result, Exception):
-        logger.warning("Failed to get extra data for node %s: %s", node_id, coeff_result)
-        coeff = 1.0
-    else:
-        coeff = coeff_result
-    if isinstance(stats_result, Exception):
-        logger.warning("Failed to get stats for node %s: %s", node_id, stats_result)
-        stats: list = []
-    else:
-        stats = stats_result
+        coeff = await _node_usage_coefficient(node, node_id)
+        stats = await get_users_stats(node, node_id)
     return node_id, coeff, stats
 
 

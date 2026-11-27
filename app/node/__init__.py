@@ -82,6 +82,7 @@ class NodeManager:
         lock = self._user_sync_locks.setdefault(node.id, asyncio.Lock())
         async with lock:
             signature = self._connection_signature(node)
+            previous_signature = self._node_signatures.get(node.id)
             async with self._lock.reader_lock:
                 existing = self._nodes.get(node.id)
 
@@ -91,10 +92,12 @@ class NodeManager:
             # possibly-healthy remote backend (a real Stop RPC) just to recreate it —
             # that used to defeat the attach-if-already-running logic below and turned
             # transient health-check false negatives into a permanent restart loop.
-            if existing is not None and self._node_signatures.get(node.id) == signature:
-                existing_extra = await existing.get_extra()
-                if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
-                    return existing
+            if existing is not None and previous_signature == signature:
+                # Display/accounting metadata changes do not require replacing the
+                # live bridge or invalidating its health state. Billing obtains the
+                # coefficient from the database, not stale bridge metadata.
+                existing.name = node.name
+                return existing
 
             async with self._lock.writer_lock:
                 old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
@@ -105,7 +108,7 @@ class NodeManager:
                 self._node_signatures[node.id] = signature
 
             # Stop the old node after releasing the lock.
-            await self._shutdown_node(old_node)
+            await self._shutdown_node(old_node, remote_stop=True)
 
         return new_node
 

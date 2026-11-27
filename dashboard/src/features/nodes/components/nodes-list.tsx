@@ -221,7 +221,7 @@ export default function NodesList() {
       name: node.name,
       address: node.address,
       port: node.port || 62050,
-      usage_coefficient: node.usage_coefficient || 1,
+      usage_coefficient: node.usage_coefficient ?? 1,
       connection_type: node.connection_type,
       server_ca: node.server_ca,
       keep_alive: node.keep_alive,

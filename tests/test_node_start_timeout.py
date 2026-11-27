@@ -252,7 +252,7 @@ async def test_connect_node_skips_when_already_healthy(monkeypatch: pytest.Monke
     start_or_attach = AsyncMock()
     monkeypatch.setattr(NodeOperation, "_start_or_attach_node", start_or_attach)
 
-    result = await NodeOperation.connect_node(db_node, object(), [])
+    result = await NodeOperation.connect_node(db_node, SimpleNamespace(type=node_operation_module.CoreType.xray), [])
 
     assert result is None
     start_or_attach.assert_not_awaited()
@@ -264,6 +264,9 @@ async def test_bulk_managed_certificate_deployment_rolls_back_after_start_failur
     domain = SimpleNamespace(id="managed-1", node_id=7, status="active", domain="edge.example.com")
     original_core = SimpleNamespace(name="original")
     runtime_core = SimpleNamespace(name="managed")
+    secondary_core = SimpleNamespace(name="secondary")
+    primary_users = [object()]
+    secondary_users = [object()]
     runtime = SimpleNamespace(
         core=runtime_core,
         injected_domain_ids=("managed-1",),
@@ -273,13 +276,13 @@ async def test_bulk_managed_certificate_deployment_rolls_back_after_start_failur
         list_domains=AsyncMock(return_value=[domain]),
         mark_deployment=AsyncMock(),
     )
-    node = SimpleNamespace(id=7, core_config_id=1, status=NodeStatus.connected, name="node-7")
+    node = SimpleNamespace(id=7, core_config_id=1, core_config_ids=[1, 2], status=NodeStatus.connected, name="node-7")
 
     monkeypatch.setattr(node_operation_module, "ManagedCertificateService", lambda: service)
     monkeypatch.setattr(
         node_operation_module.NodeOperation,
         "_get_core_users_map",
-        AsyncMock(return_value=({1: original_core}, {1: []})),
+        AsyncMock(return_value=({1: original_core, 2: secondary_core}, {1: primary_users, 2: secondary_users})),
     )
     monkeypatch.setattr(node_operation_module, "build_runtime_core", lambda core, domains: runtime)
     monkeypatch.setattr(node_operation_module.node_manager, "update_node", AsyncMock())
@@ -301,22 +304,109 @@ async def test_bulk_managed_certificate_deployment_rolls_back_after_start_failur
         "node_version": "0.9.1",
         "old_status": NodeStatus.error,
     }
-    start = AsyncMock(side_effect=[failed, rolled_back])
+    start = AsyncMock(side_effect=[rolled_back.copy(), failed, rolled_back])
     monkeypatch.setattr(node_operation_module.NodeOperation, "connect_node", start)
 
     db = SimpleNamespace(commit=AsyncMock())
     operation = NodeOperation.__new__(NodeOperation)
     await operation._connect_nodes_bulk_local(db, [node], force_start=True)
 
-    assert start.await_count == 2
+    assert start.await_count == 3
     first_core = start.await_args_list[0].args[1]
-    second_core = start.await_args_list[1].args[1]
+    second_core = start.await_args_list[2].args[1]
     assert first_core is runtime_core
     assert second_core is original_core
-    assert start.await_args_list[1].kwargs["force_start"] is True
+    assert start.await_args_list[2].kwargs["force_start"] is True
+    assert start.await_args_list[2].args[2] is primary_users
     service.mark_deployment.assert_awaited_once_with(
         db,
         ("managed-1",),
         status="failed",
         error="new managed config rejected",
     )
+
+
+@pytest.mark.asyncio
+async def test_health_tick_does_not_wait_for_slow_node(monkeypatch):
+    import asyncio
+
+    slow = asyncio.Event()
+    calls = []
+    rows = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
+
+    async def check(row, node):
+        calls.append(row.id)
+        if row.id == 1:
+            await slow.wait()
+
+    class Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    monkeypatch.setattr(node_checker, "GetDB", Session)
+    monkeypatch.setattr(node_checker, "get_nodes", AsyncMock(return_value=(rows, 2)))
+    monkeypatch.setattr(node_checker.node_manager, "get_nodes", AsyncMock(return_value={1: object(), 2: object()}))
+    monkeypatch.setattr(node_checker, "runtime_settings", SimpleNamespace(role=SimpleNamespace(runs_node=True)))
+    monkeypatch.setattr(node_checker, "job_settings", SimpleNamespace(core_health_check_interval=0.01))
+    monkeypatch.setattr(node_checker, "process_node_health_check", check)
+    try:
+        await asyncio.wait_for(node_checker.node_health_check(), timeout=1)
+        await asyncio.wait_for(node_checker.node_health_check(), timeout=1)
+        assert calls.count(1) == 1
+        assert calls.count(2) == 2
+    finally:
+        slow.set()
+        await node_checker._stop_node_loops()
+    assert not node_checker._health_tasks
+
+
+@pytest.mark.asyncio
+async def test_full_form_coefficient_edit_does_not_restart_node(monkeypatch: pytest.MonkeyPatch):
+    """The dashboard sends unchanged operational fields with its billing edit."""
+    from app.models.node import NodeResponse
+    from app.operation import OperatorType
+
+    node = SimpleNamespace(
+        id=918,
+        name="existing",
+        address="10.0.0.1",
+        port=62050,
+        api_port=62051,
+        core_config_id=1,
+        core_config_ids=[1],
+        usage_coefficient=1.0,
+        status=NodeStatus.connected,
+    )
+    modified = NodeModify.model_construct(
+        name="existing", address=node.address, port=node.port,
+        api_port=node.api_port, core_config_id=1, core_config_ids=[1],
+        usage_coefficient=2.0,
+    )
+    operation = NodeOperation(OperatorType.API)
+    monkeypatch.setattr(operation, "get_validated_node", AsyncMock(return_value=node))
+    monkeypatch.setattr(operation, "_validate_core_assignments", AsyncMock(return_value=[1]))
+    update = AsyncMock()
+    disconnect = AsyncMock()
+    restart = AsyncMock()
+    monkeypatch.setattr(operation, "_update_node_impl", update)
+    monkeypatch.setattr(operation, "disconnect_single_node", disconnect)
+    monkeypatch.setattr(operation, "_connect_single_node_background", restart)
+
+    async def store_metadata(db, db_node, request):
+        db_node.usage_coefficient = request.usage_coefficient
+        return db_node
+
+    monkeypatch.setattr(node_operation_module, "modify_node", store_metadata)
+    monkeypatch.setattr(NodeResponse, "model_validate", lambda value: value)
+    monkeypatch.setattr(node_operation_module.notification, "modify_node", AsyncMock())
+
+    result = await operation.modify_node(None, 918, modified, SimpleNamespace(username="tester"))
+    assert result is node
+    assert node.status == NodeStatus.connected
+    assert node.usage_coefficient == 2.0
+    update.assert_not_awaited()
+    disconnect.assert_not_awaited()
+    restart.assert_not_awaited()

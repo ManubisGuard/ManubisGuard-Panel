@@ -291,8 +291,28 @@ async def node_health_check():
         db_nodes, _ = await get_nodes(db=db, query=NodeListQuery(status=ACTIVE_NODE_STATUSES), load_usage_logs=False)
 
     dict_nodes = await node_manager.get_nodes()
-    check_tasks = [process_node_health_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
-    await asyncio.gather(*check_tasks, return_exceptions=True)
+    tasks = []
+    for db_node in db_nodes:
+        task = _health_tasks.get(db_node.id)
+        if task is None or task.done():
+            task = asyncio.create_task(_run_health_check(db_node, dict_nodes.get(db_node.id)))
+            _health_tasks[db_node.id] = task
+        tasks.append(task)
+    if tasks:
+        await asyncio.wait(tasks, timeout=job_settings.core_health_check_interval * 0.8)
+
+
+_health_tasks: dict[int, asyncio.Task] = {}
+
+
+async def _run_health_check(db_node: Node, node: PasarGuardNode | None):
+    try:
+        await process_node_health_check(db_node, node)
+    except Exception:
+        logger.exception("Health check failed for node %s", db_node.id)
+    finally:
+        if _health_tasks.get(db_node.id) is asyncio.current_task():
+            _health_tasks.pop(db_node.id, None)
 
 
 _node_loop_tasks: list[asyncio.Task] = []
@@ -373,6 +393,12 @@ async def _stop_node_loops():
     if _node_loop_tasks:
         await asyncio.gather(*_node_loop_tasks, return_exceptions=True)
     _node_loop_tasks.clear()
+    tasks = list(_health_tasks.values())
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+    _health_tasks.clear()
 
 
 async def shutdown_nodes():

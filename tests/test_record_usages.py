@@ -126,6 +126,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
             server_ca="ca1",
             api_key="key1",
             core_config_id=None,
+            core_config_ids=[],
         )
         node_two = Node(
             name="node-2",
@@ -135,6 +136,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
             server_ca="ca2",
             api_key="key2",
             core_config_id=None,
+            core_config_ids=[],
         )
         session.add_all([node_one, node_two])
         await session.flush()
@@ -212,6 +214,7 @@ async def test_record_user_usages_limits_overused_admin(monkeypatch: pytest.Monk
             server_ca="ca1",
             api_key="key1",
             core_config_id=None,
+            core_config_ids=[],
         )
         session.add_all([user, node])
         await session.flush()
@@ -255,6 +258,7 @@ async def test_record_user_stats_batched_skips_missing_users(session_factory):
             server_ca="ca1",
             api_key="key1",
             core_config_id=None,
+            core_config_ids=[],
         )
         session.add_all([user, node])
         await session.flush()
@@ -317,6 +321,7 @@ async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.Monk
             server_ca="ca1",
             api_key="key1",
             core_config_id=None,
+            core_config_ids=[],
         )
         session.add_all([user, node])
         await session.flush()
@@ -356,6 +361,7 @@ async def test_record_node_usages_updates_totals(monkeypatch: pytest.MonkeyPatch
             server_ca="ca1",
             api_key="key1",
             core_config_id=None,
+            core_config_ids=[],
         )
         node_two = Node(
             name="node-2",
@@ -365,6 +371,7 @@ async def test_record_node_usages_updates_totals(monkeypatch: pytest.MonkeyPatch
             server_ca="ca2",
             api_key="key2",
             core_config_id=None,
+            core_config_ids=[],
         )
         system = System(uplink=0, downlink=0)
         session.add_all([node_one, node_two, system])
@@ -419,6 +426,7 @@ async def test_record_node_usages_returns_when_totals_zero(monkeypatch: pytest.M
             server_ca="ca1",
             api_key="key1",
             core_config_id=None,
+            core_config_ids=[],
         )
         system = System(uplink=0, downlink=0)
         session.add_all([node, system])
@@ -514,11 +522,9 @@ async def test_safe_execute_raises_after_deadlock_retries(monkeypatch: pytest.Mo
 
 @pytest.fixture(autouse=True)
 def _reset_usage_job_state():
-    record_usages._usage_coefficient_cache.clear()
     record_usages._user_usage_running = False
     record_usages._node_usage_running = False
     yield
-    record_usages._usage_coefficient_cache.clear()
     record_usages._user_usage_running = False
     record_usages._node_usage_running = False
 
@@ -581,23 +587,55 @@ async def test_record_user_usages_warns_when_slower_than_interval(monkeypatch: p
 
 
 @pytest.mark.asyncio
-async def test_usage_coefficient_is_cached_across_collects(monkeypatch: pytest.MonkeyPatch):
-    node = DummyNode(1, usage_coefficient=2)
-    extra_calls = {"n": 0}
-    original_get_extra = node.get_extra
+async def test_usage_coefficient_reads_fresh_db_value(monkeypatch: pytest.MonkeyPatch):
+    value = {"coeff": 2.0}
 
-    async def counting_get_extra():
-        extra_calls["n"] += 1
-        return await original_get_extra()
+    class FakeDB:
+        async def __aenter__(self):
+            return self
 
-    node.get_extra = counting_get_extra
-    monkeypatch.setattr(record_usages, "get_users_stats", AsyncMock(return_value=[]))
+        async def __aexit__(self, *args):
+            return None
 
-    first = await record_usages._collect_node_user_usage(node, 1)
-    second = await record_usages._collect_node_user_usage(node, 1)
+        async def scalar(self, stmt):
+            return value["coeff"]
 
-    assert extra_calls["n"] == 1
-    assert first[1] == second[1] == 2.0
+    monkeypatch.setattr(record_usages, "GetDB", FakeDB)
+    node = DummyNode(1, usage_coefficient=7)
+    assert await record_usages._node_usage_coefficient(node, 1) == 2.0
+    value["coeff"] = 0.0
+    assert await record_usages._node_usage_coefficient(node, 1) == 0.0
+
+
+@pytest.mark.asyncio
+async def test_failed_coefficient_does_not_reset_remote_counters(monkeypatch: pytest.MonkeyPatch):
+    stats = AsyncMock(return_value=[{"uid": 1, "value": 100}])
+    monkeypatch.setattr(record_usages, "get_users_stats", stats)
+
+    async def missing_coefficient(node, node_id):
+        raise RuntimeError("database is unavailable")
+
+    monkeypatch.setattr(record_usages, "_node_usage_coefficient", missing_coefficient)
+    with pytest.raises(RuntimeError, match="database is unavailable"):
+        await record_usages._collect_node_user_usage(DummyNode(1), 1)
+    stats.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_usage_coefficient_unavailable_fails_closed(monkeypatch: pytest.MonkeyPatch):
+    class FakeDB:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def scalar(self, stmt):
+            return None
+
+    monkeypatch.setattr(record_usages, "GetDB", FakeDB)
+    with pytest.raises(ValueError, match="Usage coefficient unavailable"):
+        await record_usages._node_usage_coefficient(DummyNode(1), 1)
 
 @pytest.mark.asyncio
 async def test_awg_node_user_counters_reach_panel_usage_parser():
@@ -618,3 +656,21 @@ async def test_awg_node_user_counters_reach_panel_usage_parser():
     usage = await record_usages.get_users_stats(AWGNode(), node_id=42)
 
     assert usage == [{"uid": 1869, "value": 1_411_592}]
+
+
+@pytest.mark.asyncio
+async def test_zero_usage_coefficient_is_preserved(monkeypatch: pytest.MonkeyPatch):
+    class FakeDB:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def scalar(self, stmt):
+            return 0.0
+
+    monkeypatch.setattr(record_usages, "GetDB", FakeDB)
+    coeff = await record_usages._node_usage_coefficient(DummyNode(987, usage_coefficient=2), 987)
+    assert coeff == 0
+    assert await record_usages.calculate_users_usage({987: [{"uid": 1, "value": 100}]}, {987: coeff}) == [{"uid": 1, "value": 0}]
