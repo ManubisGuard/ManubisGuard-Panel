@@ -24,6 +24,7 @@ from app.db.crud.node import (
     get_nodes_simple,
     get_nodes_usage,
     modify_node,
+    node_modify_values,
     remove_node,
     remove_nodes,
     reset_node_usage,
@@ -539,12 +540,20 @@ class NodeOperation(BaseOperation):
             modified_node.core_config_ids = selected
             modified_node.core_config_id = selected[0]
 
+        modified_values = node_modify_values(modified_node)
+        changed_fields = {key for key, value in modified_values.items() if getattr(db_node, key) != value}
+
         try:
             db_node = await modify_node(db, db_node, modified_node)
         except IntegrityError:
             await self.raise_error(message=f'Node "{db_node.name}" already exists', code=409, db=db)
 
-        if db_node.status in (NodeStatus.disabled, NodeStatus.limited):
+        if changed_fields <= {"name", "usage_coefficient"}:
+            # No core or connection settings changed: avoid any remote Start/Stop.
+            # Name still needs to propagate to the bridge manager.
+            if "name" in changed_fields:
+                await self._update_node_impl(db_node)
+        elif db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             await self.disconnect_single_node(db_node.id)
         else:
             try:
@@ -850,14 +859,14 @@ class NodeOperation(BaseOperation):
                         force_start=force_start if index == 0 else False,
                         additive=index > 0,
                     )
-                    if current is not None:
+                    if current is not None and (result is None or result["status"] != NodeStatus.error):
                         result = current
                 if result and runtime.injected_domain_ids and result["status"] == NodeStatus.error and original_core is not None:
                     deployment_error = result.get("message") or "Managed certificate deployment failed"
                     rollback = await self.connect_node(
                         node,
                         original_core,
-                        users_by_core.get(core_id, []),
+                        users_by_core.get(selected_ids[0], []),
                         force_start=True,
                     )
                     if rollback and rollback["status"] == NodeStatus.connected:
@@ -983,7 +992,7 @@ class NodeOperation(BaseOperation):
                 db_node, selected_core, users_by_core.get(core_id, []),
                 force_start=force_start if index == 0 else False, additive=index > 0,
             )
-            if current is not None:
+            if current is not None and (result is None or result["status"] != NodeStatus.error):
                 result = current
 
         if not result:

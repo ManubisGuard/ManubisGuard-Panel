@@ -455,6 +455,17 @@ async def remove_node(db: AsyncSession, db_node: Node) -> None:
     await db.commit()
 
 
+def node_modify_values(modify: NodeModify) -> dict:
+    """Compute explicitly supplied node values, including legacy core fallback."""
+    node_data = modify.model_dump(exclude_none=True, exclude_unset=True)
+    if "core_config_ids" in node_data:
+        selected_core_ids = node_data["core_config_ids"]
+        node_data["core_config_id"] = selected_core_ids[0] if selected_core_ids else None
+    if "proxy_url" in modify.model_fields_set and modify.proxy_url is None:
+        node_data["proxy_url"] = None
+    return node_data
+
+
 async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> Node:
     """
     modify an existing node with new information.
@@ -468,15 +479,18 @@ async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
         Node: The modified Node object.
     """
 
-    node_data = modify.model_dump(exclude_none=True)
-    if "core_config_ids" in node_data:
-        selected_core_ids = node_data["core_config_ids"]
-        node_data["core_config_id"] = selected_core_ids[0] if selected_core_ids else None
-    if "proxy_url" in modify.model_fields_set and modify.proxy_url is None:
-        node_data["proxy_url"] = None
-
+    node_data = node_modify_values(modify)
+    changed_fields = {key for key, value in node_data.items() if getattr(db_node, key) != value}
     for key, value in node_data.items():
         setattr(db_node, key, value)
+
+    if changed_fields <= {"name", "usage_coefficient"}:
+        # Metadata-only edits (even from a full dashboard form) must not reset
+        # operational status, versions, or trigger a remote core restart.
+        await db.commit()
+        await db.refresh(db_node)
+        await load_node_attrs(db_node)
+        return db_node
 
     db_node.xray_version = None
     db_node.message = None
