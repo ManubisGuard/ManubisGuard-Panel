@@ -410,3 +410,68 @@ async def test_full_form_coefficient_edit_does_not_restart_node(monkeypatch: pyt
     update.assert_not_awaited()
     disconnect.assert_not_awaited()
     restart.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_missing_secondary_core_reports_error_without_starting(monkeypatch: pytest.MonkeyPatch):
+    node = SimpleNamespace(id=77, name="mixed-node", core_config_id=1, core_config_ids=[1, 7], status=NodeStatus.connected)
+    monkeypatch.setattr(node_operation_module, "get_node_by_id", AsyncMock(return_value=node))
+    monkeypatch.setattr(
+        NodeOperation, "_get_core_users_map", AsyncMock(return_value=({1: object(), 7: None}, {1: [], 7: []}))
+    )
+    status_update = AsyncMock()
+    start = AsyncMock()
+    monkeypatch.setattr(node_operation_module, "update_node_status", status_update)
+    monkeypatch.setattr(node_operation_module.node_manager, "update_node", start)
+    monkeypatch.setattr(node_operation_module.notification, "error_node", AsyncMock())
+    operation = NodeOperation.__new__(NodeOperation)
+
+    await operation._connect_single_node_local(SimpleNamespace(), node.id)
+
+    status_update.assert_awaited_once()
+    assert status_update.await_args.kwargs["status"] == NodeStatus.error
+    assert "7" in status_update.await_args.kwargs["message"]
+    start.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_missing_core_bulk_does_not_report_partial_connection(monkeypatch: pytest.MonkeyPatch):
+    node = SimpleNamespace(id=77, name="mixed-node", core_config_id=1, core_config_ids=[1, 7], status=NodeStatus.connected)
+    monkeypatch.setattr(
+        NodeOperation, "_get_core_users_map", AsyncMock(return_value=({1: object(), 7: None}, {1: [], 7: []}))
+    )
+    monkeypatch.setattr(node_operation_module.ManagedCertificateService, "list_domains", AsyncMock(return_value=[]))
+    node_update = AsyncMock()
+    bulk_update = AsyncMock()
+    monkeypatch.setattr(node_operation_module.node_manager, "update_node", node_update)
+    monkeypatch.setattr(node_operation_module, "bulk_update_node_status", bulk_update)
+    operation = NodeOperation.__new__(NodeOperation)
+
+    await operation._connect_nodes_bulk_local(SimpleNamespace(commit=AsyncMock()), [node])
+
+    bulk_update.assert_awaited_once()
+    result = bulk_update.await_args.args[1][0]
+    assert result["status"] == NodeStatus.error
+    assert "7" in result["message"]
+    node_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error_code", [-1, 409])
+async def test_additive_core_error_cannot_attach_to_other_healthy_core(monkeypatch: pytest.MonkeyPatch, error_code: int):
+    db_node = SimpleNamespace(id=19, name="mixed-node", status=NodeStatus.connected)
+    pg_node = object()
+    monkeypatch.setattr(node_operation_module.node_manager, "get_node", AsyncMock(return_value=pg_node))
+    monkeypatch.setattr(
+        NodeOperation, "_start_or_attach_node", AsyncMock(side_effect=NodeAPIError(error_code, "secondary core not verified"))
+    )
+    attach = AsyncMock(return_value=SimpleNamespace(node_version="0.5.4", core_version="26.3.27"))
+    monkeypatch.setattr(NodeOperation, "_attach_if_running", attach)
+
+    result = await NodeOperation.connect_node(
+        db_node, SimpleNamespace(type=node_operation_module.CoreType.wg), [], additive=True
+    )
+
+    assert result["status"] == NodeStatus.error
+    assert "secondary core not verified" in result["message"]
+    attach.assert_not_awaited()
